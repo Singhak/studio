@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -68,7 +69,7 @@ export function BookingCalendar() {
             mode="single"
             selected={selectedDate}
             onSelect={setSelectedDate}
-            className="rounded-md border p-0"
+            className="rounded-md border" // Removed p-0 to use default internal padding
             disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1))} // Disable past dates
           />
         </div>
@@ -77,7 +78,7 @@ export function BookingCalendar() {
             Available Slots for {selectedDate ? selectedDate.toLocaleDateString() : '...'}
           </h3>
           {timeSlots.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
               {timeSlots.map((slot) => (
                 <Button
                   key={slot.startTime}
