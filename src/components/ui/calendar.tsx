@@ -16,6 +16,8 @@ function Calendar({
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
+  const isDropdownLayout = props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown';
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -24,20 +26,24 @@ function Calendar({
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: cn(
-          "flex flex-col items-center justify-center pt-1 relative space-y-1.5", // Changed: flex-col, items-center, justify-center, space-y-1.5
-          props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown' ? "flex-row justify-between" : "" // Keep row for dropdown layouts
+          "flex pt-1", // Base styling for caption
+          isDropdownLayout
+            ? "flex-row justify-between items-center relative" // Dropdown layout: horizontal, relative for button positioning
+            : "flex-col items-center justify-center space-y-1.5" // Default button layout: vertical stack, items centered
         ),
         caption_label: "text-sm font-medium",
         nav: cn(
-          "space-x-1 flex items-center",
-           props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown' ? "" : "justify-center" // Center buttons only if not dropdown
+          "flex items-center", // Base for nav
+          isDropdownLayout
+            ? "space-x-1" // Dropdown: relies on absolute positioning for buttons
+            : "justify-center space-x-1" // Default: center the nav buttons horizontally
         ),
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
           "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
         ),
-        nav_button_previous: props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown' ? "absolute left-1" : "", // Keep absolute for dropdowns
-        nav_button_next: props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown' ? "absolute right-1" : "", // Keep absolute for dropdowns
+        nav_button_previous: isDropdownLayout ? "absolute left-1" : "",
+        nav_button_next: isDropdownLayout ? "absolute right-1" : "",
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
@@ -71,4 +77,3 @@ function Calendar({
 Calendar.displayName = "Calendar"
 
 export { Calendar }
-
