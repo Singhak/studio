@@ -122,8 +122,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast({ title: "Login Successful!", description: "Welcome back!" });
       return userCredential.user;
     } catch (error: any) {
-      console.error("Error signing in:", error);
-      toast({ variant: "destructive", title: "Login Failed", description: error.message });
+      if (error.code === 'auth/user-not-found') {
+        toast({ variant: "destructive", title: "Login Failed", description: "No account found with this email. Please check your email or sign up." });
+      } else if (error.code === 'auth/wrong-password') {
+        toast({ variant: "destructive", title: "Login Failed", description: "Incorrect password. Please try again." });
+      } else {
+        console.error("Error signing in:", error);
+        toast({ variant: "destructive", title: "Login Failed", description: "An unexpected error occurred. Please try again." });
+      }
       return null;
     } finally {
       setLoading(false);
