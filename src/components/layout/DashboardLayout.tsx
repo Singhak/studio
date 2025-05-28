@@ -15,6 +15,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarInset, // Added SidebarInset here
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/shared/Logo';
 import { Button } from '@/components/ui/button';
