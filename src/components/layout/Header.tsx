@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { Bell, UserCircle, LogIn, UserPlus, Menu, LogOut as LogOutIcon, Settings, LayoutDashboard, PlusCircle } from 'lucide-react'; // Added PlusCircle
+import { Bell, UserCircle, LogIn, UserPlus, Menu, LogOut as LogOutIcon, Settings, LayoutDashboard, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
 import {
@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ThemeToggleButton } from '@/components/shared/ThemeToggleButton'; // Import ThemeToggleButton
 
 const baseNavLinks = [
   { href: '/clubs', label: 'Find Clubs' },
@@ -40,8 +41,6 @@ export function Header() {
   let allNavLinks = [...baseNavLinks];
   if (isAuthenticated) {
     allNavLinks.push({ href: '/dashboard/user', label: 'My Bookings' });
-    // "My Club" / "Owner Dashboard" is better accessed via the user dropdown leading to the main dashboard
-    // where the view switcher (if applicable) resides.
   }
 
 
@@ -50,7 +49,10 @@ export function Header() {
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
           <Logo />
-          <div className="h-6 w-20 animate-pulse rounded-md bg-muted"></div>
+          <div className="flex items-center space-x-2">
+            <div className="h-9 w-9 animate-pulse rounded-full bg-muted"></div>
+            <div className="h-6 w-20 animate-pulse rounded-md bg-muted"></div>
+          </div>
         </div>
       </header>
     );
@@ -73,9 +75,10 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="flex items-center space-x-2 sm:space-x-3">
+        <div className="flex items-center space-x-1 sm:space-x-2">
+          <ThemeToggleButton /> {/* Add Theme Toggle Button */}
           {isAuthenticated && (
-            <Button variant="ghost" size="icon" aria-label="Notifications" className="hidden sm:inline-flex">
+            <Button variant="ghost" size="icon" aria-label="Notifications" className="hidden sm:inline-flex h-9 w-9">
                 <Bell className="h-5 w-5" />
             </Button>
           )}
@@ -138,7 +141,10 @@ export function Header() {
               </SheetTrigger>
               <SheetContent side="right" className="w-[300px] sm:w-[400px]">
                 <div className="p-6">
-                  <Logo className="mb-8" />
+                  <div className="flex justify-between items-center mb-8">
+                    <Logo />
+                    {/* Theme toggle can also be added here if desired for mobile sheet */}
+                  </div>
                   <nav className="flex flex-col space-y-4">
                     {allNavLinks.map((link) => (
                       <Link

@@ -1,13 +1,12 @@
 
 import type {Metadata} from 'next';
 import { GeistSans } from 'geist/font/sans';
-import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
-import { AuthProvider } from '@/contexts/AuthContext'; // Import AuthProvider
+import { AuthProvider } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 const geistSans = GeistSans;
-const geistMono = GeistMono;
 
 export const metadata: Metadata = {
   title: 'Courtly - Book Sports Courts',
@@ -20,12 +19,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable}`}>
       <body className="font-sans antialiased">
-        <AuthProvider> {/* Wrap children with AuthProvider */}
-          {children}
-          <Toaster />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
