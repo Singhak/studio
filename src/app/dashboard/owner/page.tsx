@@ -1,3 +1,6 @@
+
+"use client"; // Required for onClick handlers with hooks like useToast
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +10,7 @@ import type { Booking, Club } from "@/lib/types";
 import { mockClubs } from '@/lib/mockData';
 import Link from 'next/link';
 import { PlusCircle, Edit, Settings, BarChart3, Users, DollarSign, Eye, CheckCircle, XCircle, Trash2, Building } from "lucide-react";
+import { useToast } from "@/hooks/use-toast"; // Import useToast
 
 // Mock data: assume owner has one club or none
 const ownerClub: Club | null = mockClubs[0]; // Or null if no club
@@ -28,6 +32,8 @@ const statusBadgeVariant = (status: Booking['status']) => {
 };
 
 export default function OwnerDashboardPage() {
+  const { toast } = useToast(); // Initialize toast
+
   if (!ownerClub) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -137,7 +143,21 @@ export default function OwnerDashboardPage() {
                         <TableCell className="text-right space-x-1">
                            {booking.status === 'pending' && (
                             <>
-                              <Button variant="ghost" size="icon" title="Accept Booking" className="text-green-600 hover:text-green-700">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                title="Accept Booking" 
+                                className="text-green-600 hover:text-green-700"
+                                onClick={() => {
+                                    // Placeholder for actual acceptance logic
+                                    console.log("Accepting booking:", booking.id);
+                                    toast({
+                                        title: "Booking Accepted (Simulation)",
+                                        description: `Booking for User ${booking.userId.slice(-1)} has been accepted. A notification would be sent.`,
+                                    });
+                                    // Here you would update booking status in your backend
+                                }}
+                              >
                                 <CheckCircle className="h-5 w-5" />
                               </Button>
                               <Button variant="ghost" size="icon" title="Reject Booking" className="text-red-600 hover:text-red-700">

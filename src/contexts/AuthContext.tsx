@@ -11,14 +11,14 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
-  // PhoneAuthProvider, // Not directly used here, but for types in firebase/auth
   RecaptchaVerifier,
   signInWithPhoneNumber as firebaseSignInWithPhoneNumber,
   type ConfirmationResult
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config'; // Your Firebase auth instance
-import { useRouter, usePathname } from 'next/navigation'; // Added usePathname
-import { useToast } from "@/hooks/use-toast"; // Import useToast
+import { useRouter, usePathname } from 'next/navigation';
+import { useToast } from "@/hooks/use-toast";
+import { requestNotificationPermission, onForegroundMessageListener } from '@/lib/firebase/messaging'; // Import FCM functions
 
 interface AuthContextType {
   currentUser: User | null;
@@ -40,40 +40,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [profileCompletionPending, setProfileCompletionPending] = useState(false);
   const router = useRouter();
-  const pathname = usePathname(); // Get current pathname
-  const { toast } = useToast(); // Initialize useToast
+  const pathname = usePathname();
+  const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    let unsubscribeForegroundMessages: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => { // Made async
       setCurrentUser(user);
-      if (user && localStorage.getItem(`profileCompletionPending_${user.uid}`) === 'true') {
-        setProfileCompletionPending(true);
-        localStorage.removeItem(`profileCompletionPending_${user.uid}`); // Clean up
+      if (user) {
+        if (localStorage.getItem(`profileCompletionPending_${user.uid}`) === 'true') {
+          setProfileCompletionPending(true);
+          localStorage.removeItem(`profileCompletionPending_${user.uid}`);
+        }
+        // Request notification permission and listen for foreground messages
+        await requestNotificationPermission(); // Call this to get token and show initial toasts
+        unsubscribeForegroundMessages = await onForegroundMessageListener(); // Set up listener
+      } else {
+        // If user logs out, unsubscribe from foreground messages
+        if (unsubscribeForegroundMessages) {
+          unsubscribeForegroundMessages();
+          unsubscribeForegroundMessages = null;
+        }
       }
       setLoading(false);
     });
-    return () => unsubscribe();
-  }, []);
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeForegroundMessages) {
+        unsubscribeForegroundMessages();
+      }
+    };
+  }, []); // Empty dependency array ensures this runs once on mount
 
   useEffect(() => {
-    if (loading) return; // Don't run redirection logic until auth state is resolved
+    if (loading) return;
 
     if (currentUser && profileCompletionPending && pathname !== '/auth/complete-profile') {
       router.push('/auth/complete-profile');
     } else if (currentUser && !profileCompletionPending) {
       const authPages = ['/login', '/register', '/auth/complete-profile'];
       if (authPages.includes(pathname)) {
-         // For now, always redirect to user dashboard.
-         // Later, this could check a persisted role.
         router.push('/dashboard/user');
       }
     } else if (!currentUser) {
       const protectedAuthPages = ['/auth/complete-profile'];
-      // Basic protection for complete-profile page
       if (protectedAuthPages.includes(pathname)) {
         router.push('/login');
       }
-      // More robust protected route handling would be done with middleware or HOCs
     }
   }, [currentUser, profileCompletionPending, loading, router, pathname]);
 
@@ -90,7 +105,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error.code === 'auth/email-already-in-use') {
         toast({ variant: "destructive", title: "Registration Failed", description: "This email address is already in use. Please try logging in or use a different email address." });
       } else {
-        console.error("Error signing up:", error); // Log other unexpected errors
+        console.error("Error signing up:", error);
         toast({ variant: "destructive", title: "Registration Failed", description: error.message });
       }
       return null;
@@ -103,7 +118,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      setProfileCompletionPending(false); // Assume complete for direct email sign-in
+      setProfileCompletionPending(false);
       toast({ title: "Login Successful!", description: "Welcome back!" });
       return userCredential.user;
     } catch (error: any) {
@@ -174,12 +189,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-
   const logoutUser = async () => {
     setLoading(true);
     try {
       await signOut(auth);
-      setProfileCompletionPending(false); // Reset on logout
+      setProfileCompletionPending(false);
       toast({ title: "Logged Out", description: "You have been successfully logged out." });
       router.push('/');
     } catch (error: any) {
