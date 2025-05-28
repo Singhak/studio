@@ -39,9 +39,9 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         </div>
       </section>
 
-      <div className="grid md:grid-cols-3 gap-8">
+      <div className="grid lg:grid-cols-3 gap-8"> {/* Changed md:grid-cols-3 to lg:grid-cols-3 */}
         {/* Main Content - Left Column */}
-        <div className="md:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-8"> {/* Changed md:col-span-2 to lg:col-span-2 */}
           {/* Description Card */}
           <Card>
             <CardHeader>
@@ -122,7 +122,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
           )}
         </div>
 
-        {/* Sidebar - Right Column */}
+        {/* Sidebar - Right Column (will stack below main content on screens smaller than lg) */}
         <div className="space-y-8">
           <BookingCalendar /> {/* This component uses its own mock data for time slots */}
           <Button 
