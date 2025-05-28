@@ -1,8 +1,10 @@
+
 "use client";
 
 import type { ReactNode } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   SidebarProvider,
   Sidebar,
@@ -13,15 +15,19 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  SidebarInset,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/shared/Logo';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, Repeat, ChevronDown } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -37,7 +43,7 @@ const ownerNavItems = [
   { href: '/dashboard/owner', label: 'Club Overview', icon: LayoutDashboard },
   { href: '/dashboard/owner/bookings', label: 'Manage Bookings', icon: CalendarDays },
   { href: '/dashboard/owner/services', label: 'Services & Pricing', icon: CreditCard },
-  { href: '/dashboard/owner/availability', label: 'Availability', icon: ShieldCheck }, // Using ShieldCheck as placeholder
+  { href: '/dashboard/owner/availability', label: 'Availability', icon: ShieldCheck },
   { href: '/dashboard/owner/settings', label: 'Club Settings', icon: Settings },
 ];
 
@@ -50,18 +56,59 @@ const userRole: 'user' | 'owner' = 'owner'; // Change to 'user' or 'owner' to te
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
-  const navItems = userRole === 'owner' ? ownerNavItems : userNavItems;
+  const router = useRouter();
+  const [currentView, setCurrentView] = useState<'user' | 'owner'>(userRole);
+
+  useEffect(() => {
+    // If the userRole changes (e.g. after login), reset the view
+    setCurrentView(userRole);
+  }, [userRole]);
+
+  const handleViewChange = (newView: 'user' | 'owner') => {
+    setCurrentView(newView);
+    if (newView === 'owner') {
+      router.push('/dashboard/owner');
+    } else {
+      router.push('/dashboard/user');
+    }
+  };
+
+  const navItems = currentView === 'owner' ? ownerNavItems : userNavItems;
+  const isOwnerRole = userRole === 'owner';
+
 
   return (
     <SidebarProvider defaultOpen>
       <Sidebar collapsible="icon" className="border-r">
-        <SidebarHeader className="p-4">
+        <SidebarHeader className="p-4 flex flex-col space-y-3">
           <div className="flex items-center justify-between">
             <Logo className="text-lg" />
             <SidebarTrigger className="md:hidden" />
           </div>
+          {isOwnerRole && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between text-xs sm:text-sm">
+                  <span>Viewing as: {currentView === 'owner' ? 'Owner' : 'User'}</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[var(--sidebar-width-icon)] sm:w-[calc(var(--sidebar-width)-2rem)] md:w-[calc(var(--sidebar-width)-2rem)] group-data-[collapsible=icon]:w-auto">
+                <DropdownMenuLabel>Switch View</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleViewChange('user')} disabled={currentView === 'user'}>
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  <span>User View</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleViewChange('owner')} disabled={currentView === 'owner'}>
+                  <Building className="mr-2 h-4 w-4" />
+                  <span>Owner View</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </SidebarHeader>
-        <ScrollArea className="h-[calc(100vh-12rem)]"> {/* Adjust height based on header/footer */}
+        <ScrollArea className="h-[calc(100vh-12rem-4rem)]"> {/* Adjusted height for switcher */}
           <SidebarContent className="p-2">
             <SidebarMenu>
               {navItems.map((item) => (
@@ -78,7 +125,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              {userRole === 'owner' && (
+              {isOwnerRole && currentView === 'owner' && (
                  <SidebarMenuItem>
                     <SidebarMenuButton
                         asChild
