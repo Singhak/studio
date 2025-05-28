@@ -87,7 +87,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return userCredential.user;
     } catch (error: any) {
       console.error("Error signing up:", error);
-      alert(`Error signing up: ${error.message}`);
+      if (error.code === 'auth/email-already-in-use') {
+        alert("This email address is already in use. Please try logging in or use a different email address.");
+      } else {
+        alert(`Error signing up: ${error.message}`);
+      }
       return null;
     } finally {
       setLoading(false);

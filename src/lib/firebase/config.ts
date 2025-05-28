@@ -9,13 +9,14 @@ import { getAuth } from "firebase/auth";
 // import { getStorage } from "firebase/storage"; // If you use Storage
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
-  measurementId: "YOUR_MEASUREMENT_ID" // Optional
+  apiKey: "AIzaSyB70RPghxuHHHvDs2zMbfyuV2ai0Gj9bp0",
+  authDomain: "oursolutioncafe.firebaseapp.com",
+  databaseURL: "https://oursolutioncafe-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "oursolutioncafe",
+  storageBucket: "oursolutioncafe.firebasestorage.app",
+  messagingSenderId: "190930468455",
+  appId: "1:190930468455:web:474cb33f26ee3c531d9ec2",
+  measurementId: "G-5RGCC01CHW"
 };
 
 // Initialize Firebase
