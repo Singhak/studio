@@ -141,13 +141,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       return confirmationResult;
     } catch (error: any) {
-      console.error("Error sending SMS for phone auth:", error);
       if ((window as any).recaptchaVerifier) {
         (window as any).recaptchaVerifier.render().then((widgetId: any) => {
            if(typeof grecaptcha !== 'undefined' && grecaptcha.reset) grecaptcha.reset(widgetId);
         });
       }
-      toast({ variant: "destructive", title: "Phone Sign-In Error", description: error.message });
+      if (error.code === 'auth/operation-not-allowed') {
+        toast({ variant: "destructive", title: "Phone Sign-In Error", description: "Phone number sign-in is not enabled for this project. Please enable it in the Firebase console." });
+      } else {
+        console.error("Error sending SMS for phone auth:", error);
+        toast({ variant: "destructive", title: "Phone Sign-In Error", description: error.message });
+      }
       setLoading(false);
       return null;
     }
