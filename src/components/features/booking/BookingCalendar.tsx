@@ -63,13 +63,13 @@ export function BookingCalendar() {
           <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid md:grid-cols-2 gap-6">
+      <CardContent className="grid lg:grid-cols-2 gap-6"> {/* Changed md:grid-cols-2 to lg:grid-cols-2 */}
         <div>
           <Calendar
             mode="single"
             selected={selectedDate}
             onSelect={setSelectedDate}
-            className="rounded-md border" // Removed p-0 to use default internal padding
+            className="rounded-md border"
             disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1))} // Disable past dates
           />
         </div>
