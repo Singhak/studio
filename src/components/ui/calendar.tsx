@@ -26,17 +26,17 @@ function Calendar({
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: cn(
-          "flex pt-1", // Base styling for caption
+          "flex pt-1 relative", // Added relative for dropdown button positioning
           isDropdownLayout
-            ? "flex-row justify-between items-center relative" // Dropdown layout: horizontal, relative for button positioning
+            ? "flex-row justify-between items-center" // Dropdown layout: horizontal, items centered
             : "flex-col items-center justify-center space-y-1.5" // Default button layout: vertical stack, items centered
         ),
         caption_label: "text-sm font-medium",
         nav: cn(
-          "flex items-center", // Base for nav
+          "flex items-center",
           isDropdownLayout
-            ? "space-x-1" // Dropdown: relies on absolute positioning for buttons
-            : "justify-center space-x-1" // Default: center the nav buttons horizontally
+            ? "space-x-1" // For dropdowns where buttons might be absolute
+            : "w-full flex-row justify-center space-x-1" // For default: ensure nav takes width, then center its children horizontally
         ),
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
@@ -77,3 +77,4 @@ function Calendar({
 Calendar.displayName = "Calendar"
 
 export { Calendar }
+
