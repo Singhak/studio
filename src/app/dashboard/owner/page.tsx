@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Booking, Club } from "@/lib/types";
 import { mockClubs } from '@/lib/mockData';
 import Link from 'next/link';
-import { PlusCircle, Edit, Settings, BarChart3, Users, DollarSign, Eye, CheckCircle, XCircle } from "lucide-react";
+import { PlusCircle, Edit, Settings, BarChart3, Users, DollarSign, Eye, CheckCircle, XCircle, Trash2, Building } from "lucide-react";
 
 // Mock data: assume owner has one club or none
 const ownerClub: Club | null = mockClubs[0]; // Or null if no club
