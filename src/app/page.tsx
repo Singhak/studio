@@ -1,11 +1,30 @@
+
+"use client";
+
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, PlayCircle, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { FormEvent } from 'react';
 
 export default function HomePage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const router = useRouter();
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = searchTerm.trim();
+    if (query) {
+      router.push(`/clubs?q=${encodeURIComponent(query)}`);
+    } else {
+      router.push('/clubs');
+    }
+  };
+
   return (
     <AppLayout>
       <section className="relative py-20 md:py-32 bg-gradient-to-br from-primary/10 via-background to-background">
@@ -18,12 +37,14 @@ export default function HomePage() {
             Discover and reserve courts for tennis, badminton, squash, and more. Courtly connects you with the best local sports clubs.
           </p>
           <div className="mt-10 max-w-md mx-auto">
-            <form className="flex gap-2">
+            <form className="flex gap-2" onSubmit={handleSearchSubmit}>
               <Input
                 type="text"
                 placeholder="Search by sport or club name..."
                 className="flex-grow text-base"
                 aria-label="Search clubs"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
               <Button type="submit" size="lg" className="text-base">
                 <Search className="mr-2 h-5 w-5" /> Find
