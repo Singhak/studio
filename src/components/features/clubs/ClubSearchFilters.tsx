@@ -1,28 +1,48 @@
+
 "use client";
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, MapPin, Zap } from 'lucide-react'; // Zap for sport
+import { Search, MapPin, Zap } from 'lucide-react'; 
 import { SPORTS_TYPES } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
 
-export function ClubSearchFilters() {
-  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
+interface ClubSearchFiltersProps {
+  initialSearchTerm?: string;
+}
+
+export function ClubSearchFilters({ initialSearchTerm = "" }: ClubSearchFiltersProps) {
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+
+  useEffect(() => {
+    setSearchTerm(initialSearchTerm);
+  }, [initialSearchTerm]);
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // Placeholder for search logic
-    console.log("Search submitted");
+    // Placeholder for actual search logic.
+    // You would typically use `searchTerm` and other filter values to
+    // re-fetch or filter the club list.
+    console.log("Search submitted with term:", searchTerm);
+    // For example, you might call a prop function: onSearch({ searchTerm, sport, location });
   };
 
   return (
     <Card className="mb-8 shadow-md">
       <CardContent className="p-6">
-        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div className="space-y-1.5">
-            <label htmlFor="searchTerm" className="text-sm font-medium text-muted-foreground flex items-center">
+            <label htmlFor="clubSearchTerm" className="text-sm font-medium text-muted-foreground flex items-center">
               <Search className="w-4 h-4 mr-2" /> Search Club or Sport
             </label>
-            <Input id="searchTerm" placeholder="e.g., Grand Slam Tennis" />
+            <Input
+              id="clubSearchTerm"
+              placeholder="e.g., Grand Slam Tennis"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
           
           <div className="space-y-1.5">
