@@ -26,25 +26,23 @@ function Calendar({
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: cn(
-          "flex pt-1 relative items-center", // Common base styles
-          isDropdownLayout 
-            ? "justify-between" // For dropdowns: Label (with dropdowns) on left, Nav (with buttons) on right
-            : "justify-between" // For default buttons: [Prev] Label [Next]
+          "flex pt-1 items-center justify-between", // Default: pushes items to ends
+          isDropdownLayout && "relative" // Add relative only if dropdown layout uses absolute for nav buttons
         ),
         caption_label: "text-sm font-medium",
-        nav: cn( // This div wraps both prev/next buttons if captionLayout is dropdowns
+        nav: cn( // This div wraps both prev/next buttons IF captionLayout is dropdowns or similar
           "flex items-center",
-          isDropdownLayout ? "space-x-1" : "" // For default buttons layout, this 'nav' div might not be the primary positioner of individual buttons
+          isDropdownLayout ? "space-x-1" : "" 
         ),
         nav_button: cn( // Common style for both nav buttons
           buttonVariants({ variant: "outline" }),
           "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
         ),
         nav_button_previous: cn( // Specific to previous button
-          isDropdownLayout ? "absolute left-1" : "" // Only absolute if dropdown layout places nav group
+          isDropdownLayout ? "absolute left-1" : "" 
         ),
         nav_button_next: cn( // Specific to next button
-          isDropdownLayout ? "absolute right-1" : "" // Only absolute if dropdown layout places nav group
+          isDropdownLayout ? "absolute right-1" : ""
         ),
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
