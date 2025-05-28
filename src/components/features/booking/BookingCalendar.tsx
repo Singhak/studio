@@ -5,11 +5,13 @@ import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clock } from 'lucide-react';
+import { Clock, Loader2 } from 'lucide-react'; // Added Loader2
 import type { TimeSlot } from '@/lib/types';
+import { format } from 'date-fns'; // Import date-fns
 
 // Mock time slots generation
 const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
+  // This function uses Math.random(), so it must be called client-side after hydration
   if (!date) return [];
   const day = date.getDay(); // Sunday - Saturday : 0 - 6
   // Fewer slots on weekends, more on weekdays for variety
@@ -29,32 +31,40 @@ const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
 
 
 export function BookingCalendar() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined); // Initialize to undefined
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [clientLoaded, setClientLoaded] = useState(false);
 
   useEffect(() => {
     setClientLoaded(true);
-    if (selectedDate) {
-      setTimeSlots(generateMockTimeSlots(selectedDate));
-    }
-  }, [selectedDate]);
+    setSelectedDate(new Date()); // Set initial date on client mount
+  }, []); // Runs once on mount
 
-  if (!clientLoaded) {
-    // Render a placeholder or null on the server to avoid hydration mismatch for new Date()
+  useEffect(() => {
+    if (clientLoaded && selectedDate) {
+      setTimeSlots(generateMockTimeSlots(selectedDate));
+      setSelectedTimeSlot(null); // Reset selected time slot when date changes
+    } else if (clientLoaded && !selectedDate) {
+      setTimeSlots([]);
+      setSelectedTimeSlot(null);
+    }
+  }, [selectedDate, clientLoaded]);
+
+  if (!clientLoaded || selectedDate === undefined) { // Show loader until client is ready and date is set
     return (
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-xl">Select Date & Time</CardTitle>
+          <CardTitle className="text-xl flex items-center">
+             <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="p-4 text-center text-muted-foreground">Loading calendar...</div>
+        <CardContent className="flex justify-center items-center min-h-[200px]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </CardContent>
       </Card>
     );
   }
-
 
   return (
     <Card className="shadow-lg">
@@ -63,19 +73,21 @@ export function BookingCalendar() {
           <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid lg:grid-cols-2 gap-6"> {/* Changed md:grid-cols-2 to lg:grid-cols-2 */}
-        <div>
+      <CardContent className="grid lg:grid-cols-2 gap-6">
+        <div className="overflow-x-auto"> {/* Container for Calendar to allow horizontal scroll if needed */}
           <Calendar
             mode="single"
             selected={selectedDate}
-            onSelect={setSelectedDate}
-            className="rounded-md border"
+            onSelect={(date) => {
+              setSelectedDate(date);
+            }}
+            className="rounded-md border" // Calendar's own styling
             disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1))} // Disable past dates
           />
         </div>
         <div>
           <h3 className="text-lg font-semibold mb-3 text-foreground">
-            Available Slots for {selectedDate ? selectedDate.toLocaleDateString() : '...'}
+            Available Slots for {selectedDate ? format(selectedDate, 'MMM d, yyyy') : '...'}
           </h3>
           {timeSlots.length > 0 ? (
             <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
@@ -92,7 +104,9 @@ export function BookingCalendar() {
               ))}
             </div>
           ) : (
-            <p className="text-muted-foreground">No slots available for this date, or select a date.</p>
+            <p className="text-muted-foreground">
+              {selectedDate ? "No slots available for this date." : "Please select a date to see available slots."}
+            </p>
           )}
         </div>
       </CardContent>
