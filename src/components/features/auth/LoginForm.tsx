@@ -7,7 +7,7 @@ import * as z from "zod";
 import Link from "next/link";
 // import { useRouter } from 'next/navigation'; // No longer needed for direct navigation here
 import React, { useState, useEffect } from 'react';
-import { type RecaptchaVerifier, type ConfirmationResult } from 'firebase/auth';
+import { RecaptchaVerifier, type ConfirmationResult } from 'firebase/auth'; // Added RecaptchaVerifier
 import { auth } from '@/lib/firebase/config'; 
 
 import { Button } from "@/components/ui/button";
