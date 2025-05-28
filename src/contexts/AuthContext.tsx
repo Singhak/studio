@@ -3,9 +3,9 @@
 
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  User, 
-  onAuthStateChanged, 
+import {
+  User,
+  onAuthStateChanged,
   signOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -18,6 +18,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config'; // Your Firebase auth instance
 import { useRouter, usePathname } from 'next/navigation'; // Added usePathname
+import { useToast } from "@/hooks/use-toast"; // Import useToast
 
 interface AuthContextType {
   currentUser: User | null;
@@ -40,6 +41,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profileCompletionPending, setProfileCompletionPending] = useState(false);
   const router = useRouter();
   const pathname = usePathname(); // Get current pathname
+  const { toast } = useToast(); // Initialize useToast
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -50,7 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       setLoading(false);
     });
-    return () => unsubscribe(); 
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else if (currentUser && !profileCompletionPending) {
       const authPages = ['/login', '/register', '/auth/complete-profile'];
       if (authPages.includes(pathname)) {
-         // For now, always redirect to user dashboard. 
+         // For now, always redirect to user dashboard.
          // Later, this could check a persisted role.
         router.push('/dashboard/user');
       }
@@ -80,17 +82,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // Instead of setting currentUser directly, onAuthStateChanged will pick it up.
-      // Set pending flag, onAuthStateChanged will handle it
       localStorage.setItem(`profileCompletionPending_${userCredential.user.uid}`, 'true');
-      setProfileCompletionPending(true); // Also set in-memory for immediate effect if needed
+      setProfileCompletionPending(true);
+      toast({ title: "Registration Successful!", description: "Please complete your profile." });
       return userCredential.user;
     } catch (error: any) {
       console.error("Error signing up:", error);
       if (error.code === 'auth/email-already-in-use') {
-        alert("This email address is already in use. Please try logging in or use a different email address.");
+        toast({ variant: "destructive", title: "Registration Failed", description: "This email address is already in use. Please try logging in or use a different email address." });
       } else {
-        alert(`Error signing up: ${error.message}`);
+        toast({ variant: "destructive", title: "Registration Failed", description: error.message });
       }
       return null;
     } finally {
@@ -102,12 +103,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // For existing users, profile completion is not pending unless determined otherwise (e.g., from Firestore)
       setProfileCompletionPending(false); // Assume complete for direct email sign-in
+      toast({ title: "Login Successful!", description: "Welcome back!" });
       return userCredential.user;
     } catch (error: any) {
       console.error("Error signing in:", error);
-      alert(`Error signing in: ${error.message}`);
+      toast({ variant: "destructive", title: "Login Failed", description: error.message });
       return null;
     } finally {
       setLoading(false);
@@ -119,25 +120,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      // For Google sign-in, assume profile completion is needed if it's a new user
-      // This is a simplification. A real app checks if profile data exists in Firestore.
-      // For now, we'll always trigger profile completion for Google sign-in for demo.
       localStorage.setItem(`profileCompletionPending_${result.user.uid}`, 'true');
       setProfileCompletionPending(true);
+      toast({ title: "Google Sign-In Successful!", description: "Please complete your profile if this is your first time." });
       return result.user;
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
-      alert(`Error signing in with Google: ${error.message}`);
+      toast({ variant: "destructive", title: "Google Sign-In Failed", description: error.message });
       return null;
     } finally {
       setLoading(false);
     }
   };
-  
+
   const signInWithPhoneNumberFlow = async (phoneNumber: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
     setLoading(true);
     try {
       const confirmationResult = await firebaseSignInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      toast({ title: "Verification Code Sent", description: "Please check your phone for the SMS code." });
       setLoading(false);
       return confirmationResult;
     } catch (error: any) {
@@ -147,7 +147,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
            if(typeof grecaptcha !== 'undefined' && grecaptcha.reset) grecaptcha.reset(widgetId);
         });
       }
-      alert(`Error with phone sign-in: ${error.message}`);
+      toast({ variant: "destructive", title: "Phone Sign-In Error", description: error.message });
       setLoading(false);
       return null;
     }
@@ -157,14 +157,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userCredential = await confirmationResult.confirm(code);
-      // Similar to Google/Email signup, assume profile completion needed.
       localStorage.setItem(`profileCompletionPending_${userCredential.user.uid}`, 'true');
       setProfileCompletionPending(true);
+      toast({ title: "Phone Sign-In Successful!", description: "Please complete your profile." });
       setLoading(false);
       return userCredential.user;
     } catch (error: any) {
       console.error("Error verifying phone code:", error);
-      alert(`Error verifying code: ${error.message}`);
+      toast({ variant: "destructive", title: "Verification Failed", description: error.message });
       setLoading(false);
       return null;
     }
@@ -176,11 +176,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await signOut(auth);
       setProfileCompletionPending(false); // Reset on logout
-      // onAuthStateChanged will set currentUser to null
-      router.push('/'); 
+      toast({ title: "Logged Out", description: "You have been successfully logged out." });
+      router.push('/');
     } catch (error: any) {
       console.error("Error signing out:", error);
-      alert(`Error signing out: ${error.message}`);
+      toast({ variant: "destructive", title: "Logout Failed", description: error.message });
     } finally {
       setLoading(false);
     }
@@ -190,7 +190,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     currentUser,
     loading,
     profileCompletionPending,
-    setProfileCompletionPending, // Make this available to CompleteProfileForm
+    setProfileCompletionPending,
     signUpWithEmail,
     signInWithEmail,
     signInWithGoogle,
