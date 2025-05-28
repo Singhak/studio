@@ -87,10 +87,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast({ title: "Registration Successful!", description: "Please complete your profile." });
       return userCredential.user;
     } catch (error: any) {
-      console.error("Error signing up:", error);
       if (error.code === 'auth/email-already-in-use') {
         toast({ variant: "destructive", title: "Registration Failed", description: "This email address is already in use. Please try logging in or use a different email address." });
       } else {
+        console.error("Error signing up:", error); // Log other unexpected errors
         toast({ variant: "destructive", title: "Registration Failed", description: error.message });
       }
       return null;
