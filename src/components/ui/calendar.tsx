@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -22,15 +23,21 @@ function Calendar({
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex justify-center pt-1 relative items-center",
+        caption: cn(
+          "flex flex-col items-center justify-center pt-1 relative space-y-1.5", // Changed: flex-col, items-center, justify-center, space-y-1.5
+          props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown' ? "flex-row justify-between" : "" // Keep row for dropdown layouts
+        ),
         caption_label: "text-sm font-medium",
-        nav: "space-x-1 flex items-center",
+        nav: cn(
+          "space-x-1 flex items-center",
+           props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown' ? "" : "justify-center" // Center buttons only if not dropdown
+        ),
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
           "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
         ),
-        nav_button_previous: "absolute left-1",
-        nav_button_next: "absolute right-1",
+        nav_button_previous: props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown' ? "absolute left-1" : "", // Keep absolute for dropdowns
+        nav_button_next: props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown' ? "absolute right-1" : "", // Keep absolute for dropdowns
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
@@ -46,7 +53,7 @@ function Calendar({
           "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
         day_today: "bg-accent text-accent-foreground",
         day_outside:
-          "day-outside text-muted-foreground aria-selected:bg-accent/50 aria-selected:text-muted-foreground",
+          "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-100", // Ensure selected outside days are not too dim
         day_disabled: "text-muted-foreground opacity-50",
         day_range_middle:
           "aria-selected:bg-accent aria-selected:text-accent-foreground",
@@ -54,12 +61,8 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ className, ...props }) => (
-          <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
-        ),
-        IconRight: ({ className, ...props }) => (
-          <ChevronRight className={cn("h-4 w-4", className)} {...props} />
-        ),
+        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" {...props} />,
+        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" {...props} />,
       }}
       {...props}
     />
@@ -68,3 +71,4 @@ function Calendar({
 Calendar.displayName = "Calendar"
 
 export { Calendar }
+
