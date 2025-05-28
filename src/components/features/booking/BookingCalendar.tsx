@@ -5,9 +5,9 @@ import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clock, Loader2 } from 'lucide-react'; // Added Loader2
+import { Clock, Loader2 } from 'lucide-react';
 import type { TimeSlot } from '@/lib/types';
-import { format } from 'date-fns'; // Import date-fns
+import { format } from 'date-fns';
 
 // Mock time slots generation
 const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
@@ -31,27 +31,27 @@ const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
 
 
 export function BookingCalendar() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined); // Initialize to undefined
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [clientLoaded, setClientLoaded] = useState(false);
 
   useEffect(() => {
     setClientLoaded(true);
-    setSelectedDate(new Date()); // Set initial date on client mount
-  }, []); // Runs once on mount
+    setSelectedDate(new Date()); 
+  }, []); 
 
   useEffect(() => {
     if (clientLoaded && selectedDate) {
       setTimeSlots(generateMockTimeSlots(selectedDate));
-      setSelectedTimeSlot(null); // Reset selected time slot when date changes
+      setSelectedTimeSlot(null); 
     } else if (clientLoaded && !selectedDate) {
       setTimeSlots([]);
       setSelectedTimeSlot(null);
     }
   }, [selectedDate, clientLoaded]);
 
-  if (!clientLoaded || selectedDate === undefined) { // Show loader until client is ready and date is set
+  if (!clientLoaded || selectedDate === undefined) { 
     return (
       <Card className="shadow-lg">
         <CardHeader>
@@ -73,16 +73,16 @@ export function BookingCalendar() {
           <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid lg:grid-cols-2 gap-6">
-        <div className="overflow-x-auto"> {/* Container for Calendar to allow horizontal scroll if needed */}
+      <CardContent className="space-y-6"> {/* Changed from grid lg:grid-cols-2 to space-y-6 */}
+        <div className="overflow-x-auto flex justify-center"> {/* Centering the calendar */}
           <Calendar
             mode="single"
             selected={selectedDate}
             onSelect={(date) => {
               setSelectedDate(date);
             }}
-            className="rounded-md border" // Calendar's own styling
-            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1))} // Disable past dates
+            className="rounded-md border" 
+            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1))} 
           />
         </div>
         <div>
