@@ -1,0 +1,66 @@
+import type { Club } from '@/lib/types';
+import Image from 'next/image';
+import Link from 'next/link';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { MapPin, Zap, Star } from 'lucide-react'; // Zap for sport, Star for rating
+import { Badge } from '@/components/ui/badge';
+
+interface ClubCardProps {
+  club: Club;
+}
+
+export function ClubCard({ club }: ClubCardProps) {
+  const placeholderImage = club.images && club.images.length > 0 ? club.images[0] : 'https://placehold.co/600x400.png';
+  
+  return (
+    <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg">
+      <CardHeader className="p-0">
+        <Link href={`/clubs/${club.id}`} className="block aspect-[16/9] overflow-hidden">
+          <Image
+            src={placeholderImage}
+            alt={club.name}
+            width={600}
+            height={400}
+            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            data-ai-hint={`${club.sport.toLowerCase()} court`}
+          />
+        </Link>
+      </CardHeader>
+      <CardContent className="p-4 flex-grow">
+        <Link href={`/clubs/${club.id}`}>
+          <CardTitle className="text-xl font-semibold mb-1 hover:text-primary transition-colors">{club.name}</CardTitle>
+        </Link>
+        <div className="flex items-center text-sm text-muted-foreground mb-1">
+          <Zap className="w-4 h-4 mr-1.5 text-primary" />
+          <span>{club.sport}</span>
+        </div>
+        <div className="flex items-center text-sm text-muted-foreground mb-2">
+          <MapPin className="w-4 h-4 mr-1.5 text-primary" />
+          <span>{club.location}</span>
+        </div>
+        {club.rating && (
+          <div className="flex items-center text-sm mb-2">
+            <Star className="w-4 h-4 mr-1 text-yellow-400 fill-yellow-400" />
+            <span className="font-medium text-muted-foreground">{club.rating.toFixed(1)}</span>
+          </div>
+        )}
+        <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+          {club.description}
+        </p>
+        {club.amenities && club.amenities.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {club.amenities.slice(0, 3).map(amenity => (
+              <Badge key={amenity} variant="secondary" className="text-xs">{amenity}</Badge>
+            ))}
+          </div>
+        )}
+      </CardContent>
+      <CardFooter className="p-4 border-t">
+        <Button asChild className="w-full" variant="outline">
+          <Link href={`/clubs/${club.id}`}>View Details & Book</Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
