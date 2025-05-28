@@ -1,13 +1,54 @@
+
+"use client";
+
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ClubCard } from '@/components/features/clubs/ClubCard';
 import { ClubSearchFilters } from '@/components/features/clubs/ClubSearchFilters';
-import { mockClubs } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import type { Club } from '@/lib/types';
+import { useState, useEffect } from 'react';
+import { getAllClubs } from '@/services/clubService';
 
 export default function ClubDirectoryPage() {
-  // Placeholder for actual data fetching and filtering
-  const clubs = mockClubs;
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadClubs() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const fetchedClubs = await getAllClubs();
+        setClubs(fetchedClubs);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load clubs. Please try again.');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadClubs();
+  }, []);
+
+  const fetchClubsAgain = () => {
+     async function loadClubs() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const fetchedClubs = await getAllClubs();
+        setClubs(fetchedClubs);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load clubs. Please try again.');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadClubs();
+  }
+
 
   return (
     <AppLayout>
@@ -21,7 +62,20 @@ export default function ClubDirectoryPage() {
 
         <ClubSearchFilters />
 
-        {clubs.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary mb-4" />
+            <p className="text-muted-foreground">Loading clubs...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <h2 className="text-2xl font-semibold text-destructive">Error Loading Clubs</h2>
+            <p className="mt-2 text-muted-foreground">{error}</p>
+            <Button onClick={fetchClubsAgain} className="mt-6">
+              Try Again
+            </Button>
+          </div>
+        ) : clubs.length > 0 ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {clubs.map((club) => (

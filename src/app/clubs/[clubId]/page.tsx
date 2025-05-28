@@ -1,32 +1,43 @@
+
 import { AppLayout } from '@/components/layout/AppLayout';
-import { mockClubs, mockServices } from '@/lib/mockData';
+import { mockServices } from '@/lib/mockData'; // mockServices can remain for now, or be API-fied later
 import type { Club } from '@/lib/types';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { BookingCalendar } from '@/components/features/booking/BookingCalendar';
-import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users } from 'lucide-react'; // ShieldCheck for amenities, Users for capacity/info
+import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getClubById } from '@/services/clubService'; // Import the new service
 
 interface ClubDetailsPageProps {
   params: { clubId: string };
 }
 
-// This function would typically fetch data
-async function getClubDetails(clubId: string): Promise<Club | undefined> {
-  return mockClubs.find((club) => club.id === clubId);
+// This function now fetches data using the service, which calls our API
+async function getClubDetails(clubId: string): Promise<Club | null> {
+  try {
+    const club = await getClubById(clubId);
+    return club;
+  } catch (error) {
+    console.error(`Failed to fetch club details for ${clubId}:`, error);
+    // The page component will handle the null case to show an error or not found message.
+    return null; 
+  }
 }
 
 export default async function ClubDetailsPage({ params }: ClubDetailsPageProps) {
   const club = await getClubDetails(params.clubId);
 
   if (!club) {
+    // This can happen if club is not found (404 from API) or if there was a fetch error.
     return (
       <AppLayout>
         <div className="container py-12 text-center">
-          <h1 className="text-2xl font-bold">Club not found</h1>
-          <p className="text-muted-foreground">The club you are looking for does not exist.</p>
+          <AlertTriangle className="mx-auto h-16 w-16 text-destructive mb-4" />
+          <h1 className="text-2xl font-bold">Club Not Found or Error</h1>
+          <p className="text-muted-foreground">The club you are looking for does not exist, or there was an issue fetching its details.</p>
           <Button asChild className="mt-4">
             <a href="/clubs">Back to Clubs</a>
           </Button>
@@ -93,7 +104,7 @@ export default async function ClubDetailsPage({ params }: ClubDetailsPageProps) 
               </CardHeader>
               <CardContent>
                 <ul className="space-y-4">
-                  {club.services.map((service) => (
+                  {club.services && club.services.length > 0 ? club.services.map((service) => (
                     <li key={service.id} className="p-4 border rounded-md hover:shadow-sm transition-shadow">
                       <div className="flex justify-between items-start">
                         <div>
@@ -105,9 +116,9 @@ export default async function ClubDetailsPage({ params }: ClubDetailsPageProps) 
                         </Badge>
                       </div>
                     </li>
-                  ))}
-                  {/* Fallback if no specific services */}
-                  {club.services.length === 0 && mockServices.slice(0,2).map((service) => (
+                  )) : 
+                  /* Fallback if no specific services - using mockServices for demo */
+                  mockServices.slice(0,2).map((service) => (
                      <li key={service.id} className="p-4 border rounded-md">
                       <div className="flex justify-between items-center">
                         <div>
@@ -121,11 +132,14 @@ export default async function ClubDetailsPage({ params }: ClubDetailsPageProps) 
                     </li>
                   ))}
                 </ul>
+                 {(!club.services || club.services.length === 0) && (
+                    <p className="text-sm text-muted-foreground mt-4">No specific services listed for this club. Standard services may apply.</p>
+                )}
               </CardContent>
             </Card>
 
             {/* Image Gallery (Optional) */}
-            {club.images.length > 1 && (
+            {club.images && club.images.length > 1 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-2xl">Gallery</CardTitle>
@@ -143,7 +157,7 @@ export default async function ClubDetailsPage({ params }: ClubDetailsPageProps) 
 
           {/* Sidebar - Right Column */}
           <div className="space-y-8">
-            <BookingCalendar />
+            <BookingCalendar /> {/* This component uses its own mock data for time slots */}
             <Button size="lg" className="w-full text-lg py-6">Book Selected Slot</Button>
             
             <Card>
