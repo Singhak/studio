@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { Bell, UserCircle, LogIn, UserPlus, Menu, LogOut as LogOutIcon, Settings, LayoutDashboard } from 'lucide-react'; // Added LogOutIcon, Settings, LayoutDashboard
+import { Bell, UserCircle, LogIn, UserPlus, Menu, LogOut as LogOutIcon, Settings, LayoutDashboard, PlusCircle } from 'lucide-react'; // Added PlusCircle
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
 import {
@@ -14,44 +14,43 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator"; // Added import for Separator
+import { Separator } from "@/components/ui/separator";
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Added Avatar
+import { useAuth } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-const navLinks = [
+const baseNavLinks = [
   { href: '/clubs', label: 'Find Clubs' },
-  // Conditional links will be handled below based on auth state
 ];
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { currentUser, logoutUser, loading } = useAuth(); // Get currentUser and logoutUser
+  const { currentUser, logoutUser, loading } = useAuth();
 
   const isAuthenticated = !!currentUser;
 
   const handleLogout = async () => {
     await logoutUser();
-    setMobileMenuOpen(false); // Close mobile menu on logout
+    setMobileMenuOpen(false);
   };
   
   const userInitial = currentUser?.email ? currentUser.email.charAt(0).toUpperCase() : "?";
 
-  const allNavLinks = [
-    ...navLinks,
-    ...(isAuthenticated ? [{ href: '/dashboard/user', label: 'My Bookings' }] : []),
-    // Conditionally add "My Club" if user is also an owner (logic can be expanded later)
-    // For now, let's assume if logged in, they might have owner access to dashboard
-    ...(isAuthenticated ? [{ href: '/dashboard/owner', label: 'My Club' }] : []), 
-  ];
+  // Dynamic links based on auth state
+  let allNavLinks = [...baseNavLinks];
+  if (isAuthenticated) {
+    allNavLinks.push({ href: '/dashboard/user', label: 'My Bookings' });
+    // "My Club" / "Owner Dashboard" is better accessed via the user dropdown leading to the main dashboard
+    // where the view switcher (if applicable) resides.
+  }
 
 
-  if (loading) { // Optional: show a loading state for the header
+  if (loading) {
     return (
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
           <Logo />
-          <div className="h-6 w-20 animate-pulse rounded-md bg-muted"></div> {/* Placeholder for nav/buttons */}
+          <div className="h-6 w-20 animate-pulse rounded-md bg-muted"></div>
         </div>
       </header>
     );
@@ -101,6 +100,9 @@ export function Header() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard/user"><LayoutDashboard className="mr-2 h-4 w-4" />Dashboard</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/owner/register-club"><PlusCircle className="mr-2 h-4 w-4" />List Your Club</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/profile/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
@@ -153,6 +155,9 @@ export function Header() {
                        <>
                         <Link href="/dashboard/user" className="text-lg font-medium transition-colors hover:text-primary flex items-center" onClick={() => setMobileMenuOpen(false)}>
                            <LayoutDashboard className="mr-2 h-5 w-5" /> Dashboard
+                        </Link>
+                        <Link href="/dashboard/owner/register-club" className="text-lg font-medium transition-colors hover:text-primary flex items-center" onClick={() => setMobileMenuOpen(false)}>
+                           <PlusCircle className="mr-2 h-5 w-5" /> List Your Club
                         </Link>
                         <Link href="/profile/settings" className="text-lg font-medium transition-colors hover:text-primary flex items-center" onClick={() => setMobileMenuOpen(false)}>
                            <Settings className="mr-2 h-5 w-5" /> Settings
