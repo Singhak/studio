@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Clock, Loader2 } from 'lucide-react';
 import type { TimeSlot } from '@/lib/types';
 import { format } from 'date-fns';
+import type { DateMatcher } from 'react-day-picker';
 
 // Mock time slots generation
 const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
@@ -35,10 +36,15 @@ export function BookingCalendar() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [clientLoaded, setClientLoaded] = useState(false);
+  const [disabledDaysConfig, setDisabledDaysConfig] = useState<DateMatcher | undefined>();
 
   useEffect(() => {
     setClientLoaded(true);
-    setSelectedDate(new Date()); 
+    const today = new Date();
+    setSelectedDate(today); 
+    // Disable all dates before today
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    setDisabledDaysConfig({ before: startOfToday });
   }, []); 
 
   useEffect(() => {
@@ -73,7 +79,7 @@ export function BookingCalendar() {
           <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6"> {/* Changed from grid lg:grid-cols-2 to space-y-6 */}
+      <CardContent className="space-y-6">
         <div className="overflow-x-auto flex justify-center"> {/* Centering the calendar */}
           <Calendar
             mode="single"
@@ -82,7 +88,7 @@ export function BookingCalendar() {
               setSelectedDate(date);
             }}
             className="rounded-md border" 
-            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1))} 
+            disabled={disabledDaysConfig}
           />
         </div>
         <div>
