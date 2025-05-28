@@ -1,3 +1,4 @@
+
 import type { Club, Service } from './types';
 
 export const mockServices: Service[] = [
@@ -20,6 +21,7 @@ export const mockClubs: Club[] = [
     contactPhone: '555-0101',
     rating: 4.8,
     amenities: ['Parking', 'Showers', 'Pro Shop', 'Cafe'],
+    isFavorite: true,
   },
   {
     id: 'club2',
@@ -32,6 +34,7 @@ export const mockClubs: Club[] = [
     contactEmail: 'contact@shuttlemasters.com',
     rating: 4.5,
     amenities: ['Parking', 'Changing Rooms', 'Water Fountain'],
+    isFavorite: false,
   },
   {
     id: 'club3',
@@ -44,6 +47,7 @@ export const mockClubs: Club[] = [
     contactPhone: '555-0103',
     rating: 4.2,
     amenities: ['Lockers', 'Viewing Gallery'],
+    isFavorite: false,
   },
   {
     id: 'club4',
@@ -56,5 +60,6 @@ export const mockClubs: Club[] = [
     contactEmail: 'play@padelpalace.com',
     rating: 4.9,
     amenities: ['Parking', 'Cafe', 'Equipment Rental', 'Floodlights'],
+    isFavorite: true,
   },
 ];

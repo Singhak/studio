@@ -1,3 +1,4 @@
+
 export interface Club {
   id: string;
   name: string;
@@ -10,6 +11,7 @@ export interface Club {
   contactPhone?: string;
   rating?: number; // Optional: average rating
   amenities?: string[]; // e.g., Parking, Showers, Cafe
+  isFavorite?: boolean; // Added for favorite feature
 }
 
 export interface Service {

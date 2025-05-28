@@ -1,11 +1,14 @@
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { Booking } from "@/lib/types";
-import { Eye, Edit, Trash2, CalendarPlus } from "lucide-react";
+import type { Booking, Club } from "@/lib/types"; // Added Club
+import { Eye, Edit, Trash2, CalendarPlus, Heart } from "lucide-react"; // Added Heart
 import Link from "next/link";
+import { ClubCard } from '@/components/features/clubs/ClubCard'; // Added ClubCard
+import { mockClubs } from '@/lib/mockData'; // Added mockClubs
 
 // Mock user bookings
 const mockUserBookings: Booking[] = [
@@ -28,6 +31,9 @@ const statusBadgeVariant = (status: Booking['status']) => {
 export default function UserDashboardPage() {
   const upcomingBookings = mockUserBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date());
   const pastBookings = mockUserBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id));
+  
+  // This will re-filter on every render, reflecting changes if mockClubs is mutated by ClubCard
+  const favoriteClubs: Club[] = mockClubs.filter(club => club.isFavorite);
 
   return (
     <div className="space-y-6">
@@ -39,9 +45,12 @@ export default function UserDashboardPage() {
       </div>
 
       <Tabs defaultValue="upcoming">
-        <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 gap-1">
           <TabsTrigger value="upcoming">Upcoming Bookings</TabsTrigger>
           <TabsTrigger value="past">Past Bookings</TabsTrigger>
+          <TabsTrigger value="favorites">
+            <Heart className="mr-2 h-4 w-4" /> Favorite Clubs
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="upcoming">
           <Card>
@@ -115,6 +124,34 @@ export default function UserDashboardPage() {
               </Table>
               ) : (
                 <p className="text-muted-foreground text-center py-8">No past bookings found.</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="favorites">
+          <Card>
+            <CardHeader>
+              <CardTitle>My Favorite Clubs</CardTitle>
+              <CardDescription>Your handpicked list of top sports clubs.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {favoriteClubs.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {favoriteClubs.map((club) => (
+                    <ClubCard key={club.id} club={club} />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                    <Heart className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                    <h2 className="text-xl font-semibold text-foreground mb-2">No Favorite Clubs Yet</h2>
+                    <p className="text-muted-foreground mb-6">
+                    Start exploring and tap the heart icon on any club to add it to your favorites!
+                    </p>
+                    <Button asChild>
+                        <Link href="/clubs">Find Clubs</Link>
+                    </Button>
+                </div>
               )}
             </CardContent>
           </Card>

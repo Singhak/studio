@@ -1,10 +1,15 @@
+
+"use client";
+
 import type { Club } from '@/lib/types';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MapPin, Zap, Star } from 'lucide-react'; // Zap for sport, Star for rating
+import { MapPin, Zap, Star, Heart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from 'react';
+import { mockClubs as globalMockClubs } from '@/lib/mockData'; // Import to mutate for demo
 
 interface ClubCardProps {
   club: Club;
@@ -12,10 +17,32 @@ interface ClubCardProps {
 
 export function ClubCard({ club }: ClubCardProps) {
   const placeholderImage = club.images && club.images.length > 0 ? club.images[0] : 'https://placehold.co/600x400.png';
+  const [isFavorite, setIsFavorite] = useState(club.isFavorite || false);
+
+  useEffect(() => {
+    // Sync with the prop if it changes (e.g., parent re-renders with updated data)
+    setIsFavorite(club.isFavorite || false);
+  }, [club.isFavorite]);
+
+  const handleToggleFavorite = (event: React.MouseEvent) => {
+    event.preventDefault(); // Prevent link navigation if the button is inside a Link
+    event.stopPropagation(); // Stop event from bubbling up to parent Link
+    
+    const newFavoriteStatus = !isFavorite;
+    setIsFavorite(newFavoriteStatus);
+
+    // Update the global mockClubs array (for demo purposes only)
+    const clubIndex = globalMockClubs.findIndex(c => c.id === club.id);
+    if (clubIndex !== -1) {
+      globalMockClubs[clubIndex].isFavorite = newFavoriteStatus;
+    }
+    // In a real app, this would be an API call:
+    // console.log(`API call: Set club ${club.id} favorite to ${newFavoriteStatus}`);
+  };
   
   return (
     <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg">
-      <CardHeader className="p-0">
+      <CardHeader className="p-0 relative">
         <Link href={`/clubs/${club.id}`} className="block aspect-[16/9] overflow-hidden">
           <Image
             src={placeholderImage}
@@ -26,6 +53,15 @@ export function ClubCard({ club }: ClubCardProps) {
             data-ai-hint={`${club.sport.toLowerCase()} court`}
           />
         </Link>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="absolute top-2 right-2 bg-card/60 hover:bg-card/90 rounded-full text-destructive p-1.5 h-8 w-8 sm:h-9 sm:w-9"
+          onClick={handleToggleFavorite}
+          aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+        >
+          <Heart className={`w-5 h-5 ${isFavorite ? 'fill-destructive' : 'text-destructive-foreground stroke-destructive'}`} />
+        </Button>
       </CardHeader>
       <CardContent className="p-4 flex-grow">
         <Link href={`/clubs/${club.id}`}>
