@@ -5,10 +5,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import Link from "next/link";
-import { useRouter } from 'next/navigation';
-import React, { useState, useEffect } from 'react'; // Added useEffect
-import { RecaptchaVerifier, type ConfirmationResult } from 'firebase/auth'; // Added ConfirmationResult
-import { auth } from '@/lib/firebase/config'; // Added auth import
+// import { useRouter } from 'next/navigation'; // No longer needed for direct navigation here
+import React, { useState, useEffect } from 'react';
+import { type RecaptchaVerifier, type ConfirmationResult } from 'firebase/auth';
+import { auth } from '@/lib/firebase/config'; 
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,20 +18,19 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription, // Added FormDescription here
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogIn, Smartphone, Chrome, ShieldQuestion, Loader2 } from "lucide-react"; // Added Smartphone, Chrome, ShieldQuestion, Loader2
-import { Separator } from "@/components/ui/separator"; // Added Separator
-import { useAuth } from "@/contexts/AuthContext"; // Import useAuth
+import { LogIn, Smartphone, Chrome, ShieldQuestion, Loader2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
 
-// Schema for phone number input - can be expanded
 const phoneFormSchema = z.object({
   phoneNumber: z.string().min(10, {message: "Phone number seems too short."}),
 });
@@ -42,11 +41,20 @@ const verifyCodeFormSchema = z.object({
 
 
 export function LoginForm() {
-  const { signInWithEmail, signInWithGoogle, signInWithPhoneNumberFlow, currentUser } = useAuth();
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const { 
+    signInWithEmail, 
+    signInWithGoogle, 
+    signInWithPhoneNumberFlow,
+    confirmPhoneNumberCode, 
+    currentUser, 
+    loading: authLoading,
+    profileCompletionPending
+  } = useAuth();
+  // const router = useRouter(); // Not directly used for navigation here now
+  const [isLoadingEmail, setIsLoadingEmail] = useState(false); // Specific loading for email
   const [isPhoneLoading, setIsPhoneLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
 
   const [showPhoneInput, setShowPhoneInput] = useState(false);
   const [showVerificationCodeInput, setShowVerificationCodeInput] = useState(false);
@@ -54,12 +62,12 @@ export function LoginForm() {
   
   const recaptchaContainerId = "recaptcha-container-login";
 
-
+  // This effect handles redirection if user is already logged in AND profile is complete
   useEffect(() => {
-    if (currentUser) {
-      router.push('/dashboard/user'); // Or wherever you want to redirect logged-in users
+    if (!authLoading && currentUser && !profileCompletionPending) {
+      // router.push('/dashboard/user'); // AuthContext will handle this
     }
-  }, [currentUser, router]);
+  }, [currentUser, authLoading, profileCompletionPending]);
 
   const emailForm = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -81,34 +89,29 @@ export function LoginForm() {
 
 
   async function onEmailSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
-    const user = await signInWithEmail(values.email, values.password);
-    setIsLoading(false);
-    if (user) {
-      router.push('/dashboard/user'); // Redirect after successful login
-    }
+    setIsLoadingEmail(true);
+    // signInWithEmail in AuthContext now sets profileCompletionPending to false (for existing users)
+    // and onAuthStateChanged will handle redirection if already logged in and profile complete.
+    await signInWithEmail(values.email, values.password);
+    setIsLoadingEmail(false);
+    // No direct router.push here, AuthContext manages it.
   }
 
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
-    const user = await signInWithGoogle();
+    // signInWithGoogle in AuthContext now sets profileCompletionPending to true.
+    // AuthContext's useEffect will handle redirection to /auth/complete-profile.
+    await signInWithGoogle();
     setIsGoogleLoading(false);
-    if (user) {
-      router.push('/dashboard/user');
-    }
+    // No direct router.push here.
   }
   
-  // Initialize reCAPTCHA
   const setupRecaptcha = () => {
     if (!(window as any).recaptchaVerifier && document.getElementById(recaptchaContainerId)) {
         (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
-        'size': 'invisible', // or 'normal'
-        'callback': (response: any) => {
-          // reCAPTCHA solved, allow signInWithPhoneNumber.
-          // This callback is for 'normal' size. For 'invisible', it's triggered on button click.
-        },
+        'size': 'invisible',
+        'callback': (response: any) => {},
         'expired-callback': () => {
-          // Response expired. Ask user to solve reCAPTCHA again.
            alert("reCAPTCHA expired. Please try again.");
            if ((window as any).recaptchaVerifier) {
                 (window as any).recaptchaVerifier.render().then((widgetId: any) => {
@@ -124,10 +127,8 @@ export function LoginForm() {
 
   useEffect(() => {
     if (showPhoneInput) {
-        // Delay setup slightly to ensure DOM element is available
         setTimeout(setupRecaptcha, 100);
     }
-    // Cleanup reCAPTCHA on component unmount or when phone input is hidden
     return () => {
         if ((window as any).recaptchaVerifier) {
             (window as any).recaptchaVerifier.clear();
@@ -145,15 +146,13 @@ export function LoginForm() {
         return;
     }
     const appVerifier = (window as any).recaptchaVerifier;
-    // Ensure phone number is in E.164 format (e.g. +1XXXXXXXXXX)
-    // This is a naive check, a library like libphonenumber-js is better for production
     const formattedPhoneNumber = values.phoneNumber.startsWith('+') ? values.phoneNumber : `+1${values.phoneNumber}`;
 
     const confirmationResult = await signInWithPhoneNumberFlow(formattedPhoneNumber, appVerifier);
     if (confirmationResult) {
       setConfirmationResultState(confirmationResult);
       setShowVerificationCodeInput(true);
-      setShowPhoneInput(false); // Hide phone input, show code input
+      setShowPhoneInput(false);
     }
     setIsPhoneLoading(false);
   }
@@ -163,23 +162,18 @@ export function LoginForm() {
       alert("No confirmation context. Please try phone sign-in again.");
       return;
     }
-    setIsLoading(true);
-    try {
-      const userCredential = await confirmationResultState.confirm(values.verificationCode);
-      // User signed in successfully.
-      if (userCredential.user) {
-        router.push('/dashboard/user');
-      }
-    } catch (error: any) {
-      alert(`Error verifying code: ${error.message}`);
-      // Invalid code
-    } finally {
-      setIsLoading(false);
-      setShowVerificationCodeInput(false);
-      setConfirmationResultState(null);
-    }
+    setIsVerifyingCode(true);
+    // confirmPhoneNumberCode in AuthContext now sets profileCompletionPending to true.
+    // AuthContext's useEffect will handle redirection.
+    await confirmPhoneNumberCode(confirmationResultState, values.verificationCode);
+    
+    setIsVerifyingCode(false);
+    setShowVerificationCodeInput(false); // Reset UI regardless of AuthContext redirect
+    setConfirmationResultState(null);
+    // No direct router.push here.
   }
 
+  const currentLoadingState = isLoadingEmail || isPhoneLoading || isGoogleLoading || isVerifyingCode || authLoading;
 
   return (
     <Card className="w-full max-w-md mx-auto shadow-xl">
@@ -200,7 +194,7 @@ export function LoginForm() {
                   <FormItem>
                     <FormLabel>Email Address</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
+                      <Input type="email" placeholder="you@example.com" {...field} disabled={currentLoadingState} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -213,14 +207,14 @@ export function LoginForm() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
+                      <Input type="password" placeholder="••••••••" {...field} disabled={currentLoadingState} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full text-base" disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+              <Button type="submit" className="w-full text-base" disabled={currentLoadingState}>
+                {isLoadingEmail || authLoading && !isGoogleLoading && !isPhoneLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
                 Sign In
               </Button>
             </form>
@@ -237,20 +231,20 @@ export function LoginForm() {
                   <FormItem>
                     <FormLabel>Phone Number</FormLabel>
                     <FormControl>
-                      <Input type="tel" placeholder="e.g., 2223334444 (US format)" {...field} disabled={isPhoneLoading} />
+                      <Input type="tel" placeholder="e.g., 2223334444 (US format)" {...field} disabled={currentLoadingState} />
                     </FormControl>
                      <FormDescription>Enter number without country code if US, or with country code (e.g. +44...)</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <div id={recaptchaContainerId}></div> {/* reCAPTCHA will render here if 'normal' size or be invisible */}
+              <div id={recaptchaContainerId}></div>
               <div className="flex space-x-2">
-                <Button type="submit" className="flex-grow text-base" disabled={isPhoneLoading}>
+                <Button type="submit" className="flex-grow text-base" disabled={currentLoadingState}>
                     {isPhoneLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldQuestion className="mr-2 h-4 w-4" />}
                     Send Verification Code
                 </Button>
-                <Button variant="outline" onClick={() => {setShowPhoneInput(false); if((window as any).recaptchaVerifier) (window as any).recaptchaVerifier.clear();}}>Cancel</Button>
+                <Button variant="outline" onClick={() => {setShowPhoneInput(false); if((window as any).recaptchaVerifier) (window as any).recaptchaVerifier.clear();}} disabled={currentLoadingState}>Cancel</Button>
               </div>
             </form>
           </Form>
@@ -266,18 +260,18 @@ export function LoginForm() {
                   <FormItem>
                     <FormLabel>Verification Code</FormLabel>
                     <FormControl>
-                      <Input type="text" placeholder="Enter 6-digit code" {...field} disabled={isLoading} maxLength={6} />
+                      <Input type="text" placeholder="Enter 6-digit code" {...field} disabled={currentLoadingState} maxLength={6} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
               <div className="flex space-x-2">
-                <Button type="submit" className="flex-grow text-base" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+                <Button type="submit" className="flex-grow text-base" disabled={currentLoadingState}>
+                  {isVerifyingCode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
                   Verify & Sign In
                 </Button>
-                 <Button variant="outline" onClick={() => {setShowVerificationCodeInput(false); setConfirmationResultState(null); setShowPhoneInput(true);}}>Back</Button>
+                 <Button variant="outline" onClick={() => {setShowVerificationCodeInput(false); setConfirmationResultState(null); setShowPhoneInput(true);}} disabled={currentLoadingState}>Back</Button>
               </div>
             </form>
           </Form>
@@ -288,11 +282,11 @@ export function LoginForm() {
           <>
             <Separator className="my-6" />
             <div className="space-y-4">
-              <Button variant="outline" className="w-full text-base" onClick={handleGoogleSignIn} disabled={isGoogleLoading}>
+              <Button variant="outline" className="w-full text-base" onClick={handleGoogleSignIn} disabled={currentLoadingState}>
                 {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Chrome className="mr-2 h-4 w-4" />}
                 Sign In with Google
               </Button>
-              <Button variant="outline" className="w-full text-base" onClick={() => {setShowPhoneInput(true); emailForm.reset(); }} disabled={isPhoneLoading}>
+              <Button variant="outline" className="w-full text-base" onClick={() => {setShowPhoneInput(true); emailForm.reset(); }} disabled={currentLoadingState}>
                 {isPhoneLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Smartphone className="mr-2 h-4 w-4" />}
                 Sign In with Phone
               </Button>
