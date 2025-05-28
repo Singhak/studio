@@ -26,24 +26,26 @@ function Calendar({
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: cn(
-          "flex pt-1 relative", // Added relative for dropdown button positioning
-          isDropdownLayout
-            ? "flex-row justify-between items-center" // Dropdown layout: horizontal, items centered
-            : "flex-col items-center justify-center space-y-1.5" // Default button layout: vertical stack, items centered
+          "flex pt-1 relative items-center", // Common base styles
+          isDropdownLayout 
+            ? "justify-between" // For dropdowns: Label (with dropdowns) on left, Nav (with buttons) on right
+            : "justify-between" // For default buttons: [Prev] Label [Next]
         ),
         caption_label: "text-sm font-medium",
-        nav: cn(
+        nav: cn( // This div wraps both prev/next buttons if captionLayout is dropdowns
           "flex items-center",
-          isDropdownLayout
-            ? "space-x-1" // For dropdowns where buttons might be absolute
-            : "w-full flex-row justify-center space-x-1" // For default: ensure nav takes width, then center its children horizontally
+          isDropdownLayout ? "space-x-1" : "" // For default buttons layout, this 'nav' div might not be the primary positioner of individual buttons
         ),
-        nav_button: cn(
+        nav_button: cn( // Common style for both nav buttons
           buttonVariants({ variant: "outline" }),
           "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
         ),
-        nav_button_previous: isDropdownLayout ? "absolute left-1" : "",
-        nav_button_next: isDropdownLayout ? "absolute right-1" : "",
+        nav_button_previous: cn( // Specific to previous button
+          isDropdownLayout ? "absolute left-1" : "" // Only absolute if dropdown layout places nav group
+        ),
+        nav_button_next: cn( // Specific to next button
+          isDropdownLayout ? "absolute right-1" : "" // Only absolute if dropdown layout places nav group
+        ),
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
@@ -59,7 +61,7 @@ function Calendar({
           "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
         day_today: "bg-accent text-accent-foreground",
         day_outside:
-          "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-100", // Ensure selected outside days are not too dim
+          "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-100",
         day_disabled: "text-muted-foreground opacity-50",
         day_range_middle:
           "aria-selected:bg-accent aria-selected:text-accent-foreground",
@@ -77,4 +79,3 @@ function Calendar({
 Calendar.displayName = "Calendar"
 
 export { Calendar }
-
