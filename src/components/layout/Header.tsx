@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator"; // Added import for Separator
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Added Avatar
