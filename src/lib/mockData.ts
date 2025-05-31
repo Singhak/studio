@@ -8,9 +8,12 @@ export const mockServices: Service[] = [
   { id: 's4', name: 'Evening Slot Surcharge', price: 25, durationMinutes: 60, description: '1 hour court rental during peak evening hours.' },
 ];
 
+const owner1Id = 'owner123'; // Example owner ID
+
 export const mockClubs: Club[] = [
   {
     id: 'club1',
+    ownerId: owner1Id,
     name: 'Grand Slam Tennis Club',
     sport: 'Tennis',
     location: 'Downtown, Sportsville',
@@ -25,7 +28,7 @@ export const mockClubs: Club[] = [
   },
   {
     id: 'club2',
-    name: 'Shuttle Masters Badminton Center',
+    name: 'Shuttle Masters Badminton Center', // No ownerId or a different one
     sport: 'Badminton',
     location: 'North Suburb, Sportsville',
     description: 'State-of-the-art badminton center with 8 professional courts. Equipment rental and group classes offered.',
@@ -38,6 +41,7 @@ export const mockClubs: Club[] = [
   },
   {
     id: 'club3',
+    ownerId: 'owner456', // Different owner
     name: 'The Squash Box',
     sport: 'Squash',
     location: 'West End, Sportsville',
@@ -51,7 +55,8 @@ export const mockClubs: Club[] = [
   },
   {
     id: 'club4',
-    name: 'Padel Palace',
+    ownerId: owner1Id,
+    name: 'Padel Palace Deluxe', // Renamed slightly for clarity
     sport: 'Padel',
     location: 'Eastside Park, Sportsville',
     description: 'Modern Padel club with 4 panoramic outdoor courts and 2 indoor courts. Social events and coaching for all levels.',

@@ -1,6 +1,7 @@
 
 export interface Club {
   id: string;
+  ownerId?: string; // Added to associate club with an owner
   name: string;
   sport: string;
   location: string;
