@@ -89,7 +89,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {isOwnerRole && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between text-xs sm:text-sm">
+                <Button variant="sidebarOutline" className="w-full justify-between text-xs sm:text-sm">
                   <span>Viewing as: {currentView === 'owner' ? 'Owner' : 'User'}</span>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
