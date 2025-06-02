@@ -23,10 +23,12 @@ export interface Service {
   durationMinutes: number; // e.g., 60 for 1 hour
 }
 
+export type TimeSlotStatus = 'available' | 'pending' | 'confirmed' | 'in-progress' | 'unavailable';
+
 export interface TimeSlot {
   startTime: string; // e.g., "09:00"
   endTime: string;   // e.g., "10:00"
-  isAvailable: boolean;
+  status: TimeSlotStatus;
 }
 
 export interface Booking {

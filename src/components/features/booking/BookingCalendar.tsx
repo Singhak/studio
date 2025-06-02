@@ -6,28 +6,34 @@ import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Clock, Loader2 } from 'lucide-react';
-import type { TimeSlot } from '@/lib/types';
+import type { TimeSlot, TimeSlotStatus } from '@/lib/types';
 import { format } from 'date-fns';
 import type { DateMatcher } from 'react-day-picker';
 
+const allStatuses: TimeSlotStatus[] = ['available', 'pending', 'confirmed', 'in-progress', 'unavailable'];
+
 // Mock time slots generation
 const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
-  // This function uses Math.random(), so it must be called client-side after hydration
   if (!date) return [];
-  const day = date.getDay(); // Sunday - Saturday : 0 - 6
-  // Fewer slots on weekends, more on weekdays for variety
-  const baseSlots = day === 0 || day === 6 ? 4 : 8;
+  const day = date.getDay();
+  const baseSlotsCount = day === 0 || day === 6 ? 5 : 10; // More slots to see variety
   const slots: TimeSlot[] = [];
-  for (let i = 0; i < baseSlots; i++) {
-    const hour = 9 + i * (day === 0 || day === 6 ? 2 : 1) ; // More spread out on weekends
-    if (hour >= 21) break; // Don't go too late
+
+  for (let i = 0; i < baseSlotsCount; i++) {
+    const hour = 9 + i;
+    if (hour >= 21) break;
+
+    // Randomly assign a status
+    const randomIndex = Math.floor(Math.random() * allStatuses.length);
+    const status = allStatuses[randomIndex];
+    
     slots.push({
       startTime: `${hour.toString().padStart(2, '0')}:00`,
       endTime: `${(hour + 1).toString().padStart(2, '0')}:00`,
-      isAvailable: Math.random() > 0.3, // Random availability
+      status: status,
     });
   }
-  return slots;
+  return slots.sort((a,b) => a.startTime.localeCompare(b.startTime)); // Sort for consistency
 };
 
 
@@ -42,7 +48,6 @@ export function BookingCalendar() {
     setClientLoaded(true);
     const today = new Date();
     setSelectedDate(today); 
-    // Disable all dates before today
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     setDisabledDaysConfig({ before: startOfToday });
   }, []); 
@@ -72,6 +77,43 @@ export function BookingCalendar() {
     );
   }
 
+  const getSlotButtonProps = (slot: TimeSlot) => {
+    let variant: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive" = "outline";
+    let isDisabled = false;
+    let className = "w-full";
+    let buttonText = slot.startTime;
+
+    switch (slot.status) {
+      case 'available':
+        variant = selectedTimeSlot?.startTime === slot.startTime ? 'default' : 'outline';
+        isDisabled = false;
+        break;
+      case 'pending':
+        variant = 'secondary';
+        isDisabled = true;
+        // buttonText = `Pending ${slot.startTime}`; // Option to change text
+        break;
+      case 'confirmed':
+        variant = 'default';
+        isDisabled = true;
+        // buttonText = `✓ ${slot.startTime}`; // Option for icon/text
+        break;
+      case 'in-progress':
+        variant = 'secondary'; // Or 'outline' to be less prominent
+        isDisabled = true;
+        className += " opacity-70 animate-pulse";
+        // buttonText = `... ${slot.startTime}`;
+        break;
+      case 'unavailable':
+        variant = 'outline';
+        isDisabled = true;
+        className += " text-muted-foreground line-through";
+        break;
+    }
+    return { variant, isDisabled, className, buttonText };
+  };
+
+
   return (
     <Card className="shadow-lg">
       <CardHeader>
@@ -80,7 +122,7 @@ export function BookingCalendar() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="overflow-x-auto flex justify-center"> {/* Centering the calendar */}
+        <div className="overflow-x-auto flex justify-center">
           <Calendar
             mode="single"
             selected={selectedDate}
@@ -97,17 +139,24 @@ export function BookingCalendar() {
           </h3>
           {timeSlots.length > 0 ? (
             <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
-              {timeSlots.map((slot) => (
-                <Button
-                  key={slot.startTime}
-                  variant={selectedTimeSlot?.startTime === slot.startTime ? 'default' : 'outline'}
-                  disabled={!slot.isAvailable}
-                  onClick={() => setSelectedTimeSlot(slot)}
-                  className={`w-full ${!slot.isAvailable ? 'text-muted-foreground line-through' : ''}`}
-                >
-                  {slot.startTime}
-                </Button>
-              ))}
+              {timeSlots.map((slot) => {
+                const { variant, isDisabled, className, buttonText } = getSlotButtonProps(slot);
+                return (
+                  <Button
+                    key={slot.startTime}
+                    variant={variant}
+                    disabled={isDisabled}
+                    onClick={() => {
+                      if (slot.status === 'available') {
+                        setSelectedTimeSlot(slot);
+                      }
+                    }}
+                    className={className}
+                  >
+                    {buttonText}
+                  </Button>
+                );
+              })}
             </div>
           ) : (
             <p className="text-muted-foreground">
