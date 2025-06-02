@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Clock, Loader2 } from 'lucide-react';
 import type { TimeSlot, TimeSlotStatus } from '@/lib/types';
 import { format } from 'date-fns';
@@ -91,18 +92,17 @@ export function BookingCalendar() {
       case 'pending':
         variant = 'secondary';
         isDisabled = true;
-        // buttonText = `Pending ${slot.startTime}`; // Option to change text
+        className += " opacity-80";
         break;
       case 'confirmed':
         variant = 'default';
         isDisabled = true;
-        // buttonText = `✓ ${slot.startTime}`; // Option for icon/text
+        className += " opacity-80";
         break;
       case 'in-progress':
-        variant = 'secondary'; // Or 'outline' to be less prominent
+        variant = 'secondary'; 
         isDisabled = true;
         className += " opacity-70 animate-pulse";
-        // buttonText = `... ${slot.startTime}`;
         break;
       case 'unavailable':
         variant = 'outline';
@@ -115,56 +115,64 @@ export function BookingCalendar() {
 
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader>
-        <CardTitle className="text-xl flex items-center">
-          <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="overflow-x-auto flex justify-center">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={(date) => {
-              setSelectedDate(date);
-            }}
-            className="rounded-md border" 
-            disabled={disabledDaysConfig}
-          />
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold mb-3 text-foreground">
-            Available Slots for {selectedDate ? format(selectedDate, 'MMM d, yyyy') : '...'}
-          </h3>
-          {timeSlots.length > 0 ? (
-            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
-              {timeSlots.map((slot) => {
-                const { variant, isDisabled, className, buttonText } = getSlotButtonProps(slot);
-                return (
-                  <Button
-                    key={slot.startTime}
-                    variant={variant}
-                    disabled={isDisabled}
-                    onClick={() => {
-                      if (slot.status === 'available') {
-                        setSelectedTimeSlot(slot);
-                      }
-                    }}
-                    className={className}
-                  >
-                    {buttonText}
-                  </Button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">
-              {selectedDate ? "No slots available for this date." : "Please select a date to see available slots."}
-            </p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <TooltipProvider>
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-xl flex items-center">
+            <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="overflow-x-auto flex justify-center">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                setSelectedDate(date);
+              }}
+              className="rounded-md border" 
+              disabled={disabledDaysConfig}
+            />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-foreground">
+              Available Slots for {selectedDate ? format(selectedDate, 'MMM d, yyyy') : '...'}
+            </h3>
+            {timeSlots.length > 0 ? (
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
+                {timeSlots.map((slot) => {
+                  const { variant, isDisabled, className, buttonText } = getSlotButtonProps(slot);
+                  return (
+                    <Tooltip key={slot.startTime}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={variant}
+                          disabled={isDisabled}
+                          onClick={() => {
+                            if (slot.status === 'available') {
+                              setSelectedTimeSlot(slot);
+                            }
+                          }}
+                          className={className}
+                        >
+                          {buttonText}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="capitalize">{slot.status}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-muted-foreground">
+                {selectedDate ? "No slots available for this date." : "Please select a date to see available slots."}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </TooltipProvider>
   );
 }
