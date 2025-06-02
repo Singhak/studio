@@ -3,13 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Clock, Loader2 } from 'lucide-react';
 import type { TimeSlot, TimeSlotStatus } from '@/lib/types';
 import { format } from 'date-fns';
 import type { DateMatcher } from 'react-day-picker';
+import { cn } from '@/lib/utils';
 
 const allStatuses: TimeSlotStatus[] = ['available', 'pending', 'confirmed', 'in-progress', 'unavailable'];
 
@@ -17,14 +18,14 @@ const allStatuses: TimeSlotStatus[] = ['available', 'pending', 'confirmed', 'in-
 const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
   if (!date) return [];
   const day = date.getDay();
-  const baseSlotsCount = day === 0 || day === 6 ? 5 : 10; // More slots to see variety
+  // Less slots on weekends for this mock data
+  const baseSlotsCount = (day === 0 || day === 6) ? Math.floor(Math.random() * 5) + 3 : Math.floor(Math.random() * 8) + 5;
   const slots: TimeSlot[] = [];
 
   for (let i = 0; i < baseSlotsCount; i++) {
-    const hour = 9 + i;
+    const hour = 9 + i * (Math.random() > 0.5 ? 1 : 2); // Vary interval a bit
     if (hour >= 21) break;
 
-    // Randomly assign a status
     const randomIndex = Math.floor(Math.random() * allStatuses.length);
     const status = allStatuses[randomIndex];
     
@@ -34,7 +35,7 @@ const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
       status: status,
     });
   }
-  return slots.sort((a,b) => a.startTime.localeCompare(b.startTime)); // Sort for consistency
+  return slots.sort((a,b) => a.startTime.localeCompare(b.startTime));
 };
 
 
@@ -48,22 +49,26 @@ export function BookingCalendar() {
   useEffect(() => {
     setClientLoaded(true);
     const today = new Date();
+    // Initialize selectedDate on client to prevent hydration mismatch for new Date()
     setSelectedDate(today); 
+    // Disable past dates - also client-side
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     setDisabledDaysConfig({ before: startOfToday });
   }, []); 
 
   useEffect(() => {
     if (clientLoaded && selectedDate) {
+      // Generate slots only on client-side after date is set
       setTimeSlots(generateMockTimeSlots(selectedDate));
-      setSelectedTimeSlot(null); 
+      setSelectedTimeSlot(null); // Reset selected slot when date changes
     } else if (clientLoaded && !selectedDate) {
+      // Clear slots if no date is selected (e.g., calendar cleared)
       setTimeSlots([]);
       setSelectedTimeSlot(null);
     }
   }, [selectedDate, clientLoaded]);
 
-  if (!clientLoaded || selectedDate === undefined) { 
+  if (!clientLoaded || selectedDate === undefined) { // Check if selectedDate is explicitly undefined
     return (
       <Card className="shadow-lg">
         <CardHeader>
@@ -81,7 +86,7 @@ export function BookingCalendar() {
   const getSlotButtonProps = (slot: TimeSlot) => {
     let variant: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive" = "outline";
     let isDisabled = false;
-    let buttonClassName = "w-full";
+    let buttonClassName = "w-full"; // Common class, ensures button takes full width in grid cell
     let buttonText = slot.startTime;
 
     switch (slot.status) {
@@ -90,22 +95,22 @@ export function BookingCalendar() {
         isDisabled = false;
         break;
       case 'pending':
-        variant = 'secondary';
+        variant = 'secondary'; // Use secondary for pending
         isDisabled = true;
-        buttonClassName += " opacity-80";
+        buttonClassName += " opacity-80"; // Custom styling for pending
         break;
       case 'confirmed':
-        variant = 'default';
+        variant = 'default'; // Use default (primary) for confirmed
         isDisabled = true;
-        buttonClassName += " opacity-80";
+        buttonClassName += " opacity-80"; // Custom styling for confirmed
         break;
       case 'in-progress':
-        variant = 'secondary'; 
+        variant = 'secondary'; // Example: secondary with pulse
         isDisabled = true;
         buttonClassName += " opacity-70 animate-pulse";
         break;
       case 'unavailable':
-        variant = 'outline';
+        variant = 'outline'; // Outline for unavailable
         isDisabled = true;
         buttonClassName += " text-muted-foreground line-through";
         break;
@@ -122,7 +127,7 @@ export function BookingCalendar() {
             <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6"> {/* Ensures vertical stacking */}
           <div className="overflow-x-auto flex justify-center">
             <Calendar
               mode="single"
@@ -131,7 +136,8 @@ export function BookingCalendar() {
                 setSelectedDate(date);
               }}
               className="rounded-md border" 
-              disabled={disabledDaysConfig}
+              disabled={disabledDaysConfig} // Use the client-side generated config
+              captionLayout="buttons" // Explicitly set for clarity if needed
             />
           </div>
           <div>
@@ -142,48 +148,36 @@ export function BookingCalendar() {
               <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
                 {timeSlots.map((slot) => {
                   const { variant, isDisabled, buttonClassName, buttonText } = getSlotButtonProps(slot);
+
+                  const actualButton = (
+                    <Button
+                      variant={variant}
+                      disabled={isDisabled}
+                      onClick={() => {
+                        // onClick logic is inherently guarded by isDisabled,
+                        // but explicit check for 'available' is safer.
+                        if (slot.status === 'available') {
+                          setSelectedTimeSlot(slot);
+                        }
+                      }}
+                      className={buttonClassName} // This className already includes w-full
+                    >
+                      {buttonText}
+                    </Button>
+                  );
+
                   return (
                     <Tooltip key={slot.startTime}>
-                      <TooltipTrigger asChild={!isDisabled}>
-                        {/* 
-                          If the button is disabled, TooltipTrigger wraps a span.
-                          Otherwise, TooltipTrigger uses asChild with the Button directly.
-                          This ensures hover events are captured for tooltips on disabled buttons.
-                        */}
+                      <TooltipTrigger asChild>
                         {isDisabled ? (
-                          <span 
-                            className={`block ${isDisabled ? 'cursor-not-allowed' : ''}`}
-                            tabIndex={0} // Make span focusable for accessibility of tooltip
-                          >
-                            <Button
-                              variant={variant}
-                              disabled={isDisabled}
-                              onClick={() => {
-                                // onClick logic is inherently guarded by isDisabled,
-                                // but explicit check for 'available' is safer.
-                                if (slot.status === 'available') {
-                                  setSelectedTimeSlot(slot);
-                                }
-                              }}
-                              className={buttonClassName}
-                              // style={{ pointerEvents: 'none' }} // Let span handle pointer events
-                            >
-                              {buttonText}
-                            </Button>
+                          // For disabled buttons, wrap with a span that gets the trigger props.
+                          // The Button inside is visually disabled and doesn't interfere with TooltipTrigger.
+                          <span className="inline-block w-full" tabIndex={0}> 
+                            {actualButton}
                           </span>
                         ) : (
-                          <Button
-                            variant={variant}
-                            disabled={isDisabled} // Will be false here
-                            onClick={() => {
-                              if (slot.status === 'available') {
-                                setSelectedTimeSlot(slot);
-                              }
-                            }}
-                            className={buttonClassName}
-                          >
-                            {buttonText}
-                          </Button>
+                          // For enabled buttons, the Button itself is the trigger.
+                          actualButton
                         )}
                       </TooltipTrigger>
                       <TooltipContent>
