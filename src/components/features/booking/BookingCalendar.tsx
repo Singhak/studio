@@ -81,7 +81,7 @@ export function BookingCalendar() {
   const getSlotButtonProps = (slot: TimeSlot) => {
     let variant: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive" = "outline";
     let isDisabled = false;
-    let className = "w-full";
+    let buttonClassName = "w-full";
     let buttonText = slot.startTime;
 
     switch (slot.status) {
@@ -92,25 +92,25 @@ export function BookingCalendar() {
       case 'pending':
         variant = 'secondary';
         isDisabled = true;
-        className += " opacity-80";
+        buttonClassName += " opacity-80";
         break;
       case 'confirmed':
         variant = 'default';
         isDisabled = true;
-        className += " opacity-80";
+        buttonClassName += " opacity-80";
         break;
       case 'in-progress':
         variant = 'secondary'; 
         isDisabled = true;
-        className += " opacity-70 animate-pulse";
+        buttonClassName += " opacity-70 animate-pulse";
         break;
       case 'unavailable':
         variant = 'outline';
         isDisabled = true;
-        className += " text-muted-foreground line-through";
+        buttonClassName += " text-muted-foreground line-through";
         break;
     }
-    return { variant, isDisabled, className, buttonText };
+    return { variant, isDisabled, buttonClassName, buttonText };
   };
 
 
@@ -141,22 +141,50 @@ export function BookingCalendar() {
             {timeSlots.length > 0 ? (
               <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
                 {timeSlots.map((slot) => {
-                  const { variant, isDisabled, className, buttonText } = getSlotButtonProps(slot);
+                  const { variant, isDisabled, buttonClassName, buttonText } = getSlotButtonProps(slot);
                   return (
                     <Tooltip key={slot.startTime}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={variant}
-                          disabled={isDisabled}
-                          onClick={() => {
-                            if (slot.status === 'available') {
-                              setSelectedTimeSlot(slot);
-                            }
-                          }}
-                          className={className}
-                        >
-                          {buttonText}
-                        </Button>
+                      <TooltipTrigger asChild={!isDisabled}>
+                        {/* 
+                          If the button is disabled, TooltipTrigger wraps a span.
+                          Otherwise, TooltipTrigger uses asChild with the Button directly.
+                          This ensures hover events are captured for tooltips on disabled buttons.
+                        */}
+                        {isDisabled ? (
+                          <span 
+                            className={`block ${isDisabled ? 'cursor-not-allowed' : ''}`}
+                            tabIndex={0} // Make span focusable for accessibility of tooltip
+                          >
+                            <Button
+                              variant={variant}
+                              disabled={isDisabled}
+                              onClick={() => {
+                                // onClick logic is inherently guarded by isDisabled,
+                                // but explicit check for 'available' is safer.
+                                if (slot.status === 'available') {
+                                  setSelectedTimeSlot(slot);
+                                }
+                              }}
+                              className={buttonClassName}
+                              // style={{ pointerEvents: 'none' }} // Let span handle pointer events
+                            >
+                              {buttonText}
+                            </Button>
+                          </span>
+                        ) : (
+                          <Button
+                            variant={variant}
+                            disabled={isDisabled} // Will be false here
+                            onClick={() => {
+                              if (slot.status === 'available') {
+                                setSelectedTimeSlot(slot);
+                              }
+                            }}
+                            className={buttonClassName}
+                          >
+                            {buttonText}
+                          </Button>
+                        )}
                       </TooltipTrigger>
                       <TooltipContent>
                         <p className="capitalize">{slot.status}</p>
