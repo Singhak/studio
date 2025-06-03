@@ -15,7 +15,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarInset, // Added SidebarInset here
+  SidebarInset,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/shared/Logo';
 import { Button } from '@/components/ui/button';
@@ -61,9 +61,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [currentView, setCurrentView] = useState<'user' | 'owner'>(userRole);
 
   useEffect(() => {
-    // If the userRole changes (e.g. after login), reset the view
+    // Initialize currentView based on userRole when the component mounts or userRole changes.
     setCurrentView(userRole);
   }, [userRole]);
+
+  useEffect(() => {
+    // Synchronize currentView with the pathname
+    if (pathname.startsWith('/dashboard/user')) {
+      setCurrentView('user');
+    } else if (pathname.startsWith('/dashboard/owner')) {
+      if (userRole === 'owner') {
+        setCurrentView('owner');
+      } else {
+        // If a non-owner somehow lands on an owner path, default their sidebar view to 'user'.
+        // The page content itself is handled by Next.js routing.
+        setCurrentView('user');
+      }
+    }
+    // If the path is not a dashboard path, currentView remains as set by userRole or dropdown.
+  }, [pathname, userRole]);
 
   const handleViewChange = (newView: 'user' | 'owner') => {
     setCurrentView(newView);
@@ -116,7 +132,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.href}
+                    isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/dashboard/owner' && item.href !== '/dashboard/user') || (pathname.startsWith(item.href) && pathname.split('/').length === item.href.split('/').length +1 && (item.href === '/dashboard/owner' || item.href === '/dashboard/user') )}
                     tooltip={{ children: item.label, side: 'right' }}
                   >
                     <Link href={item.href}>
