@@ -14,6 +14,9 @@ export const initializeFirebaseMessaging = async () => {
   try {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && (await isSupported())) {
       const messaging = getMessaging(app);
+      // Note: Service worker registration is typically handled automatically by Firebase SDK
+      // when getToken is called, or can be manually registered if needed.
+      // Ensure 'firebase-messaging-sw.js' is in your /public folder.
       return messaging;
     }
   } catch (error) {
@@ -45,6 +48,7 @@ export const requestNotificationPermission = async () => {
       console.log('Notification permission granted.');
       const currentToken = await getToken(messagingInstance, {
         vapidKey: VAPID_KEY,
+        // serviceWorkerRegistration: await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js') // Optional: explicitly provide SW reg
       });
       if (currentToken) {
         console.log('FCM Token:', currentToken);

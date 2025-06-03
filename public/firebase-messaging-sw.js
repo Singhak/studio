@@ -1,42 +1,69 @@
-// Scripts for firebase and firebase messaging
-// These versions should ideally match or be compatible with the version used in your main app.
-// Using specific versions like 10.12.2 as an example, check your package.json for 'firebase' version.
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+// Import the Firebase app and messaging products
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// IMPORTANT: Replace this with your actual Firebase project configuration.
-// This configuration MUST be identical to the one in src/lib/firebase/config.ts
+// IMPORTANT:
+// Initialize the Firebase app in the service worker by passing in
+// your app's Firebase config object. This is THE SAME config
+// you use in your main app (e.g., from your .env.local or Firebase console).
+// You MUST replace these placeholder values with your actual Firebase project configuration.
 const firebaseConfig = {
-  apiKey: "AIzaSyB70RPghxuHHHvDs2zMbfyuV2ai0Gj9bp0",
-  authDomain: "oursolutioncafe.firebaseapp.com",
-  databaseURL: "https://oursolutioncafe-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "oursolutioncafe",
-  storageBucket: "oursolutioncafe.firebasestorage.app",
-  messagingSenderId: "190930468455",
-  appId: "1:190930468455:web:474cb33f26ee3c531d9ec2",
-  measurementId: "G-5RGCC01CHW" // This is optional
+  apiKey: "YOUR_API_KEY_HERE",
+  authDomain: "YOUR_AUTH_DOMAIN_HERE",
+  projectId: "YOUR_PROJECT_ID_HERE",
+  storageBucket: "YOUR_STORAGE_BUCKET_HERE",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
+  appId: "YOUR_APP_ID_HERE",
+  measurementId: "YOUR_MEASUREMENT_ID_HERE" // Optional
 };
 
-firebase.initializeApp(firebaseConfig);
+// Initialize Firebase
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+} else {
+  firebase.app(); // if already initialized, use that one
+}
 
 // Retrieve an instance of Firebase Messaging so that it can handle background messages.
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  
-  const notificationTitle = payload.notification?.title || 'Courtly Notification';
+  console.log(
+    '[firebase-messaging-sw.js] Received background message: ',
+    payload
+  );
+
+  // Customize the notification here
+  const notificationTitle = payload.notification?.title || 'New Courtly Update';
   const notificationOptions = {
-    body: payload.notification?.body || 'You have a new update from Courtly.',
-    // icon: '/courtly-icon-192.png' // Optional: Add an icon in your public folder (e.g., public/courtly-icon-192.png)
+    body: payload.notification?.body || 'You have a new message from Courtly.',
+    icon: '/icons/icon-192x192.png', // Optional: Ensure you have an icon at this path
+    // You can add more options like 'data', 'actions', etc.
+    // data: { url: payload.fcmOptions?.link || '/' } // Example: open a specific URL on click
   };
 
-  // Ensure the service worker is active before showing notification
-  if (self.registration.active) {
-    self.registration.showNotification(notificationTitle, notificationOptions);
-  } else {
-    // If not active, you might queue it or handle differently,
-    // but for simplicity, we'll just log. This case is less common.
-    console.log('[firebase-messaging-sw.js] Service worker not active, notification not shown immediately.');
-  }
+  // The service worker needs to show the notification
+  self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// Optional: Handle notification click
+self.addEventListener('notificationclick', (event) => {
+  console.log('[firebase-messaging-sw.js] Notification click Received.', event.notification);
+  event.notification.close();
+
+  // Example: Focus an existing tab or open a new one
+  // const urlToOpen = event.notification.data?.url || '/';
+  // event.waitUntil(
+  //   clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+  //     for (let i = 0; i < clientList.length; i++) {
+  //       const client = clientList[i];
+  //       if (client.url === urlToOpen && 'focus' in client) {
+  //         return client.focus();
+  //       }
+  //     }
+  //     if (clients.openWindow) {
+  //       return clients.openWindow(urlToOpen);
+  //     }
+  //   })
+  // );
 });
