@@ -108,9 +108,7 @@ export const onForegroundMessageListener = async () => {
         </div>
       ),
       description: payload.notification?.body || 'You have a new message from Courtly.',
-      // You can add duration here if needed, e.g., duration: 5000 (5 seconds)
     });
-    // Example: You could also play a sound or show a custom in-app UI
   });
-  return unsubscribe; // Return the unsubscribe function
+  return unsubscribe; 
 };
