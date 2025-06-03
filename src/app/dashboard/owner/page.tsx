@@ -136,7 +136,7 @@ export default function OwnerDashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 className="text-3xl font-bold tracking-tight">{selectedClub.name} - Dashboard</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{selectedClub.name} - Dashboard</h1>
             <p className="text-muted-foreground">Manage your club settings, bookings, and services.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
