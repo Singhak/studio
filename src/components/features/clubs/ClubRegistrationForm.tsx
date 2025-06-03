@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,8 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { SPORTS_TYPES, SportType } from "@/lib/types";
-import { PlusCircle, Trash2, Building, MapPin, Info, Phone, Mail, DollarSign, Clock } from "lucide-react";
+import { SPORTS_TYPES } from "@/lib/types"; // Removed SportType as it's not used directly
+import { PlusCircle, Trash2, Building, MapPin, Info, Phone, Mail, DollarSign, Clock, ImageUp, ShieldQuestion } from "lucide-react";
 
 const serviceSchema = z.object({
   name: z.string().min(1, "Service name is required."),
@@ -35,11 +36,12 @@ const serviceSchema = z.object({
 
 const formSchema = z.object({
   clubName: z.string().min(3, "Club name must be at least 3 characters."),
-  sport: z.enum(SPORTS_TYPES, { required_error: "Please select a sport." }),
+  sport: z.enum(SPORTS_TYPES, { required_error: "Please select a sport for your club." }),
   location: z.string().min(5, "Location is required."),
   description: z.string().min(20, "Description must be at least 20 characters.").max(500, "Description too long."),
   contactEmail: z.string().email("Invalid email address.").optional().or(z.literal('')),
   contactPhone: z.string().optional(),
+  clubImages: z.any().optional(), // Placeholder for file uploads
   services: z.array(serviceSchema).min(1, "At least one service is required."),
 });
 
@@ -53,7 +55,7 @@ export function ClubRegistrationForm() {
       description: "",
       contactEmail: "",
       contactPhone: "",
-      services: [{ name: "", price: 0, durationMinutes: 60 }],
+      services: [{ name: "", price: 0, durationMinutes: 60, description: "" }],
     },
   });
 
@@ -64,7 +66,13 @@ export function ClubRegistrationForm() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log("Club registration data:", values);
-    alert("Club registration submitted! (See console for data)");
+    // For file uploads, values.clubImages would be a FileList object.
+    // You would need to handle this FileList, e.g., upload to Firebase Storage.
+    if (values.clubImages && values.clubImages.length > 0) {
+      console.log("Files to upload:", values.clubImages);
+      // Example: Loop through values.clubImages and upload each file.
+    }
+    alert("Club registration submitted! (See console for data and image files)");
   }
 
   return (
@@ -98,7 +106,7 @@ export function ClubRegistrationForm() {
                 name="sport"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center"><Info className="mr-2 h-4 w-4 text-muted-foreground"/>Primary Sport</FormLabel>
+                    <FormLabel className="flex items-center"><ShieldQuestion className="mr-2 h-4 w-4 text-muted-foreground"/>Primary Sport</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Select a sport" /></SelectTrigger></FormControl>
                       <SelectContent>
@@ -162,6 +170,28 @@ export function ClubRegistrationForm() {
                 />
             </div>
 
+            <FormField
+              control={form.control}
+              name="clubImages"
+              render={({ field: { onChange, value, ...rest } }) => ( // Destructure field to handle file input
+                <FormItem>
+                  <FormLabel className="flex items-center"><ImageUp className="mr-2 h-4 w-4 text-muted-foreground"/>Club Images</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="file" 
+                      multiple 
+                      accept="image/*"
+                      onChange={(e) => onChange(e.target.files)} // Pass FileList to react-hook-form
+                      {...rest} // Pass other props like name, ref, onBlur
+                    />
+                  </FormControl>
+                  <FormDescription>Upload one or more images for your club (e.g., venue, courts). Max 5MB per image. PNG, JPG, WEBP accepted.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+
             {/* Services Section */}
             <Card className="border-dashed">
               <CardHeader>
@@ -189,7 +219,7 @@ export function ClubRegistrationForm() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground"/>Price ($)</FormLabel>
-                            <FormControl><Input type="number" placeholder="25.00" {...field} /></FormControl>
+                            <FormControl><Input type="number" step="0.01" placeholder="25.00" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -262,3 +292,4 @@ export function ClubRegistrationForm() {
     </Card>
   );
 }
+
