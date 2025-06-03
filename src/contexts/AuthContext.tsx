@@ -18,7 +18,7 @@ import {
 import { auth } from '@/lib/firebase/config'; // Your Firebase auth instance
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { requestNotificationPermission, onForegroundMessageListener } from '@/lib/firebase/messaging.tsx'; // Import FCM functions - .tsx extension
+import { requestNotificationPermission, onForegroundMessageListener } from '@/lib/firebase/messaging'; // Corrected import (no .tsx)
 import { Bell } from 'lucide-react'; // Import the Bell icon
 
 interface AuthContextType {
@@ -50,9 +50,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => { // Made async
       setCurrentUser(user);
       if (user) {
-        if (localStorage.getItem(`profileCompletionPending_${user.uid}`) === 'true') {
+        if (localStorage.getItem('profileCompletionPending_' + user.uid) === 'true') {
           setProfileCompletionPending(true);
-          localStorage.removeItem(`profileCompletionPending_${user.uid}`);
+          localStorage.removeItem('profileCompletionPending_' + user.uid);
         }
         // Request notification permission and listen for foreground messages
         await requestNotificationPermission(); // Call this to get token and show initial toasts
@@ -98,7 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      localStorage.setItem(`profileCompletionPending_${userCredential.user.uid}`, 'true');
+      localStorage.setItem('profileCompletionPending_' + userCredential.user.uid, 'true');
       setProfileCompletionPending(true);
       toast({ title: "Registration Successful!", description: "Please complete your profile." });
       return userCredential.user;
@@ -142,7 +142,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      localStorage.setItem(`profileCompletionPending_${result.user.uid}`, 'true');
+      localStorage.setItem('profileCompletionPending_' + result.user.uid, 'true');
       setProfileCompletionPending(true);
       toast({ title: "Google Sign-In Successful!", description: "Please complete your profile if this is your first time." });
       return result.user;
@@ -163,11 +163,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       return confirmationResult;
     } catch (error: any) {
-      if ((window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier.render().then((widgetId: any) => {
-           if(typeof grecaptcha !== 'undefined' && grecaptcha.reset) grecaptcha.reset(widgetId);
-        });
-      }
+      // Note: grecaptcha UI reset logic should be in the component using RecaptchaVerifier (LoginForm.tsx)
+      // if ((window as any).recaptchaVerifier) {
+      //   (window as any).recaptchaVerifier.render().then((widgetId: any) => {
+      //      if(typeof grecaptcha !== 'undefined' && grecaptcha.reset) grecaptcha.reset(widgetId);
+      //   });
+      // }
       if (error.code === 'auth/operation-not-allowed') {
         toast({ variant: "destructive", title: "Phone Sign-In Error", description: "Phone number sign-in is not enabled for this project. Please enable it in the Firebase console." });
       } else {
@@ -183,7 +184,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userCredential = await confirmationResult.confirm(code);
-      localStorage.setItem(`profileCompletionPending_${userCredential.user.uid}`, 'true');
+      localStorage.setItem('profileCompletionPending_' + userCredential.user.uid, 'true');
       setProfileCompletionPending(true);
       toast({ title: "Phone Sign-In Successful!", description: "Please complete your profile." });
       setLoading(false);
