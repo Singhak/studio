@@ -18,8 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { SPORTS_TYPES } from "@/lib/types"; // Removed SportType as it's not used directly
-import { PlusCircle, Trash2, Building, MapPin, Info, Phone, Mail, DollarSign, Clock, ImageUp, ShieldQuestion } from "lucide-react";
+import { SPORTS_TYPES } from "@/lib/types";
+import { PlusCircle, Trash2, Building, MapPin, Info, Phone, Mail, DollarSign, Clock, ImageUp, ShieldQuestion, Palette } from "lucide-react"; // Added Palette for Sport specific to service
 
 const serviceSchema = z.object({
   name: z.string().min(1, "Service name is required."),
@@ -32,16 +32,18 @@ const serviceSchema = z.object({
     (a) => parseInt(z.string().parse(a), 10),
     z.number().int().positive("Duration must be positive.")
   ),
+  sport: z.enum(SPORTS_TYPES).optional(), // Sport specific to this service
+  serviceImages: z.any().optional(), // Images specific to this service
 });
 
 const formSchema = z.object({
   clubName: z.string().min(3, "Club name must be at least 3 characters."),
-  sport: z.enum(SPORTS_TYPES, { required_error: "Please select a sport for your club." }),
+  sport: z.enum(SPORTS_TYPES, { required_error: "Please select a primary sport for your club." }),
   location: z.string().min(5, "Location is required."),
   description: z.string().min(20, "Description must be at least 20 characters.").max(500, "Description too long."),
   contactEmail: z.string().email("Invalid email address.").optional().or(z.literal('')),
   contactPhone: z.string().optional(),
-  clubImages: z.any().optional(), // Placeholder for file uploads
+  clubImages: z.any().optional(), // Images for the entire club
   services: z.array(serviceSchema).min(1, "At least one service is required."),
 });
 
@@ -55,7 +57,8 @@ export function ClubRegistrationForm() {
       description: "",
       contactEmail: "",
       contactPhone: "",
-      services: [{ name: "", price: 0, durationMinutes: 60, description: "" }],
+      clubImages: undefined,
+      services: [{ name: "", price: 0, durationMinutes: 60, description: "", sport: undefined, serviceImages: undefined }],
     },
   });
 
@@ -66,12 +69,16 @@ export function ClubRegistrationForm() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log("Club registration data:", values);
-    // For file uploads, values.clubImages would be a FileList object.
-    // You would need to handle this FileList, e.g., upload to Firebase Storage.
+    // Handle clubImages
     if (values.clubImages && values.clubImages.length > 0) {
-      console.log("Files to upload:", values.clubImages);
-      // Example: Loop through values.clubImages and upload each file.
+      console.log("Club Files to upload:", values.clubImages);
     }
+    // Handle serviceImages for each service
+    values.services.forEach((service, index) => {
+      if (service.serviceImages && service.serviceImages.length > 0) {
+        console.log(`Service ${index + 1} ('${service.name}') Files to upload:`, service.serviceImages);
+      }
+    });
     alert("Club registration submitted! (See console for data and image files)");
   }
 
@@ -88,6 +95,7 @@ export function ClubRegistrationForm() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            {/* Club Details */}
             <FormField
               control={form.control}
               name="clubName"
@@ -106,12 +114,12 @@ export function ClubRegistrationForm() {
                 name="sport"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center"><ShieldQuestion className="mr-2 h-4 w-4 text-muted-foreground"/>Primary Sport</FormLabel>
+                    <FormLabel className="flex items-center"><ShieldQuestion className="mr-2 h-4 w-4 text-muted-foreground"/>Primary Sport of Club</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select a sport" /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select club's main sport" /></SelectTrigger></FormControl>
                       <SelectContent>
-                        {SPORTS_TYPES.map(sport => (
-                          <SelectItem key={sport} value={sport}>{sport}</SelectItem>
+                        {SPORTS_TYPES.map(sportType => (
+                          <SelectItem key={sportType} value={sportType}>{sportType}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -173,16 +181,16 @@ export function ClubRegistrationForm() {
             <FormField
               control={form.control}
               name="clubImages"
-              render={({ field: { onChange, value, ...rest } }) => ( // Destructure field to handle file input
+              render={({ field: { onChange, value, ...rest } }) => (
                 <FormItem>
-                  <FormLabel className="flex items-center"><ImageUp className="mr-2 h-4 w-4 text-muted-foreground"/>Club Images</FormLabel>
+                  <FormLabel className="flex items-center"><ImageUp className="mr-2 h-4 w-4 text-muted-foreground"/>Club Images (Overall)</FormLabel>
                   <FormControl>
                     <Input 
                       type="file" 
                       multiple 
                       accept="image/*"
-                      onChange={(e) => onChange(e.target.files)} // Pass FileList to react-hook-form
-                      {...rest} // Pass other props like name, ref, onBlur
+                      onChange={(e) => onChange(e.target.files)}
+                      {...rest}
                     />
                   </FormControl>
                   <FormDescription>Upload one or more images for your club (e.g., venue, courts). Max 5MB per image. PNG, JPG, WEBP accepted.</FormDescription>
@@ -191,12 +199,11 @@ export function ClubRegistrationForm() {
               )}
             />
 
-
             {/* Services Section */}
             <Card className="border-dashed">
               <CardHeader>
                 <CardTitle className="text-xl">Services & Pricing</CardTitle>
-                <CardDescription>Define the services you offer, like court rentals or coaching.</CardDescription>
+                <CardDescription>Define the services you offer. You can specify sport type and images for each service if they differ from the club's main details.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {fields.map((field, index) => (
@@ -204,10 +211,10 @@ export function ClubRegistrationForm() {
                     <FormField
                       control={form.control}
                       name={`services.${index}.name`}
-                      render={({ field }) => (
+                      render={({ field: f }) => ( // Renamed field to f to avoid conflict
                         <FormItem>
                           <FormLabel className="flex items-center"><Info className="mr-2 h-4 w-4 text-muted-foreground"/>Service Name #{index + 1}</FormLabel>
-                          <FormControl><Input placeholder="e.g., Tennis Court Rental (1hr)" {...field} /></FormControl>
+                          <FormControl><Input placeholder="e.g., Tennis Court Rental (1hr)" {...f} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -216,10 +223,10 @@ export function ClubRegistrationForm() {
                       <FormField
                         control={form.control}
                         name={`services.${index}.price`}
-                        render={({ field }) => (
+                        render={({ field: f }) => (
                           <FormItem>
                             <FormLabel className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground"/>Price ($)</FormLabel>
-                            <FormControl><Input type="number" step="0.01" placeholder="25.00" {...field} /></FormControl>
+                            <FormControl><Input type="number" step="0.01" placeholder="25.00" {...f} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -227,22 +234,61 @@ export function ClubRegistrationForm() {
                       <FormField
                         control={form.control}
                         name={`services.${index}.durationMinutes`}
-                        render={({ field }) => (
+                        render={({ field: f }) => (
                           <FormItem>
                             <FormLabel className="flex items-center"><Clock className="mr-2 h-4 w-4 text-muted-foreground"/>Duration (minutes)</FormLabel>
-                            <FormControl><Input type="number" placeholder="60" {...field} /></FormControl>
+                            <FormControl><Input type="number" placeholder="60" {...f} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
+                    <FormField
+                      control={form.control}
+                      name={`services.${index}.sport`}
+                      render={({ field: f }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center"><Palette className="mr-2 h-4 w-4 text-muted-foreground"/>Sport for this Service (Optional)</FormLabel>
+                          <Select onValueChange={f.onChange} defaultValue={f.value}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select sport (if different from club's main)" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              {SPORTS_TYPES.map(sportType => (
+                                <SelectItem key={sportType} value={sportType}>{sportType}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                           <FormDescription>Leave blank if same as club's primary sport.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                      <FormField
                       control={form.control}
                       name={`services.${index}.description`}
-                      render={({ field }) => (
+                      render={({ field: f }) => (
                         <FormItem>
                           <FormLabel className="flex items-center"><Info className="mr-2 h-4 w-4 text-muted-foreground"/>Service Description (Optional)</FormLabel>
-                          <FormControl><Textarea placeholder="e.g., Standard hard court, includes basic equipment." {...field} rows={2}/></FormControl>
+                          <FormControl><Textarea placeholder="e.g., Standard hard court, includes basic equipment." {...f} rows={2}/></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`services.${index}.serviceImages`}
+                      render={({ field: { onChange: onFileChange, value: fieldValue, ...restField } }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center"><ImageUp className="mr-2 h-4 w-4 text-muted-foreground"/>Images for this Service (Optional)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="file" 
+                              multiple 
+                              accept="image/*"
+                              onChange={(e) => onFileChange(e.target.files)}
+                              {...restField}
+                            />
+                          </FormControl>
+                          <FormDescription>Upload images specific to this service (e.g., a particular court or equipment).</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -263,14 +309,13 @@ export function ClubRegistrationForm() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => append({ name: "", price: 0, durationMinutes: 60, description: "" })}
+                  onClick={() => append({ name: "", price: 0, durationMinutes: 60, description: "", sport: undefined, serviceImages: undefined })}
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Another Service
                 </Button>
               </CardContent>
             </Card>
             
-            {/* Placeholder for availability settings */}
             <Card className="border-dashed">
               <CardHeader>
                   <CardTitle className="text-xl">Availability (Coming Soon)</CardTitle>
@@ -292,4 +337,5 @@ export function ClubRegistrationForm() {
     </Card>
   );
 }
-
+      
+    
