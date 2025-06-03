@@ -7,7 +7,8 @@ import { toast } from '@/hooks/use-toast';
 
 // Ensure this VAPID key is generated from your Firebase project settings:
 // Project settings > Cloud Messaging > Web configuration > Web Push certificates.
-const VAPID_KEY = "YOUR_VAPID_KEY_FROM_FIREBASE_CONSOLE_CLOUD_MESSAGING_SETTINGS_WEB_PUSH_CERTIFICATES"; // REPLACE THIS!
+// It will be read from the environment variable NEXT_PUBLIC_FIREBASE_VAPID_KEY
+const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
 export const initializeFirebaseMessaging = async () => {
   try {
@@ -22,12 +23,12 @@ export const initializeFirebaseMessaging = async () => {
 };
 
 export const requestNotificationPermission = async () => {
-  if (VAPID_KEY === "YOUR_VAPID_KEY_FROM_FIREBASE_CONSOLE_CLOUD_MESSAGING_SETTINGS_WEB_PUSH_CERTIFICATES") {
-    console.warn("Firebase Messaging: VAPID_KEY is not set. Please set it in src/lib/firebase/messaging.ts");
+  if (!VAPID_KEY) {
+    console.warn("Firebase Messaging: NEXT_PUBLIC_FIREBASE_VAPID_KEY is not set in your environment variables. Please set it in .env.local (or similar).");
     toast({
       variant: 'destructive',
       title: 'Notification Setup Incomplete',
-      description: 'VAPID key for push notifications is not configured.',
+      description: 'VAPID key for push notifications is not configured. Please check your environment variables.',
     });
     return null;
   }
@@ -96,3 +97,4 @@ export const onForegroundMessageListener = async () => {
   });
   return unsubscribe; // Return the unsubscribe function
 };
+
