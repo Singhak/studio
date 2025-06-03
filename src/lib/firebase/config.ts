@@ -2,7 +2,7 @@
 // IMPORTANT: Ensure your .env.local or .env.production (or hosting environment variables)
 // are populated with your Firebase project configuration values.
 
-import { initializeApp, getApp, getApps } from "firebase/app";
+import { initializeApp, getApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 // import { getFirestore } from "firebase/firestore"; // If you use Firestore
 // import { getStorage } from "firebase/storage"; // If you use Storage
@@ -40,7 +40,7 @@ if (missingKeys.length > 0) {
 
 
 // Initialize Firebase
-let app;
+let app: FirebaseApp;
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
 } else {
