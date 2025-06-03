@@ -136,12 +136,12 @@ export default function OwnerDashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{selectedClub.name} - Dashboard</h1>
-            <p className="text-muted-foreground">Manage your club settings, bookings, and services.</p>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">{selectedClub.name} - Dashboard</h1>
+            <p className="text-muted-foreground text-sm sm:text-base">Manage your club settings, bookings, and services.</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+        <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             {ownerClubs.length > 1 && (
-            <div className="min-w-[200px]">
+            <div className="min-w-[200px] sm:min-w-0 md:min-w-[200px]"> {/* Adjust min-width for select if needed */}
                 <Select value={selectedClub.id} onValueChange={handleClubChange}>
                 <SelectTrigger id="club-selector" aria-label="Switch managed club">
                     <SelectValue placeholder="Switch Club..." />
@@ -329,3 +329,5 @@ export default function OwnerDashboardPage() {
     </div>
   );
 }
+
+    
