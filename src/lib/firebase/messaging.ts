@@ -1,9 +1,11 @@
 
 "use client"; // Ensure this runs on the client
 
-import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage, isSupported, type MessagePayload } from 'firebase/messaging';
 import { app } from './config'; // Your Firebase app instance
 import { toast } from '@/hooks/use-toast';
+import { Bell } from 'lucide-react'; // Import the Bell icon
+import React from 'react'; // Import React for JSX
 
 // Ensure this VAPID key is generated from your Firebase project settings:
 // Project settings > Cloud Messaging > Web configuration > Web Push certificates.
@@ -55,7 +57,12 @@ export const requestNotificationPermission = async () => {
         // TODO: Send this token to your server and store it associated with the user.
         // Example: await saveTokenToServer(currentToken);
         toast({
-          title: 'Notifications Enabled',
+          title: (
+            <div className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-green-500" /> {/* Using green for success */}
+              <span>Notifications Enabled</span>
+            </div>
+          ),
           description: 'You will now receive updates via push notifications.',
         });
         return currentToken;
@@ -91,14 +98,19 @@ export const onForegroundMessageListener = async () => {
   const messagingInstance = await initializeFirebaseMessaging();
   if (!messagingInstance) return null;
 
-  const unsubscribe = onMessage(messagingInstance, (payload) => {
+  const unsubscribe = onMessage(messagingInstance, (payload: MessagePayload) => {
     console.log('Message received in foreground. ', payload);
     toast({
-      title: payload.notification?.title || 'New Notification',
+      title: (
+        <div className="flex items-center gap-2">
+          <Bell className="h-5 w-5 text-primary" />
+          <span>{payload.notification?.title || 'New Notification'}</span>
+        </div>
+      ),
       description: payload.notification?.body || 'You have a new message from Courtly.',
+      // You can add duration here if needed, e.g., duration: 5000 (5 seconds)
     });
     // Example: You could also play a sound or show a custom in-app UI
   });
   return unsubscribe; // Return the unsubscribe function
 };
-

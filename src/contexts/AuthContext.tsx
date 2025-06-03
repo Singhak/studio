@@ -19,6 +19,7 @@ import { auth } from '@/lib/firebase/config'; // Your Firebase auth instance
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { requestNotificationPermission, onForegroundMessageListener } from '@/lib/firebase/messaging'; // Import FCM functions
+import { Bell } from 'lucide-react'; // Import the Bell icon
 
 interface AuthContextType {
   currentUser: User | null;
