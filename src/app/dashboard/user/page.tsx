@@ -52,7 +52,7 @@ export default function UserDashboardPage() {
             <Heart className="mr-2 h-4 w-4" /> Favorite Clubs
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="upcoming" className="mt-4">
+        <TabsContent value="upcoming" className="mt-8 md:mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Upcoming Bookings</CardTitle>
@@ -63,21 +63,21 @@ export default function UserDashboardPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Club</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="px-2 sm:px-4">Club</TableHead>
+                      <TableHead className="px-2 sm:px-4">Date</TableHead>
+                      <TableHead className="px-2 sm:px-4">Time</TableHead>
+                      <TableHead className="px-2 sm:px-4">Status</TableHead>
+                      <TableHead className="text-right px-2 sm:px-4">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {upcomingBookings.map((booking) => (
                       <TableRow key={booking.id}>
-                        <TableCell className="font-medium">Club {booking.clubId.slice(-1)}</TableCell> {/* Placeholder name */}
-                        <TableCell>{new Date(booking.date).toLocaleDateString()}</TableCell>
-                        <TableCell>{booking.startTime} - {booking.endTime}</TableCell>
-                        <TableCell><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
-                        <TableCell className="text-right space-x-1">
+                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-1)}</TableCell> {/* Placeholder name */}
+                        <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
+                        <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
+                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
                           <Button variant="ghost" size="icon" title="View Details"><Eye className="h-4 w-4" /></Button>
                           {booking.status === 'pending' && <Button variant="ghost" size="icon" title="Cancel"><Trash2 className="h-4 w-4 text-destructive" /></Button>}
                         </TableCell>
@@ -91,7 +91,7 @@ export default function UserDashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="past" className="mt-4">
+        <TabsContent value="past" className="mt-8 md:mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Past Bookings</CardTitle>
@@ -102,19 +102,19 @@ export default function UserDashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Club</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="px-2 sm:px-4">Club</TableHead>
+                    <TableHead className="px-2 sm:px-4">Date</TableHead>
+                    <TableHead className="px-2 sm:px-4">Status</TableHead>
+                    <TableHead className="text-right px-2 sm:px-4">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pastBookings.map((booking) => (
                     <TableRow key={booking.id}>
-                      <TableCell className="font-medium">Club {booking.clubId.slice(-1)}</TableCell>
-                      <TableCell>{new Date(booking.date).toLocaleDateString()}</TableCell>
-                      <TableCell><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
-                       <TableCell className="text-right space-x-1">
+                      <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-1)}</TableCell>
+                      <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
+                       <TableCell className="text-right space-x-1 p-2 sm:p-4">
                           <Button variant="ghost" size="icon" title="View Details"><Eye className="h-4 w-4" /></Button>
                           {booking.status === 'completed' && <Button variant="ghost" size="icon" title="Rebook (placeholder)"><CalendarPlus className="h-4 w-4" /></Button>}
                         </TableCell>
@@ -128,7 +128,7 @@ export default function UserDashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="favorites" className="mt-4">
+        <TabsContent value="favorites" className="mt-8 md:mt-4">
           <Card>
             <CardHeader>
               <CardTitle>My Favorite Clubs</CardTitle>
