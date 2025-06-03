@@ -6,11 +6,8 @@ function getApiBaseUrl(): string {
     // Client-side: use relative path, the browser will handle the domain
     return '/api';
   }
-  // Server-side: construct an absolute URL.
-  // In a real app, use an environment variable like process.env.NEXT_PUBLIC_APP_URL
-  // or process.env.VERCEL_URL if deployed on Vercel.
-  // For this prototype, we'll default to http://localhost:9002 (from package.json dev script)
-  // You should configure this via an environment variable (e.g., NEXT_PUBLIC_APP_URL) for production.
+  // Server-side: construct an absolute URL using environment variable.
+  // Default to http://localhost:9002 for local dev if not set (though it should be set in .env.local)
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
   return `${baseUrl}/api`;
 }

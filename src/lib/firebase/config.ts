@@ -1,7 +1,6 @@
 
-// IMPORTANT: Replace with your actual Firebase project configuration
-// Get this from your Firebase project settings:
-// Project settings > General > Your apps > Firebase SDK snippet > Config
+// IMPORTANT: Ensure your .env.local or .env.production (or hosting environment variables)
+// are populated with your Firebase project configuration values.
 
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
@@ -9,15 +8,36 @@ import { getAuth } from "firebase/auth";
 // import { getStorage } from "firebase/storage"; // If you use Storage
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB70RPghxuHHHvDs2zMbfyuV2ai0Gj9bp0",
-  authDomain: "oursolutioncafe.firebaseapp.com",
-  databaseURL: "https://oursolutioncafe-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "oursolutioncafe",
-  storageBucket: "oursolutioncafe.firebasestorage.app",
-  messagingSenderId: "190930468455",
-  appId: "1:190930468455:web:474cb33f26ee3c531d9ec2",
-  measurementId: "G-5RGCC01CHW"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // Optional
 };
+
+// Validate that all required Firebase config values are present
+const requiredConfigKeys: (keyof typeof firebaseConfig)[] = [
+  'apiKey', 'authDomain', 'projectId', 'messagingSenderId', 'appId'
+  // Add other keys if they are strictly required for your app's core functionality
+  // e.g., databaseURL if Realtime Database is critical, storageBucket if Storage is critical.
+];
+
+const missingKeys = requiredConfigKeys.filter(key => !firebaseConfig[key]);
+
+if (missingKeys.length > 0) {
+  console.error("Firebase config is missing required keys from environment variables:", missingKeys.join(', '));
+  // You might want to throw an error here or handle this more gracefully
+  // depending on whether the app can function at all without these.
+  // For now, we'll log an error. If running in a context where `process` is not fully defined (e.g. certain test environments),
+  // this might also log during build if NEXT_PUBLIC_ vars aren't correctly injected.
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
+    alert(`Critical Firebase configuration missing: ${missingKeys.join(', ')}. Please check your .env.local file and ensure all NEXT_PUBLIC_FIREBASE_ variables are set.`);
+  }
+}
+
 
 // Initialize Firebase
 let app;
