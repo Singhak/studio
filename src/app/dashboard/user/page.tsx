@@ -45,14 +45,14 @@ export default function UserDashboardPage() {
       </div>
 
       <Tabs defaultValue="upcoming">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 gap-1">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 gap-1 h-auto md:h-10">
           <TabsTrigger value="upcoming">Upcoming Bookings</TabsTrigger>
           <TabsTrigger value="past">Past Bookings</TabsTrigger>
           <TabsTrigger value="favorites">
             <Heart className="mr-2 h-4 w-4" /> Favorite Clubs
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="upcoming" className="mt-8 md:mt-4">
+        <TabsContent value="upcoming" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Upcoming Bookings</CardTitle>
@@ -91,7 +91,7 @@ export default function UserDashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="past" className="mt-8 md:mt-4">
+        <TabsContent value="past" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Past Bookings</CardTitle>
@@ -128,7 +128,7 @@ export default function UserDashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="favorites" className="mt-8 md:mt-4">
+        <TabsContent value="favorites" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>My Favorite Clubs</CardTitle>
@@ -160,4 +160,3 @@ export default function UserDashboardPage() {
     </div>
   );
 }
-
