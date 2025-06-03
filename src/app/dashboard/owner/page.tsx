@@ -209,7 +209,7 @@ export default function OwnerDashboardPage() {
       </div>
       
       <Tabs defaultValue="bookings">
-        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:w-[400px] mb-4">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-2 mb-4">
           <TabsTrigger value="bookings">Booking Requests</TabsTrigger>
           <TabsTrigger value="manage">Manage Club</TabsTrigger>
         </TabsList>
