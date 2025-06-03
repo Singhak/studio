@@ -1,116 +1,235 @@
+"use client";
 
-"use client"; // Ensure this runs on the client
-
-import { getMessaging, getToken, onMessage, isSupported, type MessagePayload } from 'firebase/messaging';
-import { app } from './config'; // Your Firebase app instance
-import { toast } from '@/hooks/use-toast';
+import type { ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import {
+  User,
+  onAuthStateChanged,
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  RecaptchaVerifier,
+  signInWithPhoneNumber as firebaseSignInWithPhoneNumber,
+  type ConfirmationResult
+} from 'firebase/auth';
+import { auth } from '@/lib/firebase/config'; // Your Firebase auth instance
+import { useRouter, usePathname } from 'next/navigation';
+import { useToast } from "@/hooks/use-toast";
+import { requestNotificationPermission, onForegroundMessageListener } from '@/lib/firebase/messaging.tsx'; // Import FCM functions - .tsx extension
 import { Bell } from 'lucide-react'; // Import the Bell icon
-import React from 'react'; // Import React for JSX
 
-// Ensure this VAPID key is generated from your Firebase project settings:
-// Project settings > Cloud Messaging > Web configuration > Web Push certificates.
-// It will be read from the environment variable NEXT_PUBLIC_FIREBASE_VAPID_KEY
-const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+interface AuthContextType {
+  currentUser: User | null;
+  loading: boolean;
+  profileCompletionPending: boolean;
+  setProfileCompletionPending: (pending: boolean) => void;
+  signUpWithEmail: (email: string, password: string) => Promise<User | null>;
+  signInWithEmail: (email: string, password: string) => Promise<User | null>;
+  signInWithGoogle: () => Promise<User | null>;
+  signInWithPhoneNumberFlow: (phoneNumber: string, appVerifier: RecaptchaVerifier) => Promise<ConfirmationResult | null>;
+  confirmPhoneNumberCode: (confirmationResult: ConfirmationResult, code: string) => Promise<User | null>;
+  logoutUser: () => Promise<void>;
+}
 
-export const initializeFirebaseMessaging = async () => {
-  try {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && (await isSupported())) {
-      const messaging = getMessaging(app);
-      // Note: Service worker registration is typically handled automatically by Firebase SDK
-      // when getToken is called, or can be manually registered if needed.
-      // Ensure 'firebase-messaging-sw.js' is in your /public folder.
-      return messaging;
-    }
-  } catch (error) {
-    console.error('Error initializing Firebase Messaging:', error);
-  }
-  return null;
-};
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const requestNotificationPermission = async () => {
-  if (!VAPID_KEY) {
-    console.warn("Firebase Messaging: NEXT_PUBLIC_FIREBASE_VAPID_KEY is not set in your environment variables. Please set it in .env.local (or similar).");
-    toast({
-      variant: 'destructive',
-      title: 'Notification Setup Incomplete',
-      description: 'VAPID key for push notifications is not configured. Please check your environment variables.',
-    });
-    return null;
-  }
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [profileCompletionPending, setProfileCompletionPending] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const { toast } = useToast();
 
-  const messagingInstance = await initializeFirebaseMessaging();
-  if (!messagingInstance) {
-    console.log("Firebase Messaging is not supported in this browser or not initialized.");
-    return null;
-  }
+  useEffect(() => {
+    let unsubscribeForegroundMessages: (() => void) | null = null;
 
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      console.log('Notification permission granted.');
-      const currentToken = await getToken(messagingInstance, {
-        vapidKey: VAPID_KEY,
-        // serviceWorkerRegistration: await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js') // Optional: explicitly provide SW reg
-      });
-      if (currentToken) {
-        console.log('FCM Token:', currentToken);
-        // TODO: Send this token to your server and store it associated with the user.
-        // Example: await saveTokenToServer(currentToken);
-        toast({
-          title: (
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-green-500" /> {/* Using green for success */}
-              <span>Notifications Enabled</span>
-            </div>
-          ),
-          description: 'You will now receive updates via push notifications.',
-        });
-        return currentToken;
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => { // Made async
+      setCurrentUser(user);
+      if (user) {
+        if (localStorage.getItem(`profileCompletionPending_${user.uid}`) === 'true') {
+          setProfileCompletionPending(true);
+          localStorage.removeItem(`profileCompletionPending_${user.uid}`);
+        }
+        // Request notification permission and listen for foreground messages
+        await requestNotificationPermission(); // Call this to get token and show initial toasts
+        unsubscribeForegroundMessages = await onForegroundMessageListener(); // Set up listener
       } else {
-        console.log('No registration token available. Request permission to generate one.');
-        toast({
-          variant: 'destructive',
-          title: 'Notification Error',
-          description: 'Could not get notification token. Please ensure notifications are allowed for this site.',
-        });
-        return null;
+        // If user logs out, unsubscribe from foreground messages
+        if (unsubscribeForegroundMessages) {
+          unsubscribeForegroundMessages();
+          unsubscribeForegroundMessages = null;
+        }
       }
-    } else {
-      console.log('Unable to get permission to notify.');
-      toast({
-        title: 'Notifications Denied',
-        description: 'You will not receive push notifications. You can enable them in browser settings.',
-      });
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeForegroundMessages) {
+        unsubscribeForegroundMessages();
+      }
+    };
+  }, []); // Empty dependency array ensures this runs once on mount
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (currentUser && profileCompletionPending && pathname !== '/auth/complete-profile') {
+      router.push('/auth/complete-profile');
+    } else if (currentUser && !profileCompletionPending) {
+      const authPages = ['/login', '/register', '/auth/complete-profile'];
+      if (authPages.includes(pathname)) {
+        router.push('/dashboard/user');
+      }
+    } else if (!currentUser) {
+      const protectedAuthPages = ['/auth/complete-profile'];
+      if (protectedAuthPages.includes(pathname)) {
+        router.push('/login');
+      }
+    }
+  }, [currentUser, profileCompletionPending, loading, router, pathname]);
+
+
+  const signUpWithEmail = async (email: string, password: string): Promise<User | null> => {
+    setLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      localStorage.setItem(`profileCompletionPending_${userCredential.user.uid}`, 'true');
+      setProfileCompletionPending(true);
+      toast({ title: "Registration Successful!", description: "Please complete your profile." });
+      return userCredential.user;
+    } catch (error: any) {
+      if (error.code === 'auth/email-already-in-use') {
+        toast({ variant: "destructive", title: "Registration Failed", description: "This email address is already in use. Please try logging in or use a different email address." });
+      } else {
+        console.error("Error signing up:", error);
+        toast({ variant: "destructive", title: "Registration Failed", description: error.message });
+      }
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string): Promise<User | null> => {
+    setLoading(true);
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      setProfileCompletionPending(false);
+      toast({ title: "Login Successful!", description: "Welcome back!" });
+      return userCredential.user;
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        toast({ variant: "destructive", title: "Login Failed", description: "No account found with this email. Please check your email or sign up." });
+      } else if (error.code === 'auth/wrong-password') {
+        toast({ variant: "destructive", title: "Login Failed", description: "Incorrect password. Please try again." });
+      } else {
+        console.error("Error signing in:", error);
+        toast({ variant: "destructive", title: "Login Failed", description: "An unexpected error occurred. Please try again." });
+      }
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async (): Promise<User | null> => {
+    setLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      localStorage.setItem(`profileCompletionPending_${result.user.uid}`, 'true');
+      setProfileCompletionPending(true);
+      toast({ title: "Google Sign-In Successful!", description: "Please complete your profile if this is your first time." });
+      return result.user;
+    } catch (error: any) {
+      console.error("Error signing in with Google:", error);
+      toast({ variant: "destructive", title: "Google Sign-In Failed", description: error.message });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithPhoneNumberFlow = async (phoneNumber: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
+    setLoading(true);
+    try {
+      const confirmationResult = await firebaseSignInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      toast({ title: "Verification Code Sent", description: "Please check your phone for the SMS code." });
+      setLoading(false);
+      return confirmationResult;
+    } catch (error: any) {
+      if ((window as any).recaptchaVerifier) {
+        (window as any).recaptchaVerifier.render().then((widgetId: any) => {
+           if(typeof grecaptcha !== 'undefined' && grecaptcha.reset) grecaptcha.reset(widgetId);
+        });
+      }
+      if (error.code === 'auth/operation-not-allowed') {
+        toast({ variant: "destructive", title: "Phone Sign-In Error", description: "Phone number sign-in is not enabled for this project. Please enable it in the Firebase console." });
+      } else {
+        console.error("Error sending SMS for phone auth:", error);
+        toast({ variant: "destructive", title: "Phone Sign-In Error", description: error.message });
+      }
+      setLoading(false);
       return null;
     }
-  } catch (error) {
-    console.error('An error occurred while requesting permission or getting token:', error);
-    toast({
-      variant: 'destructive',
-      title: 'Notification Setup Failed',
-      description: 'An error occurred during notification setup. Check console for details.',
-    });
-    return null;
-  }
+  };
+
+  const confirmPhoneNumberCode = async (confirmationResult: ConfirmationResult, code: string): Promise<User | null> => {
+    setLoading(true);
+    try {
+      const userCredential = await confirmationResult.confirm(code);
+      localStorage.setItem(`profileCompletionPending_${userCredential.user.uid}`, 'true');
+      setProfileCompletionPending(true);
+      toast({ title: "Phone Sign-In Successful!", description: "Please complete your profile." });
+      setLoading(false);
+      return userCredential.user;
+    } catch (error: any) {
+      console.error("Error verifying phone code:", error);
+      toast({ variant: "destructive", title: "Verification Failed", description: error.message });
+      setLoading(false);
+      return null;
+    }
+  };
+
+  const logoutUser = async () => {
+    setLoading(true);
+    try {
+      await signOut(auth);
+      setProfileCompletionPending(false);
+      toast({ title: "Logged Out", description: "You have been successfully logged out." });
+      router.push('/');
+    } catch (error: any) {
+      console.error("Error signing out:", error);
+      toast({ variant: "destructive", title: "Logout Failed", description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const value = {
+    currentUser,
+    loading,
+    profileCompletionPending,
+    setProfileCompletionPending,
+    signUpWithEmail,
+    signInWithEmail,
+    signInWithGoogle,
+    signInWithPhoneNumberFlow,
+    confirmPhoneNumberCode,
+    logoutUser,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const onForegroundMessageListener = async () => {
-  const messagingInstance = await initializeFirebaseMessaging();
-  if (!messagingInstance) return null;
-
-  const unsubscribe = onMessage(messagingInstance, (payload: MessagePayload) => {
-    console.log('Message received in foreground. ', payload);
-    toast({
-      title: (
-        <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-primary" />
-          <span>{payload.notification?.title || 'New Notification'}</span>
-        </div>
-      ),
-      description: payload.notification?.body || 'You have a new message from Courtly.',
-      // You can add duration here if needed, e.g., duration: 5000 (5 seconds)
-    });
-    // Example: You could also play a sound or show a custom in-app UI
-  });
-  return unsubscribe; // Return the unsubscribe function
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
