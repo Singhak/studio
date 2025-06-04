@@ -28,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, Repeat, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, Repeat, ChevronDown, Send } from 'lucide-react'; // Added Send icon
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -46,6 +46,7 @@ const ownerNavItems = [
   { href: '/dashboard/owner/services', label: 'Services & Pricing', icon: CreditCard },
   { href: '/dashboard/owner/availability', label: 'Availability', icon: ShieldCheck },
   { href: '/dashboard/owner/settings', label: 'Club Settings', icon: Settings },
+  { href: '/dashboard/owner/promotions', label: 'Promotions', icon: Send }, // Added Promotions link
 ];
 
 const commonBottomNavItems = [
