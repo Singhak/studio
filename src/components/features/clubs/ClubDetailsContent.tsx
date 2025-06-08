@@ -10,9 +10,29 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { mockServices } from '@/lib/mockData'; // Keep for fallback logic if club.services is empty
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 
 export function ClubDetailsContent({ club }: { club: Club }) {
   const { toast } = useToast();
+  const { addNotification } = useAuth(); // Get addNotification
+
+  const handleBookSlot = () => {
+    // Placeholder for actual booking logic
+    console.log("Booking slot for club:", club.id);
+    toast({
+        title: "Booking Initiated (Simulation)",
+        description: "If this were a real app, a push notification would be sent to you upon confirmation.",
+    });
+
+    // Simulate notifying the owner
+    // In a real app, this would be a server-side action triggered by the booking.
+    // For prototype, we add to current user's (if they are an owner) notifications.
+    addNotification(
+      `New Booking Request: ${club.name}`,
+      `A new booking has been requested for ${club.name}. Please review.`,
+      '/dashboard/owner' // Link to the owner dashboard
+    );
+  };
 
   return (
     <>
@@ -128,14 +148,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
           <Button 
             size="lg" 
             className="w-full text-lg py-6"
-            onClick={() => {
-                // Placeholder for actual booking logic
-                console.log("Booking slot for club:", club.id);
-                toast({
-                    title: "Booking Initiated (Simulation)",
-                    description: "If this were a real app, a push notification would be sent to you upon confirmation.",
-                });
-            }}
+            onClick={handleBookSlot} // Use the new handler
           >
             Book Selected Slot
           </Button>

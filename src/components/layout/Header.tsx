@@ -24,6 +24,7 @@ import { ThemeToggleButton } from '@/components/shared/ThemeToggleButton';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNowStrict } from 'date-fns';
 import type { AppNotification } from '@/lib/types';
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 const baseNavLinks = [
   { href: '/clubs', label: 'Find Clubs' },
@@ -31,6 +32,7 @@ const baseNavLinks = [
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const router = useRouter(); // Initialize useRouter
   const { 
     currentUser, 
     logoutUser, 
@@ -74,9 +76,9 @@ export function Header() {
     if (!notification.read) {
       markNotificationAsRead(notification.id);
     }
-    // if (notification.href) {
-    //   router.push(notification.href); // Add router if navigation is needed
-    // }
+    if (notification.href) {
+      router.push(notification.href); 
+    }
   };
 
   return (

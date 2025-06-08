@@ -13,6 +13,7 @@ import { mockClubs, mockServices as allMockServices } from '@/lib/mockData';
 import Link from 'next/link';
 import { PlusCircle, Edit, Settings, BarChart3, Users, DollarSign, Eye, CheckCircle, XCircle, Trash2, Building, ListFilter, ClubIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 
 // Mock current owner ID
 const CURRENT_OWNER_ID = 'owner123';
@@ -38,6 +39,7 @@ const statusBadgeVariant = (status: Booking['status']) => {
 
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
+  const { addNotification } = useAuth(); // Get addNotification
   const [ownerClubs, setOwnerClubs] = useState<Club[]>([]);
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,7 +49,6 @@ export default function OwnerDashboardPage() {
     const clubsForOwner = mockClubs.filter(club => club.ownerId === CURRENT_OWNER_ID);
     setOwnerClubs(clubsForOwner);
     if (clubsForOwner.length > 0) {
-      // Pre-select the first club, or a stored preference if implemented
       setSelectedClub(clubsForOwner[0]);
     } else {
       setSelectedClub(null);
@@ -99,8 +100,6 @@ export default function OwnerDashboardPage() {
   }
   
   if (!selectedClub && ownerClubs.length > 0) {
-     // This case should ideally not be hit if useEffect correctly sets the first club
-     // But as a fallback:
      return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <ClubIcon className="w-24 h-24 text-muted-foreground mb-6 animate-pulse" />
@@ -125,9 +124,7 @@ export default function OwnerDashboardPage() {
     );
   }
   
-  // Ensure selectedClub is not null before proceeding
   if (!selectedClub) {
-      // This handles the brief moment before selectedClub is set, or if something went wrong
       return <p>Loading club data...</p>;
   }
 
@@ -141,7 +138,7 @@ export default function OwnerDashboardPage() {
         </div>
         <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             {ownerClubs.length > 1 && (
-            <div className="min-w-[200px] sm:min-w-0 md:min-w-[200px]"> {/* Adjust min-width for select if needed */}
+            <div className="min-w-[200px] sm:min-w-0 md:min-w-[200px]"> 
                 <Select value={selectedClub.id} onValueChange={handleClubChange}>
                 <SelectTrigger id="club-selector" aria-label="Switch managed club">
                     <SelectValue placeholder="Switch Club..." />
@@ -164,7 +161,6 @@ export default function OwnerDashboardPage() {
         </div>
       </div>
 
-      {/* Stats Cards - These should ideally be specific to the selectedClub */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -252,6 +248,11 @@ export default function OwnerDashboardPage() {
                                         title: "Booking Accepted (Sim)",
                                         description: `Booking for User ${booking.userId.slice(-2)} at ${selectedClub.name} accepted.`,
                                     });
+                                    addNotification(
+                                        `Booking Confirmed: ${selectedClub.name}`,
+                                        `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} has been confirmed.`,
+                                        '/dashboard/user'
+                                    );
                                     // TODO: Update booking status in backend
                                 }}
                               >
@@ -265,6 +266,11 @@ export default function OwnerDashboardPage() {
                                         title: "Booking Rejected (Sim)",
                                         description: `Booking for User ${booking.userId.slice(-2)} at ${selectedClub.name} rejected.`,
                                     });
+                                    addNotification(
+                                        `Booking Update: ${selectedClub.name}`,
+                                        `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} could not be confirmed.`,
+                                        '/dashboard/user'
+                                    );
                                     // TODO: Update booking status in backend
                                 }}
                               >
@@ -296,7 +302,6 @@ export default function OwnerDashboardPage() {
                   <h3 className="font-semibold">Club Information</h3>
                   <p className="text-sm text-muted-foreground">Edit name, description, location, images for {selectedClub.name}.</p>
                 </div>
-                {/* TODO: Pass selectedClub.id to these pages or use context */}
                 <Button variant="outline" asChild><Link href={`/dashboard/owner/settings?clubId=${selectedClub.id}`}><Edit className="mr-2 h-4 w-4"/>Edit</Link></Button>
               </div>
               <div className="flex items-center justify-between p-4 border rounded-lg">
@@ -318,7 +323,6 @@ export default function OwnerDashboardPage() {
                 <Button asChild variant="destructive" className="ml-auto"
                  onClick={() => {
                      alert(`Placeholder: Would attempt to delete club: ${selectedClub.name} (ID: ${selectedClub.id})`);
-                     // In a real app, you'd have a confirmation dialog and API call.
                  }}>
                     <Link href="#"><Trash2 className="mr-2 h-4 w-4"/> Delete {selectedClub.name.substring(0,15)}...</Link>
                 </Button>
@@ -329,5 +333,3 @@ export default function OwnerDashboardPage() {
     </div>
   );
 }
-
-    
