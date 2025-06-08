@@ -2,7 +2,7 @@
 "use client"; // Ensure this runs on the client
 
 import React from 'react'; // Import React for JSX
-import { getMessaging, getToken, onMessage, isSupported, type MessagePayload } from 'firebase/messaging';
+import { getMessaging, getToken, isSupported, type MessagePayload } from 'firebase/messaging'; // Removed onMessage
 import { app } from './config'; // Your Firebase app instance
 import { toast } from '@/hooks/use-toast';
 import { Bell } from 'lucide-react'; // Import the Bell icon
@@ -30,11 +30,7 @@ export const initializeFirebaseMessaging = async () => {
 export const requestNotificationPermission = async () => {
   if (!VAPID_KEY) {
     console.warn("Firebase Messaging: NEXT_PUBLIC_FIREBASE_VAPID_KEY is not set in your environment variables. Please set it in .env.local (or similar).");
-    toast({
-      variant: 'destructive',
-      title: 'Notification Setup Incomplete',
-      description: 'VAPID key for push notifications is not configured. Please check your environment variables.',
-    });
+    // Toasting from AuthContext now, to avoid import cycle if messaging toasts AuthContext.
     return null;
   }
 
@@ -50,65 +46,26 @@ export const requestNotificationPermission = async () => {
       console.log('Notification permission granted.');
       const currentToken = await getToken(messagingInstance, {
         vapidKey: VAPID_KEY,
-        // serviceWorkerRegistration: await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js') // Optional: explicitly provide SW reg
       });
       if (currentToken) {
         console.log('FCM Token:', currentToken);
-        // TODO: Send this token to your server and store it associated with the user.
-        // Example: await saveTokenToServer(currentToken);
-        toast({
-          title: (
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-green-500" /> {/* Using green for success */}
-              <span>Notifications Enabled</span>
-            </div>
-          ),
-          description: 'You will now receive updates via push notifications.',
-        });
+        // Toasting and token saving will be handled in AuthContext
         return currentToken;
       } else {
         console.log('No registration token available. Request permission to generate one.');
-        toast({
-          variant: 'destructive',
-          title: 'Notification Error',
-          description: 'Could not get notification token. Please ensure notifications are allowed for this site.',
-        });
+        // Toasting from AuthContext
         return null;
       }
     } else {
       console.log('Unable to get permission to notify.');
-      toast({
-        title: 'Notifications Denied',
-        description: 'You will not receive push notifications. You can enable them in browser settings.',
-      });
+      // Toasting from AuthContext
       return null;
     }
   } catch (error) {
     console.error('An error occurred while requesting permission or getting token:', error);
-    toast({
-      variant: 'destructive',
-      title: 'Notification Setup Failed',
-      description: 'An error occurred during notification setup. Check console for details.',
-    });
+    // Toasting from AuthContext
     return null;
   }
 };
 
-export const onForegroundMessageListener = async () => {
-  const messagingInstance = await initializeFirebaseMessaging();
-  if (!messagingInstance) return null;
-
-  const unsubscribe = onMessage(messagingInstance, (payload: MessagePayload) => {
-    console.log('Message received in foreground. ', payload);
-    toast({
-      title: (
-        <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-primary" />
-          <span>{payload.notification?.title || 'New Notification'}</span>
-        </div>
-      ),
-      description: payload.notification?.body || 'You have a new message from Courtly.',
-    });
-  });
-  return unsubscribe; 
-};
+// onForegroundMessageListener is removed as AuthContext will handle its own onMessage subscription.

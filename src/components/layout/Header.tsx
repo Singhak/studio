@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { Bell, UserCircle, LogIn, UserPlus, Menu, LogOut as LogOutIcon, Settings, LayoutDashboard, PlusCircle } from 'lucide-react';
+import { Bell, UserCircle, LogIn, UserPlus, Menu, LogOut as LogOutIcon, Settings, LayoutDashboard, PlusCircle, CheckCheck, Trash2, Mailbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
 import {
@@ -12,13 +12,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ThemeToggleButton } from '@/components/shared/ThemeToggleButton'; // Import ThemeToggleButton
+import { ThemeToggleButton } from '@/components/shared/ThemeToggleButton';
+import { Badge } from '@/components/ui/badge';
+import { formatDistanceToNowStrict } from 'date-fns';
+import type { AppNotification } from '@/lib/types';
 
 const baseNavLinks = [
   { href: '/clubs', label: 'Find Clubs' },
@@ -26,7 +31,16 @@ const baseNavLinks = [
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { currentUser, logoutUser, loading } = useAuth();
+  const { 
+    currentUser, 
+    logoutUser, 
+    loading,
+    notifications,
+    unreadCount,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    clearAllNotifications
+  } = useAuth();
 
   const isAuthenticated = !!currentUser;
 
@@ -37,12 +51,10 @@ export function Header() {
   
   const userInitial = currentUser?.email ? currentUser.email.charAt(0).toUpperCase() : "?";
 
-  // Dynamic links based on auth state
   let allNavLinks = [...baseNavLinks];
   if (isAuthenticated) {
-    allNavLinks.push({ href: '/dashboard/user', label: 'My Bookings' });
+    // My Bookings link is typically part of dashboard, handled by user dropdown
   }
-
 
   if (loading) {
     return (
@@ -57,6 +69,15 @@ export function Header() {
       </header>
     );
   }
+
+  const handleNotificationClick = (notification: AppNotification) => {
+    if (!notification.read) {
+      markNotificationAsRead(notification.id);
+    }
+    // if (notification.href) {
+    //   router.push(notification.href); // Add router if navigation is needed
+    // }
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -76,11 +97,66 @@ export function Header() {
         </nav>
 
         <div className="flex items-center space-x-1 sm:space-x-2">
-          <ThemeToggleButton /> {/* Add Theme Toggle Button */}
+          <ThemeToggleButton />
+          
           {isAuthenticated && (
-            <Button variant="ghost" size="icon" aria-label="Notifications" className="hidden sm:inline-flex h-9 w-9">
-                <Bell className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Notifications" className="relative h-9 w-9">
+                    <Bell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 min-w-min p-0.5 text-xs flex items-center justify-center rounded-full">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </Badge>
+                    )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 sm:w-96">
+                <DropdownMenuLabel className="flex justify-between items-center">
+                  <span>Notifications</span>
+                  {notifications.length > 0 && (
+                     <Button variant="ghost" size="sm" className="text-xs h-auto px-2 py-1" onClick={markAllNotificationsAsRead} disabled={unreadCount === 0}>
+                        <CheckCheck className="mr-1.5 h-3.5 w-3.5"/> Mark all read
+                    </Button>
+                  )}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <ScrollArea className="h-[300px] sm:h-[400px]">
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground flex flex-col items-center justify-center h-full">
+                      <Mailbox className="w-12 h-12 mb-3 text-muted-foreground/70" />
+                      You have no notifications.
+                    </div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <DropdownMenuItem 
+                        key={notification.id} 
+                        className={`flex flex-col items-start gap-1 whitespace-normal cursor-pointer ${!notification.read ? 'bg-accent/50 hover:bg-accent/70' : ''}`}
+                        onClick={() => handleNotificationClick(notification)}
+                        onSelect={(e) => e.preventDefault()} // Prevent auto-close for custom click handling
+                      >
+                        <div className="w-full flex justify-between items-center">
+                           <span className={`font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.title}</span>
+                           {!notification.read && <div className="w-2 h-2 rounded-full bg-primary shrink-0 ml-2"></div>}
+                        </div>
+                        {notification.body && <p className="text-xs text-muted-foreground line-clamp-2">{notification.body}</p>}
+                        <p className="text-xs text-muted-foreground/70 self-end">
+                          {formatDistanceToNowStrict(new Date(notification.timestamp), { addSuffix: true })}
+                        </p>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </ScrollArea>
+                {notifications.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={clearAllNotifications} className="text-sm text-destructive focus:text-destructive focus:bg-destructive/10 justify-center">
+                       <Trash2 className="mr-2 h-4 w-4"/> Clear All Notifications
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
 
           {isAuthenticated ? (
@@ -143,7 +219,6 @@ export function Header() {
                 <div className="p-6">
                   <div className="flex justify-between items-center mb-8">
                     <Logo />
-                    {/* Theme toggle can also be added here if desired for mobile sheet */}
                   </div>
                   <nav className="flex flex-col space-y-4">
                     {allNavLinks.map((link) => (

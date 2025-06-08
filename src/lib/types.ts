@@ -64,3 +64,12 @@ export const SPORTS_TYPES = [
 ] as const;
 
 export type SportType = typeof SPORTS_TYPES[number];
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  body?: string;
+  timestamp: number; // Unix timestamp
+  read: boolean;
+  href?: string; // Optional link for navigation on click
+}
