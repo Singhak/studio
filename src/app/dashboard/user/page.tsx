@@ -1,14 +1,24 @@
 
+"use client";
+
+import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Booking, Club } from "@/lib/types"; 
-import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon } from "lucide-react"; 
+import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus } from "lucide-react"; 
 import Link from "next/link";
 import { ClubCard } from '@/components/features/clubs/ClubCard'; 
 import { mockClubs, mockUserBookings } from '@/lib/mockData'; 
+import { ReviewForm } from '@/components/features/reviews/ReviewForm';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogCancel, // We might not need cancel if DialogClose is used in form
+  AlertDialogTrigger, // Not directly used if opening programmatically
+} from "@/components/ui/alert-dialog"; // Using AlertDialog for modal behavior
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -27,6 +37,30 @@ export default function UserDashboardPage() {
   const completedBookingsCount = mockUserBookings.filter(b => b.status === 'completed').length;
   
   const favoriteClubs: Club[] = mockClubs.filter(club => club.isFavorite);
+
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
+
+  const handleOpenReviewDialog = (booking: Booking) => {
+    setSelectedBookingForReview(booking);
+    setIsReviewDialogOpen(true);
+  };
+
+  const handleReviewSubmitted = () => {
+    setIsReviewDialogOpen(false);
+    setSelectedBookingForReview(null);
+    // TODO: Potentially refresh bookings or mark booking as reviewed in a real app
+    // For now, just closing the dialog.
+  };
+  
+  // Mock function to check if a review has been submitted for a booking
+  // In a real app, this would check against your review data.
+  const hasBeenReviewed = (bookingId: string) => {
+    // Placeholder: return false; 
+    // Or, if you want to simulate some reviewed items:
+    return bookingId === 'ub3'; // Example: booking ub3 has been reviewed
+  };
+
 
   return (
     <div className="space-y-6">
@@ -123,7 +157,7 @@ export default function UserDashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle>Past Bookings</CardTitle>
-              <CardDescription>Review your booking history.</CardDescription>
+              <CardDescription>Review your booking history and leave feedback.</CardDescription>
             </CardHeader>
             <CardContent>
               {pastBookings.length > 0 ? (
@@ -144,7 +178,15 @@ export default function UserDashboardPage() {
                       <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
                           <Button variant="ghost" size="icon" title="View Details"><Eye className="h-4 w-4" /></Button>
-                          {booking.status === 'completed' && <Button variant="ghost" size="icon" title="Rebook (placeholder)"><CalendarPlus className="h-4 w-4" /></Button>}
+                          {booking.status === 'completed' && (
+                            !hasBeenReviewed(booking.id) ? (
+                              <Button variant="outline" size="sm" onClick={() => handleOpenReviewDialog(booking)}>
+                                <MessageSquarePlus className="mr-1.5 h-4 w-4" /> Leave Review
+                              </Button>
+                            ) : (
+                              <Button variant="ghost" size="sm" disabled>Reviewed</Button>
+                            )
+                          )}
                         </TableCell>
                     </TableRow>
                   ))}
@@ -185,6 +227,18 @@ export default function UserDashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {selectedBookingForReview && (
+        <AlertDialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
+          <AlertDialogContent className="sm:max-w-lg">
+             {/* AlertDialogTitle, Description, Footer are part of ReviewForm now */}
+            <ReviewForm
+              booking={selectedBookingForReview}
+              onReviewSubmit={handleReviewSubmitted}
+            />
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

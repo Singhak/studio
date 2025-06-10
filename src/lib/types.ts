@@ -42,6 +42,7 @@ export interface Booking {
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
   totalPrice: number;
   createdAt: string; // ISO date string
+  // reviewed?: boolean; // Optional: To track if a review has been left
 }
 
 export interface User {
@@ -72,4 +73,16 @@ export interface AppNotification {
   timestamp: number; // Unix timestamp
   read: boolean;
   href?: string; // Optional link for navigation on click
+}
+
+export interface Review {
+  id: string; // Auto-generated or from backend
+  bookingId: string;
+  clubId: string;
+  serviceId: string;
+  userId: string; // ID of the user who wrote the review
+  clubRating: number; // e.g., 1-5
+  serviceRating: number; // e.g., 1-5
+  comment?: string;
+  createdAt: string; // ISO date string
 }
