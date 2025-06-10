@@ -11,9 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Booking, Club, Service } from "@/lib/types";
 import { mockClubs, mockServices as allMockServices } from '@/lib/mockData';
 import Link from 'next/link';
-import { PlusCircle, Edit, Settings, BarChart3, Users, DollarSign, Eye, CheckCircle, XCircle, Trash2, Building, ListFilter, ClubIcon } from "lucide-react";
+import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon, DollarSign, BellRing, ListChecks, Star, CheckBadge as CheckBadgeIcon, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useAuth } from '@/contexts/AuthContext';
 
 // Mock current owner ID
 const CURRENT_OWNER_ID = 'owner123';
@@ -24,6 +24,7 @@ const baseMockOwnerBookings: Booking[] = [
   { id: 'b5', userId: 'u3', clubId: 'club4', serviceId: 's2', date: '2024-08-17', startTime: '15:00', endTime: '16:00', status: 'confirmed', totalPrice: 30, createdAt: new Date().toISOString() },
   { id: 'b6', userId: 'u4', clubId: 'club1', serviceId: 's3', date: '2024-08-18', startTime: '10:00', endTime: '11:00', status: 'confirmed', totalPrice: 50, createdAt: new Date().toISOString() },
   { id: 'b7', userId: 'u5', clubId: 'club4', serviceId: 's1', date: '2024-08-19', startTime: '13:00', endTime: '14:00', status: 'pending', totalPrice: 20, createdAt: new Date().toISOString() },
+  { id: 'b8', userId: 'u6', clubId: 'club1', serviceId: 's1', date: '2024-07-10', startTime: '13:00', endTime: '14:00', status: 'completed', totalPrice: 20, createdAt: new Date().toISOString() },
 ];
 
 const statusBadgeVariant = (status: Booking['status']) => {
@@ -39,7 +40,7 @@ const statusBadgeVariant = (status: Booking['status']) => {
 
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
-  const { addNotification } = useAuth(); // Get addNotification
+  const { addNotification } = useAuth();
   const [ownerClubs, setOwnerClubs] = useState<Club[]>([]);
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,7 +70,34 @@ export default function OwnerDashboardPage() {
   const getServiceName = (serviceId: string): string => {
     const service = allMockServices.find(s => s.id === serviceId);
     return service ? service.name : 'Unknown Service';
-  }
+  };
+
+  const totalRevenue = useMemo(() => {
+    if (!selectedClub) return 0;
+    return currentClubBookings
+      .filter(b => b.status === 'confirmed' || b.status === 'completed')
+      .reduce((sum, booking) => sum + booking.totalPrice, 0);
+  }, [currentClubBookings, selectedClub]);
+
+  const activeBookingsCount = useMemo(() => {
+     if (!selectedClub) return 0;
+     return currentClubBookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length;
+  }, [currentClubBookings, selectedClub]);
+
+  const pendingRequestsCount = useMemo(() => {
+     if (!selectedClub) return 0;
+     return currentClubBookings.filter(b => b.status === 'pending').length;
+  }, [currentClubBookings, selectedClub]);
+  
+  const servicesOfferedCount = useMemo(() => {
+      if (!selectedClub || !selectedClub.services) return 0;
+      return selectedClub.services.length;
+  }, [selectedClub]);
+
+  const totalFulfilledBookingsCount = useMemo(() => {
+    if (!selectedClub) return 0;
+    return currentClubBookings.filter(b => b.status === 'confirmed' || b.status === 'completed').length;
+  }, [currentClubBookings, selectedClub]);
 
 
   if (isLoading) {
@@ -161,45 +189,67 @@ export default function OwnerDashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue (Club)</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$1,234.56</div> 
-            <p className="text-xs text-muted-foreground">+15% from last month</p>
+            <div className="text-2xl font-bold">
+                {totalRevenue.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+            </div> 
+            <p className="text-xs text-muted-foreground">From confirmed & completed bookings</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Bookings (Club)</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Bookings</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{currentClubBookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length}</div>
-            <p className="text-xs text-muted-foreground">For {selectedClub.name}</p>
+            <div className="text-2xl font-bold">{activeBookingsCount}</div>
+            <p className="text-xs text-muted-foreground">Confirmed or pending</p>
           </CardContent>
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Requests (Club)</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
+            <BellRing className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{currentClubBookings.filter(b => b.status === 'pending').length}</div>
+            <div className="text-2xl font-bold">{pendingRequestsCount}</div>
             <p className="text-xs text-muted-foreground">Needs your attention</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Club Rating</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Services Offered</CardTitle>
+            <ListChecks className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{servicesOfferedCount}</div>
+            <p className="text-xs text-muted-foreground">Distinct services listed</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Overall Club Rating</CardTitle>
+            <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{selectedClub.rating || "N/A"} / 5.0</div>
             <p className="text-xs text-muted-foreground">Based on user reviews</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Fulfilled Bookings</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalFulfilledBookingsCount}</div>
+            <p className="text-xs text-muted-foreground">Total confirmed or completed</p>
           </CardContent>
         </Card>
       </div>
@@ -243,7 +293,6 @@ export default function OwnerDashboardPage() {
                                 title="Accept Booking" 
                                 className="text-green-600 hover:text-green-700"
                                 onClick={() => {
-                                    console.log("Accepting booking:", booking.id, "for club:", selectedClub.id);
                                     toast({
                                         title: "Booking Accepted (Sim)",
                                         description: `Booking for User ${booking.userId.slice(-2)} at ${selectedClub.name} accepted.`,
@@ -254,13 +303,19 @@ export default function OwnerDashboardPage() {
                                         '/dashboard/user'
                                     );
                                     // TODO: Update booking status in backend
+                                    // For prototype: Update mock data if desired for immediate reflection
+                                    const bookingIndex = baseMockOwnerBookings.findIndex(b => b.id === booking.id);
+                                    if (bookingIndex !== -1) {
+                                      baseMockOwnerBookings[bookingIndex].status = 'confirmed';
+                                      // Trigger re-calculation of memos
+                                      setSelectedClub(prev => prev ? {...prev} : null); 
+                                    }
                                 }}
                               >
                                 <CheckCircle className="h-5 w-5" />
                               </Button>
                               <Button variant="ghost" size="icon" title="Reject Booking" className="text-red-600 hover:text-red-700"
                                 onClick={() => {
-                                     console.log("Rejecting booking:", booking.id, "for club:", selectedClub.id);
                                      toast({
                                         variant: "destructive",
                                         title: "Booking Rejected (Sim)",
@@ -271,7 +326,11 @@ export default function OwnerDashboardPage() {
                                         `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} could not be confirmed.`,
                                         '/dashboard/user'
                                     );
-                                    // TODO: Update booking status in backend
+                                    const bookingIndex = baseMockOwnerBookings.findIndex(b => b.id === booking.id);
+                                    if (bookingIndex !== -1) {
+                                      baseMockOwnerBookings[bookingIndex].status = 'rejected';
+                                      setSelectedClub(prev => prev ? {...prev} : null);
+                                    }
                                 }}
                               >
                                 <XCircle className="h-5 w-5" />

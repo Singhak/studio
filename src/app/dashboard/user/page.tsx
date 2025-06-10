@@ -4,18 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { Booking, Club } from "@/lib/types"; // Added Club
-import { Eye, Edit, Trash2, CalendarPlus, Heart } from "lucide-react"; // Added Heart
+import type { Booking, Club } from "@/lib/types"; 
+import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon } from "lucide-react"; 
 import Link from "next/link";
-import { ClubCard } from '@/components/features/clubs/ClubCard'; // Added ClubCard
-import { mockClubs } from '@/lib/mockData'; // Added mockClubs
-
-// Mock user bookings
-const mockUserBookings: Booking[] = [
-  { id: 'b1', userId: 'u1', clubId: 'club1', serviceId: 's1', date: '2024-08-15', startTime: '10:00', endTime: '11:00', status: 'confirmed', totalPrice: 20, createdAt: new Date().toISOString() },
-  { id: 'b2', userId: 'u1', clubId: 'club2', serviceId: 's1', date: '2024-08-20', startTime: '14:00', endTime: '15:00', status: 'pending', totalPrice: 20, createdAt: new Date().toISOString() },
-  { id: 'b3', userId: 'u1', clubId: 'club1', serviceId: 's2', date: '2024-07-10', startTime: '09:00', endTime: '10:00', status: 'completed', totalPrice: 30, createdAt: new Date().toISOString() },
-];
+import { ClubCard } from '@/components/features/clubs/ClubCard'; 
+import { mockClubs, mockUserBookings } from '@/lib/mockData'; 
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -31,8 +24,8 @@ const statusBadgeVariant = (status: Booking['status']) => {
 export default function UserDashboardPage() {
   const upcomingBookings = mockUserBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date());
   const pastBookings = mockUserBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id));
+  const completedBookingsCount = mockUserBookings.filter(b => b.status === 'completed').length;
   
-  // This will re-filter on every render, reflecting changes if mockClubs is mutated by ClubCard
   const favoriteClubs: Club[] = mockClubs.filter(club => club.isFavorite);
 
   return (
@@ -44,6 +37,41 @@ export default function UserDashboardPage() {
         </Button>
       </div>
 
+      {/* User Activity Stats Section */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
+            <BookCopy className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{mockUserBookings.length}</div>
+            <p className="text-xs text-muted-foreground">All your bookings</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Upcoming Bookings</CardTitle>
+            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{upcomingBookings.length}</div>
+            <p className="text-xs text-muted-foreground">Active and future reservations</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Completed Bookings</CardTitle>
+            <HistoryIcon className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{completedBookingsCount}</div>
+            <p className="text-xs text-muted-foreground">Successfully attended</p>
+          </CardContent>
+        </Card>
+      </section>
+
+
       <Tabs defaultValue="upcoming">
         <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 gap-1 h-auto md:h-10">
           <TabsTrigger value="upcoming">Upcoming Bookings</TabsTrigger>
@@ -52,7 +80,7 @@ export default function UserDashboardPage() {
             <Heart className="mr-2 h-4 w-4" /> Favorite Clubs
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="upcoming" className="mt-8 md:mt-4">
+        <TabsContent value="upcoming" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Upcoming Bookings</CardTitle>
@@ -91,7 +119,7 @@ export default function UserDashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="past" className="mt-8 md:mt-4">
+        <TabsContent value="past" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Past Bookings</CardTitle>
@@ -128,7 +156,7 @@ export default function UserDashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="favorites" className="mt-8 md:mt-4">
+        <TabsContent value="favorites" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>My Favorite Clubs</CardTitle>
