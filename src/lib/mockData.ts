@@ -1,5 +1,5 @@
 
-import type { Club, Service } from './types';
+import type { Club, Service, Booking } from './types';
 
 export const mockServices: Service[] = [
   { id: 's1', name: 'Standard Court Booking', price: 20, durationMinutes: 60, description: '1 hour court rental.' },
@@ -66,5 +66,68 @@ export const mockClubs: Club[] = [
     rating: 4.9,
     amenities: ['Parking', 'Cafe', 'Equipment Rental', 'Floodlights'],
     isFavorite: true,
+  },
+];
+
+export const mockUserBookings: Booking[] = [
+  {
+    id: 'ub1',
+    userId: 'user001', // Example user ID
+    clubId: 'club1', // Corresponds to Grand Slam Tennis Club
+    serviceId: 's1', // Standard Court Booking
+    date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 days from now
+    startTime: '10:00',
+    endTime: '11:00',
+    status: 'confirmed',
+    totalPrice: 20,
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() // Created 10 days ago
+  },
+  {
+    id: 'ub2',
+    userId: 'user001',
+    clubId: 'club2', // Shuttle Masters Badminton Center
+    serviceId: 's2', // Premium Court Booking
+    date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
+    startTime: '14:00',
+    endTime: '15:00',
+    status: 'pending',
+    totalPrice: 30,
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() // Created 2 days ago
+  },
+  {
+    id: 'ub3',
+    userId: 'user002', // Different user
+    clubId: 'club1', // Grand Slam Tennis Club
+    serviceId: 's3', // Coaching Session
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 5 days ago
+    startTime: '09:00',
+    endTime: '10:00',
+    status: 'completed',
+    totalPrice: 50,
+    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() // Created 15 days ago
+  },
+  {
+    id: 'ub4',
+    userId: 'user001',
+    clubId: 'club3', // The Squash Box
+    serviceId: 's1', // Standard Court Booking
+    date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 20 days ago
+    startTime: '16:00',
+    endTime: '17:00',
+    status: 'cancelled',
+    totalPrice: 20,
+    createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() // Created 25 days ago
+  },
+  {
+    id: 'ub5',
+    userId: 'user001',
+    clubId: 'club4', // Padel Palace Deluxe
+    serviceId: 's2', // Premium Court Booking
+    date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // tomorrow
+    startTime: '18:00',
+    endTime: '19:00',
+    status: 'confirmed',
+    totalPrice: 30,
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() // Created 1 day ago
   },
 ];
