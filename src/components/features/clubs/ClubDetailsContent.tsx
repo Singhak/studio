@@ -5,33 +5,64 @@ import type { Club } from '@/lib/types';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { BookingCalendar } from '@/components/features/booking/BookingCalendar';
-import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users } from 'lucide-react';
+import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
-import { mockServices } from '@/lib/mockData'; // Keep for fallback logic if club.services is empty
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { mockServices } from '@/lib/mockData'; 
+import { useAuth } from '@/contexts/AuthContext'; 
 
 export function ClubDetailsContent({ club }: { club: Club }) {
   const { toast } = useToast();
-  const { addNotification } = useAuth(); // Get addNotification
+  const { addNotification, currentUser } = useAuth(); 
 
   const handleBookSlot = () => {
-    // Placeholder for actual booking logic
     console.log("Booking slot for club:", club.id);
+
     toast({
-        title: "Booking Initiated (Simulation)",
-        description: "If this were a real app, a push notification would be sent to you upon confirmation.",
+        title: "Booking Request Received",
+        description: "Preparing for payment...",
     });
 
-    // Simulate notifying the owner
-    // In a real app, this would be a server-side action triggered by the booking.
-    // For prototype, we add to current user's (if they are an owner) notifications.
+    // Notify the owner (simulated)
     addNotification(
       `New Booking Request: ${club.name}`,
-      `A new booking has been requested for ${club.name}. Please review.`,
-      '/dashboard/owner' // Link to the owner dashboard
+      `A new booking has been requested for ${club.name} by user ${currentUser?.displayName || currentUser?.email || 'a user'}. Please review.`,
+      '/dashboard/owner' 
     );
+
+    // Simulate redirection to PhonePe
+    setTimeout(() => {
+      toast({
+        title: (
+          <div className="flex items-center">
+            <CreditCard className="h-5 w-5 mr-2 text-purple-600" /> 
+            Redirecting to PhonePe...
+          </div>
+        ),
+        description: "Please complete your payment (Simulated).",
+      });
+    }, 2000); // 2-second delay
+
+    // Simulate successful payment after another delay
+    setTimeout(() => {
+      toast({
+        title: (
+          <div className="flex items-center">
+            <CheckCircle className="h-5 w-5 mr-2 text-green-500" />
+            Payment Successful!
+          </div>
+        ),
+        description: `Your booking at ${club.name} is confirmed (Simulated).`,
+      });
+
+      // Notify the user about their confirmed booking
+      addNotification(
+        `Booking Confirmed: ${club.name}`,
+        `Your booking at ${club.name} has been successfully confirmed.`,
+        '/dashboard/user'
+      );
+    }, 5000); // Additional 3-second delay (total 5 seconds)
   };
 
   return (
@@ -59,9 +90,9 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         </div>
       </section>
 
-      <div className="grid lg:grid-cols-3 gap-8"> {/* Changed md:grid-cols-3 to lg:grid-cols-3 */}
+      <div className="grid lg:grid-cols-3 gap-8"> 
         {/* Main Content - Left Column */}
-        <div className="lg:col-span-2 space-y-8"> {/* Changed md:col-span-2 to lg:col-span-2 */}
+        <div className="lg:col-span-2 space-y-8"> 
           {/* Description Card */}
           <Card>
             <CardHeader>
@@ -104,7 +135,6 @@ export function ClubDetailsContent({ club }: { club: Club }) {
                     </div>
                   </li>
                 )) : 
-                /* Fallback if no specific services - using mockServices for demo */
                 mockServices.slice(0,2).map((service) => (
                    <li key={service.id} className="p-4 border rounded-md">
                     <div className="flex justify-between items-center">
@@ -144,11 +174,11 @@ export function ClubDetailsContent({ club }: { club: Club }) {
 
         {/* Sidebar - Right Column (will stack below main content on screens smaller than lg) */}
         <div className="space-y-8">
-          <BookingCalendar /> {/* This component uses its own mock data for time slots */}
+          <BookingCalendar /> 
           <Button 
             size="lg" 
             className="w-full text-lg py-6"
-            onClick={handleBookSlot} // Use the new handler
+            onClick={handleBookSlot} 
           >
             Book Selected Slot
           </Button>
