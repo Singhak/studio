@@ -101,7 +101,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <SidebarHeader className="p-4 flex flex-col space-y-3">
           <div className="flex items-center justify-between">
             <Logo className="text-lg" />
-            <SidebarTrigger className="md:hidden" />
+            <SidebarTrigger /> {/* Removed md:hidden to make it always visible */}
           </div>
           {isOwnerRole && (
             <DropdownMenu>
