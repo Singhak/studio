@@ -1,5 +1,5 @@
 
-import type { CreateBookingPayload, CreateBookingResponse } from '@/lib/types';
+import type { CreateBookingPayload, CreateBookingResponse, Booking } from '@/lib/types';
 
 const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 
@@ -46,6 +46,33 @@ export async function createBooking(payload: CreateBookingPayload): Promise<Crea
       throw error;
     } else {
       throw new Error('An unexpected error occurred during booking creation.');
+    }
+  }
+}
+
+export async function getBookingStatus(bookingId: string): Promise<{ status: Booking['status'] } | null> {
+  const apiUrl = `${getApiBaseUrl()}/bookings/${bookingId}/status`;
+  try {
+    const authHeaders = await getAuthHeaders(); // Content-Type not strictly needed for GET but fine
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: authHeaders,
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      const errorBody = await response.json().catch(() => ({ message: `Failed to get booking status: ${response.statusText} (${response.status})` }));
+      throw new Error(errorBody.message);
+    }
+    return await response.json() as { status: Booking['status'] };
+  } catch (error) {
+    console.error(`Error fetching status for booking ${bookingId}:`, error);
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error('An unexpected error occurred while fetching booking status.');
     }
   }
 }
