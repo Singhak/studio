@@ -20,16 +20,16 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { requestNotificationPermission, initializeFirebaseMessaging } from '@/lib/firebase/messaging';
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
-import type { AppNotification } from '@/lib/types';
+import type { AppNotification, ApiNotification } from '@/lib/types';
 import { Bell } from 'lucide-react';
-import { markNotificationsAsReadApi } from '@/services/notificationService'; // Import the API service
+import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
 
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
   profileCompletionPending: boolean;
-  accessToken: string | null; // Custom backend access token
-  refreshToken: string | null; // Custom backend refresh token
+  accessToken: string | null;
+  refreshToken: string | null;
   setProfileCompletionPending: (pending: boolean) => void;
   signUpWithEmail: (email: string, password: string) => Promise<User | null>;
   signInWithEmail: (email: string, password: string) => Promise<User | null>;
@@ -50,6 +50,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 const CUSTOM_REFRESH_TOKEN_KEY = 'courtlyCustomRefreshToken';
 
+// Helper to transform ApiNotification to AppNotification
+const transformApiNotificationToApp = (apiNotif: ApiNotification): AppNotification => {
+  return {
+    id: apiNotif._id,
+    title: apiNotif.title,
+    body: apiNotif.message,
+    timestamp: new Date(apiNotif.createdAt).getTime(),
+    read: apiNotif.isRead,
+    href: apiNotif.data?.href,
+  };
+};
+
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [unreadCount, setUnreadCount] = useState(0);
 
   const getNotificationStorageKey = useCallback(() => {
-    return currentUser ? `courtly-notifications-${currentUser.uid}` : null;
+    return currentUser ? `courtly-app-notifications-${currentUser.uid}` : null;
   }, [currentUser]);
 
   useEffect(() => {
@@ -74,24 +87,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (storedRefreshToken) setRefreshToken(storedRefreshToken);
   }, []);
 
-
-  useEffect(() => {
-    const storageKey = getNotificationStorageKey();
-    if (storageKey) {
-      const storedNotifications = localStorage.getItem(storageKey);
-      if (storedNotifications) {
-        const parsedNotifications: AppNotification[] = JSON.parse(storedNotifications);
-        setNotifications(parsedNotifications);
-        setUnreadCount(parsedNotifications.filter(n => !n.read).length);
-      } else {
-        setNotifications([]);
-        setUnreadCount(0);
+  const fetchAndSetWeeklyNotifications = useCallback(async () => {
+    if (!currentUser) return;
+    try {
+      const apiNotifications = await getWeeklyNotificationsApi();
+      const appNotifications = apiNotifications.map(transformApiNotificationToApp);
+      setNotifications(appNotifications);
+      setUnreadCount(appNotifications.filter(n => !n.read).length);
+      saveNotificationsToStorage(appNotifications);
+    } catch (error) {
+      console.error("Failed to fetch weekly notifications:", error);
+      // Load from storage as fallback or clear if API preferred as single source of truth on load
+      const storageKey = getNotificationStorageKey();
+      if (storageKey) {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored) as AppNotification[];
+          setNotifications(parsed);
+          setUnreadCount(parsed.filter(n => !n.read).length);
+        } else {
+          setNotifications([]);
+          setUnreadCount(0);
+        }
       }
-    } else {
-        setNotifications([]);
-        setUnreadCount(0);
     }
-  }, [currentUser, getNotificationStorageKey]);
+  }, [currentUser, getNotificationStorageKey]); // Removed saveNotificationsToStorage from dep array as it's defined below
 
   const saveNotificationsToStorage = useCallback((updatedNotifications: AppNotification[]) => {
     const storageKey = getNotificationStorageKey();
@@ -100,9 +120,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [getNotificationStorageKey]);
 
+  useEffect(() => {
+    if (currentUser) {
+      fetchAndSetWeeklyNotifications();
+    } else {
+        setNotifications([]);
+        setUnreadCount(0);
+    }
+  }, [currentUser, fetchAndSetWeeklyNotifications]);
+
+
   const addNotification = useCallback((title: string, body?: string, href?: string, id?: string) => {
-    const newNotification: AppNotification = {
-      id: id || Date.now().toString(),
+    const newAppNotification: AppNotification = {
+      id: id || `client_${Date.now().toString()}`, // Prefix client-side IDs
       title,
       body,
       href,
@@ -110,7 +140,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       read: false,
     };
     setNotifications(prev => {
-      const updated = [newNotification, ...prev.slice(0, 19)]; // Keep up to 20 notifications
+      const updated = [newAppNotification, ...prev.slice(0, 19)]; 
       saveNotificationsToStorage(updated);
       return updated;
     });
@@ -119,23 +149,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const markNotificationAsRead = useCallback(async (notificationId: string) => {
     try {
-      await markNotificationsAsReadApi([notificationId]); // Call API first
+      await markNotificationsAsReadApi([notificationId]);
       setNotifications(prev => {
-        const updated = prev.map(n => n.id === notificationId && !n.read ? { ...n, read: true } : n);
-        // Check if an actual change in read status occurred before decrementing unread count
-        const wasOriginallyUnread = prev.find(n => n.id === notificationId && !n.read);
-        if (wasOriginallyUnread) {
-            setUnreadCount(currentUnread => Math.max(0, currentUnread - 1));
+        let unreadChanged = false;
+        const updated = prev.map(n => {
+          if (n.id === notificationId && !n.read) {
+            unreadChanged = true;
+            return { ...n, read: true };
+          }
+          return n;
+        });
+        if (unreadChanged) {
+          setUnreadCount(currentUnread => Math.max(0, currentUnread - 1));
         }
         saveNotificationsToStorage(updated);
         return updated;
       });
     } catch (error) {
-      console.error("Failed to mark notification as read via API:", error);
+      console.error("Failed to mark notification as read (AuthContext):", error);
       toast({
         variant: "destructive",
         title: "Update Failed",
-        description: "Could not mark notification as read. Please try again.",
+        description: "Could not mark notification as read.",
       });
     }
   }, [saveNotificationsToStorage, toast]);
@@ -145,7 +180,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (unreadIds.length === 0) return;
 
     try {
-      await markNotificationsAsReadApi(unreadIds); // Call API with all unread IDs
+      await markNotificationsAsReadApi(unreadIds); 
       setNotifications(prev => {
         const updated = prev.map(n => ({ ...n, read: true }));
         saveNotificationsToStorage(updated);
@@ -153,27 +188,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       setUnreadCount(0);
     } catch (error) {
-      console.error("Failed to mark all notifications as read via API:", error);
+      console.error("Failed to mark all notifications as read (AuthContext):", error);
       toast({
         variant: "destructive",
         title: "Update Failed",
-        description: "Could not mark all notifications as read. Please try again.",
+        description: "Could not mark all notifications as read.",
       });
     }
   }, [notifications, saveNotificationsToStorage, toast]);
 
 
-  const clearAllNotifications = useCallback(() => {
-    // For clearing, we typically don't need to tell the backend explicitly *which* ones
-    // if the backend treats 'clear' as 'delete all for user' or similar.
-    // If your API requires IDs for deletion, this would need a similar call to markNotificationsAsReadApi
-    // with an endpoint like /notifications/delete and providing all current notification IDs.
-    // For this prototype, we'll just clear client-side.
+  const clearAllNotifications = useCallback(async () => {
+    // Consider if an API call to delete notifications on backend is needed.
+    // For now, clearing client-side state and storage.
     console.log("Simulating: Would call API to clear/delete all notifications for user if endpoint existed.");
     setNotifications([]);
     setUnreadCount(0);
     saveNotificationsToStorage([]);
-  }, [saveNotificationsToStorage]);
+    toast({title: "Notifications Cleared"});
+  }, [saveNotificationsToStorage, toast]);
 
 
   useEffect(() => {
@@ -183,7 +216,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (currentUser) {
         const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!VAPID_KEY) {
-          // Toast handled in requestNotificationPermission now.
+            // Warning logged in messaging.ts
         }
         
         const token = await requestNotificationPermission();
@@ -200,6 +233,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log('Foreground Message received. ', payload);
             const title = payload.notification?.title || 'New Notification';
             const body = payload.notification?.body;
+            // For FCM messages, use addNotification to prepend to the list
             addNotification(title, body, payload.data?.href, payload.messageId);
             toast({
               title: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /><span>{title}</span></div>),
@@ -225,12 +259,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const storedRefreshToken = localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY);
             if (storedRefreshToken) setRefreshToken(storedRefreshToken);
         }
+        await fetchAndSetWeeklyNotifications(); // Fetch weekly notifications on login
         await setupFcm();
       } else {
         setAccessToken(null);
         setRefreshToken(null);
         localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
         localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
+        setNotifications([]); // Clear notifications on logout
+        setUnreadCount(0);
         if (unsubscribeFcmOnMessage) {
           unsubscribeFcmOnMessage();
           unsubscribeFcmOnMessage = null;
@@ -245,7 +282,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessage();
       }
     };
-  }, [currentUser, addNotification, toast, accessToken, refreshToken]); // currentUser dependency added
+  }, [addNotification, toast, accessToken, refreshToken, fetchAndSetWeeklyNotifications]); // Added dependencies
 
   useEffect(() => {
     if (loading) return;
@@ -316,6 +353,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         setProfileCompletionPending(false); 
         toast({ title: "Login Successful!", description: "Welcome back!" });
+        // setCurrentUser will be set by onAuthStateChanged, which then triggers fetchAndSetWeeklyNotifications
         return firebaseUser;
       }
       return null; 
@@ -341,7 +379,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      const isNewUser = result.additionalUserInfo?.isNewUser;
+      const isNewUser = result.additionalUserInfo?.isNewUser; // Deprecated, but still works for now
       if (isNewUser) {
         localStorage.setItem(`profileCompletionPending_${result.user.uid}`, 'true');
         setProfileCompletionPending(true);
@@ -350,6 +388,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setProfileCompletionPending(false);
         toast({ title: "Google Sign-In Successful!", description: "Welcome back!" });
       }
+      // setCurrentUser will be set by onAuthStateChanged, which then triggers fetchAndSetWeeklyNotifications
       return result.user;
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
@@ -390,6 +429,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfileCompletionPending(true);
       toast({ title: "Phone Sign-In Successful!", description: "Please complete your profile." });
       setLoading(false);
+      // setCurrentUser will be set by onAuthStateChanged, which then triggers fetchAndSetWeeklyNotifications
       return userCredential.user;
     } catch (error: any) {
       console.error("Error verifying phone code:", error);
@@ -410,12 +450,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
       setProfileCompletionPending(false);
       
-      // Clear notifications for the user who just logged out
       if (uidBeforeLogout) {
-          localStorage.removeItem(`courtly-notifications-${uidBeforeLogout}`);
+          localStorage.removeItem(getNotificationStorageKey() || `courtly-app-notifications-${uidBeforeLogout}`);
       }
-      setNotifications([]); // Clear in-memory state
-      setUnreadCount(0);   // Clear in-memory state
+      setNotifications([]);
+      setUnreadCount(0);
 
       toast({ title: "Logged Out", description: "You have been successfully logged out." });
       router.push('/');

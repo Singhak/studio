@@ -32,8 +32,9 @@ export interface Club {
   updatedAt?: string;
   isFavorite?: boolean;
   sport?: SportType;
-  id?: string;
-  ownerId?: string;
+  id?: string; // Kept for potential legacy use in mock data or simple components
+  ownerId?: string; // Kept for potential legacy use
+  __v?: number;
 }
 
 export const SPORTS_TYPES = [
@@ -89,7 +90,7 @@ export interface Booking {
   endTime: string;
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
   totalPrice: number;
-  notes?: string; // Added optional notes
+  notes?: string;
   createdAt: string;
 }
 
@@ -101,14 +102,40 @@ export interface User {
   avatarUrl?: string;
 }
 
+// AppNotification: Used internally by AuthContext and Header for display
 export interface AppNotification {
-  id: string;
+  id: string; // Corresponds to ApiNotification._id
   title: string;
-  body?: string;
-  timestamp: number;
-  read: boolean;
-  href?: string;
+  body?: string; // Corresponds to ApiNotification.message
+  timestamp: number; // Corresponds to ApiNotification.createdAt (transformed)
+  read: boolean; // Corresponds to ApiNotification.isRead
+  href?: string; // Corresponds to ApiNotification.data.href
 }
+
+// ApiNotificationData: Structure for the nested 'data' object in ApiNotification
+export interface ApiNotificationData {
+  bookingId?: string;
+  type?: string; // e.g., "new_booking"
+  href?: string; // e.g., "/dashboard/owner"
+  [key: string]: any; // Allow other dynamic properties
+}
+
+// ApiNotification: Structure for notifications fetched from the backend API
+export interface ApiNotification {
+  _id: string;
+  recipient: string;
+  title: string;
+  message: string;
+  type: string; // e.g., "booking_pending"
+  relatedEntityId?: string;
+  relatedEntityType?: string; // e.g., "Booking"
+  isRead: boolean;
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+  data?: ApiNotificationData;
+  __v?: number;
+}
+
 
 export interface Review {
   id: string;
@@ -135,5 +162,5 @@ export interface CreateBookingPayload {
 export interface CreateBookingResponse {
   message: string;
   bookingId: string;
-  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed'; // Should match Booking['status']
+  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
 }
