@@ -1,24 +1,21 @@
 
-import type { Club, ClubAddress, ClubLocationGeo } from '@/lib/types';
+import type { Club, ClubAddress, ClubLocationGeo, Service } from '@/lib/types';
 
-// Key for storing custom access token, must match the one in AuthContext.tsx
 const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 
 function getApiBaseUrl(): string {
-  // For client-side calls, always use relative path to ensure cookies/auth headers are sent correctly.
   if (typeof window !== 'undefined') {
     return '/api';
   }
-  // For server-side calls (e.g., from other API routes or Server Components if this service was used there),
-  // use the full URL.
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
   return `${baseUrl}/api`;
 }
 
-async function getAuthHeaders(): Promise<HeadersInit> {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json', // Default content type for POST/PUT
-  };
+async function getAuthHeaders(isPostOrPut: boolean = true): Promise<HeadersInit> {
+  const headers: HeadersInit = {};
+  if (isPostOrPut) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY);
     if (token) {
@@ -31,11 +28,8 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 export async function getAllClubs(): Promise<Club[]> {
   const apiUrl = `${getApiBaseUrl()}/clubs`;
   try {
-    const authHeaders = await getAuthHeaders();
-    // For GET requests, Content-Type is not strictly necessary but Authorization might be
-    const { 'Content-Type': _, ...getHeaders } = authHeaders; // Remove Content-Type for GET
-
-    const response = await fetch(apiUrl, { headers: getHeaders });
+    const authHeaders = await getAuthHeaders(false);
+    const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       throw new Error(`Failed to fetch clubs: ${response.statusText} (${response.status}) from ${apiUrl}`);
     }
@@ -49,10 +43,8 @@ export async function getAllClubs(): Promise<Club[]> {
 export async function getClubById(clubId: string): Promise<Club | null> {
   const apiUrl = `${getApiBaseUrl()}/clubs/${clubId}`;
   try {
-    const authHeaders = await getAuthHeaders();
-    const { 'Content-Type': _, ...getHeaders } = authHeaders;
-
-    const response = await fetch(apiUrl, { headers: getHeaders });
+    const authHeaders = await getAuthHeaders(false);
+    const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       if (response.status === 404) {
         return null;
@@ -69,10 +61,8 @@ export async function getClubById(clubId: string): Promise<Club | null> {
 export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
   const apiUrl = `${getApiBaseUrl()}/clubs/owner/${ownerId}`;
   try {
-    const authHeaders = await getAuthHeaders();
-    const { 'Content-Type': _, ...getHeaders } = authHeaders;
-
-    const response = await fetch(apiUrl, { headers: getHeaders });
+    const authHeaders = await getAuthHeaders(false);
+    const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       throw new Error(`Failed to fetch clubs for owner ${ownerId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
     }
@@ -86,12 +76,8 @@ export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
 export async function getLoggedInOwnerClubs(): Promise<Club[]> {
   const apiUrl = `${getApiBaseUrl()}/clubs/my-owned`;
   try {
-    const authHeaders = await getAuthHeaders();
-    const { 'Content-Type': _, ...getHeaders } = authHeaders;
-
-    const response = await fetch(apiUrl, {
-       headers: getHeaders
-    });
+    const authHeaders = await getAuthHeaders(false);
+    const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       throw new Error(`Failed to fetch logged-in owner's clubs: ${response.statusText} (${response.status}) from ${apiUrl}`);
     }
@@ -109,14 +95,14 @@ interface RegisterClubPayload {
   description: string;
   contactEmail?: string;
   contactPhone?: string;
-  images: string[]; // Array of image URLs
+  images: string[];
   amenities: string[];
 }
 
 export async function registerClub(clubData: RegisterClubPayload): Promise<Club> {
   const apiUrl = `${getApiBaseUrl()}/clubs`;
   try {
-    const authHeaders = await getAuthHeaders(); // This will include 'Content-Type': 'application/json'
+    const authHeaders = await getAuthHeaders(true);
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: authHeaders,
@@ -124,7 +110,6 @@ export async function registerClub(clubData: RegisterClubPayload): Promise<Club>
     });
 
     const responseBody = await response.json();
-
     if (!response.ok) {
       const errorMessage = responseBody?.message || `Club registration failed: ${response.statusText} (${response.status})`;
       throw new Error(errorMessage);
@@ -136,6 +121,34 @@ export async function registerClub(clubData: RegisterClubPayload): Promise<Club>
       throw error;
     } else {
       throw new Error('An unexpected error occurred during club registration.');
+    }
+  }
+}
+
+export type AddServicePayload = Omit<Service, '_id' | 'createdAt' | 'updatedAt' | '__v'>;
+
+export async function addClubService(serviceData: AddServicePayload): Promise<Service> {
+  const apiUrl = `${getApiBaseUrl()}/services`;
+  try {
+    const authHeaders = await getAuthHeaders(true);
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(serviceData),
+    });
+
+    const responseBody = await response.json();
+    if (!response.ok) {
+      const errorMessage = responseBody?.message || `Failed to add service: ${response.statusText} (${response.status})`;
+      throw new Error(errorMessage);
+    }
+    return responseBody as Service;
+  } catch (error) {
+    console.error('Error adding club service:', error);
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error('An unexpected error occurred while adding the service.');
     }
   }
 }

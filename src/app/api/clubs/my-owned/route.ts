@@ -1,50 +1,61 @@
 
 import { NextResponse } from 'next/server';
 import { mockClubs } from '@/lib/mockData';
-import type { Club, ClubAddress, ClubLocationGeo } from '@/lib/types';
+import type { Club, ClubAddress, ClubLocationGeo, Service } from '@/lib/types';
 
-const MOCK_LOGGED_IN_OWNER_ID = 'owner123'; // Simulate a logged-in owner
+const MOCK_LOGGED_IN_OWNER_ID = 'owner123';
 
 export async function GET(request: Request) {
-  const ownerClubsFromMock = mockClubs.filter((c) => c.ownerId === MOCK_LOGGED_IN_OWNER_ID);
+  const ownerClubsFromMock = mockClubs.filter((c) => c.ownerId === MOCK_LOGGED_IN_OWNER_ID || c.owner === MOCK_LOGGED_IN_OWNER_ID);
 
   if (ownerClubsFromMock.length === 0) {
-    return NextResponse.json([], { status: 200 }); // Return empty array if no clubs for this owner
+    return NextResponse.json([], { status: 200 });
   }
 
   const transformedClubs: Club[] = ownerClubsFromMock.map(mockClubData => {
+    const clubServices: Service[] = (mockClubData.services || []).map(service => ({
+        ...service,
+        _id: service._id || (service as any).id || `service_${Date.now()}`,
+        club: mockClubData._id || mockClubData.id || '',
+        sportType: service.sportType || mockClubData.sport || "Tennis",
+        hourlyPrice: service.hourlyPrice || (service as any).price || 0,
+        capacity: service.capacity || 2,
+        slotDurationMinutes: service.slotDurationMinutes || (service as any).durationMinutes || 60,
+        isActive: service.isActive !== undefined ? service.isActive : true,
+        availableDays: service.availableDays || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        openingTime: service.openingTime || "09:00",
+        closingTime: service.closingTime || "21:00",
+    }));
     return {
-      _id: mockClubData.id,
-      owner: mockClubData.ownerId,
+      _id: mockClubData._id || mockClubData.id || `club_${Date.now()}`,
+      owner: mockClubData.owner || mockClubData.ownerId,
       name: mockClubData.name,
-      address: {
-        street: mockClubData.address?.street || "123 Mock Street",
-        city: mockClubData.address?.city || mockClubData.location?.split(',')[1]?.trim() || "Sportsville",
-        state: mockClubData.address?.state || "CA",
-        zipCode: mockClubData.address?.zipCode || "90000",
+      address: mockClubData.address || {
+        street: "123 Mock Street",
+        city: "Sportsville",
+        state: "CA",
+        zipCode: "90000",
       } as ClubAddress,
-      location: {
+      location: mockClubData.location || {
         type: "Point",
-        coordinates: (mockClubData.location && typeof mockClubData.location === 'object' && 'coordinates' in mockClubData.location && Array.isArray(mockClubData.location.coordinates) && mockClubData.location.coordinates.length === 2)
-          ? mockClubData.location.coordinates
-          : [0, 0], // Default coordinates
+        coordinates: [-118.4004, 33.9850],
       } as ClubLocationGeo,
       description: mockClubData.description,
       contactEmail: mockClubData.contactEmail,
       contactPhone: mockClubData.contactPhone,
       images: mockClubData.images || ['https://placehold.co/600x400.png?text=Default+Club+Image'],
       amenities: mockClubData.amenities || [],
-      services: mockClubData.services || [],
-      averageRating: mockClubData.rating || 0,
-      reviewCount: 0, // Default value
-      isActive: true, // Default value
-      isDeleted: false, // Default value
-      isFeatured: mockClubData.isFavorite || false,
-      createdAt: new Date().toISOString(), // Default value
-      updatedAt: new Date().toISOString(), // Default value
+      services: clubServices,
+      averageRating: mockClubData.averageRating || mockClubData.rating || 0,
+      reviewCount: mockClubData.reviewCount || 0,
+      isActive: mockClubData.isActive !== undefined ? mockClubData.isActive : true,
+      isDeleted: mockClubData.isDeleted !== undefined ? mockClubData.isDeleted : false,
+      isFeatured: mockClubData.isFeatured || mockClubData.isFavorite || false,
+      createdAt: mockClubData.createdAt || new Date().toISOString(),
+      updatedAt: mockClubData.updatedAt || new Date().toISOString(),
       sport: mockClubData.sport,
       isFavorite: mockClubData.isFavorite,
-      // __v: 0 // This field is often added by MongoDB, not usually part of the model directly
+      __v: (mockClubData as any).__v || 0,
     };
   });
 

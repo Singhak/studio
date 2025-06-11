@@ -1,70 +1,195 @@
 
-import type { Club, Service, Booking } from './types';
+import type { Club, Service, Booking, DayOfWeek, SportType } from './types';
+import { DAYS_OF_WEEK, SPORTS_TYPES } from './types';
+
+const defaultAvailableDays: DayOfWeek[] = [...DAYS_OF_WEEK];
 
 export const mockServices: Service[] = [
-  { id: 's1', name: 'Standard Court Booking', price: 20, durationMinutes: 60, description: '1 hour court rental.' },
-  { id: 's2', name: 'Premium Court Booking', price: 30, durationMinutes: 60, description: '1 hour premium court rental with better surface.' },
-  { id: 's3', name: 'Coaching Session', price: 50, durationMinutes: 60, description: '1 hour session with a professional coach.' },
-  { id: 's4', name: 'Evening Slot Surcharge', price: 25, durationMinutes: 60, description: '1 hour court rental during peak evening hours.' },
+  {
+    _id: 's1',
+    club: 'club1', // Example: Belongs to Grand Slam Tennis Club
+    name: 'Standard Tennis Court Rental',
+    sportType: "Tennis",
+    hourlyPrice: 20,
+    capacity: 4,
+    description: '1 hour standard tennis court rental.',
+    isActive: true,
+    availableDays: defaultAvailableDays,
+    openingTime: "08:00",
+    closingTime: "22:00",
+    slotDurationMinutes: 60,
+    images: ['https://placehold.co/300x200.png?text=Tennis+Court'],
+  },
+  {
+    _id: 's2',
+    club: 'club1',
+    name: 'Premium Tennis Court Rental',
+    sportType: "Tennis",
+    hourlyPrice: 30,
+    capacity: 4,
+    description: '1 hour premium tennis court rental with better surface and lighting.',
+    isActive: true,
+    availableDays: defaultAvailableDays,
+    openingTime: "08:00",
+    closingTime: "22:00",
+    slotDurationMinutes: 60,
+    images: ['https://placehold.co/300x200.png?text=Premium+Tennis'],
+  },
+  {
+    _id: 's3',
+    club: 'club1',
+    name: 'Tennis Coaching Session',
+    sportType: "Tennis",
+    hourlyPrice: 50,
+    capacity: 1,
+    description: '1 hour personalized coaching session with a professional tennis coach.',
+    isActive: true,
+    availableDays: ["Mon", "Wed", "Fri"],
+    openingTime: "09:00",
+    closingTime: "17:00",
+    slotDurationMinutes: 60,
+    images: ['https://placehold.co/300x200.png?text=Tennis+Coaching'],
+  },
+  {
+    _id: 's4',
+    club: 'club2', // Example: Belongs to Shuttle Masters Badminton Center
+    name: 'Badminton Court Rental',
+    sportType: "Badminton",
+    hourlyPrice: 15,
+    capacity: 4,
+    description: '1 hour badminton court rental.',
+    isActive: true,
+    availableDays: defaultAvailableDays,
+    openingTime: "09:00",
+    closingTime: "21:00",
+    slotDurationMinutes: 60,
+    images: ['https://placehold.co/300x200.png?text=Badminton+Court'],
+  },
+  {
+    _id: 's5',
+    club: 'club3', // Example: Belongs to The Squash Box
+    name: 'Squash Court Rental',
+    sportType: "Squash",
+    hourlyPrice: 18,
+    capacity: 2,
+    description: '1 hour squash court rental.',
+    isActive: true,
+    availableDays: defaultAvailableDays,
+    openingTime: "10:00",
+    closingTime: "20:00",
+    slotDurationMinutes: 45,
+    images: ['https://placehold.co/300x200.png?text=Squash+Court'],
+  },
+  {
+    _id: 's6',
+    club: 'club4', // Example: Belongs to Padel Palace Deluxe
+    name: 'Padel Court Rental',
+    sportType: "Padel",
+    hourlyPrice: 25,
+    capacity: 4,
+    description: '1 hour padel court rental.',
+    isActive: true,
+    availableDays: defaultAvailableDays,
+    openingTime: "07:00",
+    closingTime: "23:00",
+    slotDurationMinutes: 90,
+    images: ['https://placehold.co/300x200.png?text=Padel+Court'],
+  },
 ];
 
-const owner1Id = 'owner123'; // Example owner ID
+const owner1Id = 'owner123';
 
 export const mockClubs: Club[] = [
   {
-    id: 'club1',
+    id: 'club1', // Keep simple id for direct mockClub lookup if needed elsewhere
+    _id: 'club1_mongo', // Simulate MongoDB ID
     ownerId: owner1Id,
+    owner: owner1Id, // API response field
     name: 'Grand Slam Tennis Club',
     sport: 'Tennis',
-    location: 'Downtown, Sportsville',
+    address: { street: "1 Tennis Avenue", city: "Sportsville", state: "CA", zipCode: "90210"},
+    location: { type: "Point", coordinates: [-118.4000, 33.9850] },
     description: 'Premier tennis facility with 10 clay courts and 5 hard courts. Professional coaching available. Open 7 days a week.',
     images: ['https://placehold.co/600x400.png?text=Tennis+Court+1', 'https://placehold.co/600x400.png?text=Tennis+Court+2'],
-    services: [mockServices[0], mockServices[2]],
+    services: mockServices.filter(s => s.club === 'club1'),
     contactEmail: 'info@grandslamtennis.com',
     contactPhone: '555-0101',
-    rating: 4.8,
     amenities: ['Parking', 'Showers', 'Pro Shop', 'Cafe'],
+    averageRating: 4.8,
+    reviewCount: 120,
+    isActive: true,
+    isDeleted: false,
+    isFeatured: true,
+    createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
     isFavorite: true,
   },
   {
     id: 'club2',
-    name: 'Shuttle Masters Badminton Center', // No ownerId or a different one
+    _id: 'club2_mongo',
+    owner: 'owner789',
+    name: 'Shuttle Masters Badminton Center',
     sport: 'Badminton',
-    location: 'North Suburb, Sportsville',
+    address: { street: "2 Badminton Lane", city: "Sportsville", state: "CA", zipCode: "90211"},
+    location: { type: "Point", coordinates: [-118.4100, 33.9750] },
     description: 'State-of-the-art badminton center with 8 professional courts. Equipment rental and group classes offered.',
     images: ['https://placehold.co/600x400.png?text=Badminton+Court+1', 'https://placehold.co/600x400.png?text=Badminton+Hall'],
-    services: [mockServices[0], mockServices[1]],
+    services: mockServices.filter(s => s.club === 'club2'),
     contactEmail: 'contact@shuttlemasters.com',
-    rating: 4.5,
     amenities: ['Parking', 'Changing Rooms', 'Water Fountain'],
+    averageRating: 4.5,
+    reviewCount: 85,
+    isActive: true,
+    isDeleted: false,
+    isFeatured: false,
+    createdAt: new Date(Date.now() - 80 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
     isFavorite: false,
   },
   {
     id: 'club3',
-    ownerId: 'owner456', // Different owner
+    _id: 'club3_mongo',
+    ownerId: 'owner456',
+    owner: 'owner456',
     name: 'The Squash Box',
     sport: 'Squash',
-    location: 'West End, Sportsville',
+    address: { street: "3 Squash Court", city: "Sportsville", state: "CA", zipCode: "90212"},
+    location: { type: "Point", coordinates: [-118.4200, 33.9650] },
     description: 'Friendly and competitive squash club with 6 well-maintained courts. Regular tournaments and leagues.',
     images: ['https://placehold.co/600x400.png?text=Squash+Court+View', 'https://placehold.co/600x400.png?text=Squash+Players'],
-    services: [mockServices[0], mockServices[3]],
+    services: mockServices.filter(s => s.club === 'club3'),
     contactPhone: '555-0103',
-    rating: 4.2,
     amenities: ['Lockers', 'Viewing Gallery'],
+    averageRating: 4.2,
+    reviewCount: 60,
+    isActive: true,
+    isDeleted: false,
+    isFeatured: false,
+    createdAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
     isFavorite: false,
   },
   {
     id: 'club4',
+    _id: 'club4_mongo',
     ownerId: owner1Id,
-    name: 'Padel Palace Deluxe', // Renamed slightly for clarity
+    owner: owner1Id,
+    name: 'Padel Palace Deluxe',
     sport: 'Padel',
-    location: 'Eastside Park, Sportsville',
+    address: { street: "4 Padel Parkway", city: "Sportsville", state: "CA", zipCode: "90213"},
+    location: { type: "Point", coordinates: [-118.3900, 33.9950] },
     description: 'Modern Padel club with 4 panoramic outdoor courts and 2 indoor courts. Social events and coaching for all levels.',
     images: ['https://placehold.co/600x400.png?text=Padel+Court+Night', 'https://placehold.co/600x400.png?text=Padel+Action'],
-    services: [mockServices[1], mockServices[2]],
+    services: mockServices.filter(s => s.club === 'club4'),
     contactEmail: 'play@padelpalace.com',
-    rating: 4.9,
     amenities: ['Parking', 'Cafe', 'Equipment Rental', 'Floodlights'],
+    averageRating: 4.9,
+    reviewCount: 150,
+    isActive: true,
+    isDeleted: false,
+    isFeatured: true,
+    createdAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
     isFavorite: true,
   },
 ];
@@ -72,62 +197,109 @@ export const mockClubs: Club[] = [
 export const mockUserBookings: Booking[] = [
   {
     id: 'ub1',
-    userId: 'user001', // Example user ID
-    clubId: 'club1', // Corresponds to Grand Slam Tennis Club
-    serviceId: 's1', // Standard Court Booking
-    date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 days from now
+    userId: 'user001',
+    clubId: 'club1_mongo',
+    serviceId: 's1', // Standard Tennis Court Rental
+    date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     startTime: '10:00',
     endTime: '11:00',
     status: 'confirmed',
     totalPrice: 20,
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() // Created 10 days ago
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
     id: 'ub2',
     userId: 'user001',
-    clubId: 'club2', // Shuttle Masters Badminton Center
-    serviceId: 's2', // Premium Court Booking
-    date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
+    clubId: 'club2_mongo',
+    serviceId: 's4', // Badminton Court Rental
+    date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     startTime: '14:00',
     endTime: '15:00',
     status: 'pending',
-    totalPrice: 30,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() // Created 2 days ago
+    totalPrice: 15,
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
     id: 'ub3',
-    userId: 'user002', // Different user
-    clubId: 'club1', // Grand Slam Tennis Club
-    serviceId: 's3', // Coaching Session
-    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 5 days ago
+    userId: 'user002',
+    clubId: 'club1_mongo',
+    serviceId: 's3', // Tennis Coaching Session
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     startTime: '09:00',
     endTime: '10:00',
     status: 'completed',
     totalPrice: 50,
-    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() // Created 15 days ago
+    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
     id: 'ub4',
     userId: 'user001',
-    clubId: 'club3', // The Squash Box
-    serviceId: 's1', // Standard Court Booking
-    date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 20 days ago
+    clubId: 'club3_mongo',
+    serviceId: 's5', // Squash Court Rental
+    date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     startTime: '16:00',
     endTime: '17:00',
     status: 'cancelled',
-    totalPrice: 20,
-    createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() // Created 25 days ago
+    totalPrice: 18,
+    createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
     id: 'ub5',
     userId: 'user001',
-    clubId: 'club4', // Padel Palace Deluxe
-    serviceId: 's2', // Premium Court Booking
-    date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // tomorrow
+    clubId: 'club4_mongo',
+    serviceId: 's6', // Padel Court Rental
+    date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     startTime: '18:00',
-    endTime: '19:00',
+    endTime: '19:30', // Padel often 90 min
     status: 'confirmed',
-    totalPrice: 30,
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() // Created 1 day ago
+    totalPrice: 25,
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
   },
+];
+
+
+// Mock bookings for the owner dashboard - these would typically be dynamically fetched and filtered
+export const baseMockOwnerBookings: Booking[] = [
+  // Bookings for club1_mongo (owner123)
+  { ...mockUserBookings[0], userId: 'userABC' }, // Confirmed, for Grand Slam Tennis
+  { ...mockUserBookings[2], userId: 'userXYZ', status: 'pending' }, // Pending, for Grand Slam Tennis (changed status for variety)
+  {
+    id: 'ob1',
+    userId: 'userDEF',
+    clubId: 'club1_mongo',
+    serviceId: 's1',
+    date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startTime: '15:00',
+    endTime: '16:00',
+    status: 'completed',
+    totalPrice: 20,
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  // Bookings for club4_mongo (owner123)
+  { ...mockUserBookings[4], userId: 'userGHI' }, // Confirmed, for Padel Palace
+  {
+    id: 'ob2',
+    userId: 'userJKL',
+    clubId: 'club4_mongo',
+    serviceId: 's6',
+    date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startTime: '11:00',
+    endTime: '12:30',
+    status: 'pending',
+    totalPrice: 25,
+    createdAt: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  // Booking for a different club to ensure filtering works
+  {
+    id: 'ob3',
+    userId: 'userMNO',
+    clubId: 'club2_mongo', // Belongs to Shuttle Masters (owner789)
+    serviceId: 's4',
+    date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startTime: '10:00',
+    endTime: '11:00',
+    status: 'confirmed',
+    totalPrice: 15,
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+  }
 ];

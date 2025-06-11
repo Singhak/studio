@@ -14,11 +14,12 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
-} from "@/components/ui/dialog"; 
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Star, MessageSquare, Award, Home, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getClubById } from "@/services/clubService"; // Import service to fetch club details
+import { getClubById } from "@/services/clubService";
+import { mockServices } from "@/lib/mockData"; // Fallback for service details if not in club
 
 const reviewFormSchema = z.object({
   clubRating: z.number().min(1, "Club rating is required.").max(5),
@@ -30,7 +31,7 @@ type ReviewFormValues = z.infer<typeof reviewFormSchema>;
 
 interface ReviewFormProps {
   booking: Booking;
-  onReviewSubmit: (reviewData: ReviewFormValues) => void; 
+  onReviewSubmit: (reviewData: ReviewFormValues) => void;
 }
 
 const StarRatingInput = ({
@@ -93,11 +94,18 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
       try {
         const fetchedClub = await getClubById(booking.clubId);
         setClubDetails(fetchedClub);
-        if (fetchedClub) {
-          const fetchedService = fetchedClub.services.find(s => s.id === booking.serviceId);
-          setServiceDetails(fetchedService);
+        if (fetchedClub && fetchedClub.services) {
+          const foundService = fetchedClub.services.find(s => s._id === booking.serviceId);
+          setServiceDetails(foundService);
+          if (!foundService) { // Fallback to general mockServices if not found in club's list
+            const fallbackService = mockServices.find(s => s._id === booking.serviceId);
+            setServiceDetails(fallbackService);
+          }
+        } else if (fetchedClub) { // Club found but no services array
+            const fallbackService = mockServices.find(s => s._id === booking.serviceId);
+            setServiceDetails(fallbackService);
         } else {
-          setServiceDetails(null); // Club not found, so service won't be found
+          setServiceDetails(null); // Club not found
         }
       } catch (error) {
         console.error("Failed to fetch club/service details for review:", error);
@@ -143,7 +151,7 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
       title: "Review Submitted!",
       description: "Thank you for your feedback.",
     });
-    onReviewSubmit(reviewData); 
+    onReviewSubmit(reviewData);
     form.reset();
     setClubRating(0);
     setServiceRating(0);
@@ -158,13 +166,21 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
     );
   }
 
-  if (!clubDetails || !serviceDetails) {
+  if (!clubDetails) {
     return (
       <div className="p-4 text-center text-destructive">
-        Could not load club or service details for this booking. Please try again later.
+        Could not load club details for this booking. Please try again later.
       </div>
     );
   }
+  if (!serviceDetails) {
+     return (
+      <div className="p-4 text-center text-destructive">
+        Could not load service details for this booking. The service might no longer be offered.
+      </div>
+    );
+  }
+
 
   return (
     <>
@@ -181,7 +197,6 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
           label={`Rate ${clubDetails.name} (Club)`}
           icon={Home}
         />
-        {/* Error message for clubRating is implicitly handled by the submit check for now */}
 
         <StarRatingInput
           rating={serviceRating}
@@ -189,7 +204,6 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
           label={`Rate your ${serviceDetails.name} experience`}
           icon={Award}
         />
-        {/* Error message for serviceRating is implicitly handled by the submit check */}
 
         <div>
           <Label htmlFor="comment" className="flex items-center text-base">

@@ -1,5 +1,5 @@
 
-"use client"; 
+"use client";
 
 import { useState, useEffect, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,14 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Booking, Club, Service } from "@/lib/types";
-import { mockServices as allMockServices, baseMockOwnerBookings } from '@/lib/mockData'; 
+import { mockServices as allMockServices, baseMockOwnerBookings } from '@/lib/mockData';
 import Link from 'next/link';
 import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
-import { getLoggedInOwnerClubs } from '@/services/clubService'; // Changed to getLoggedInOwnerClubs
-
-// const CURRENT_OWNER_ID = 'owner123'; // No longer needed here for fetching clubs
+import { getLoggedInOwnerClubs } from '@/services/clubService';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -42,7 +40,7 @@ export default function OwnerDashboardPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const clubsForOwner = await getLoggedInOwnerClubs(); // Use the new service function
+        const clubsForOwner = await getLoggedInOwnerClubs();
         setOwnerClubs(clubsForOwner);
         if (clubsForOwner.length > 0) {
           setSelectedClub(clubsForOwner[0]);
@@ -57,20 +55,20 @@ export default function OwnerDashboardPage() {
       }
     };
     fetchClubsForOwner();
-  }, []); 
+  }, []);
 
   const handleClubChange = (clubId: string) => {
     const club = ownerClubs.find(c => c._id === clubId);
     setSelectedClub(club || null);
   };
- 
+
   const currentClubBookings = useMemo(() => {
     if (!selectedClub) return [];
-    return baseMockOwnerBookings.filter(booking => booking.clubId === (selectedClub._id || selectedClub.id));
+    return baseMockOwnerBookings.filter(booking => booking.clubId === (selectedClub._id || (selectedClub as any).id));
   }, [selectedClub]);
-  
+
   const getServiceName = (serviceId: string): string => {
-    const service = allMockServices.find(s => s.id === serviceId);
+    const service = allMockServices.find(s => s._id === serviceId); // Use _id for services
     return service ? service.name : 'Unknown Service';
   };
 
@@ -90,7 +88,7 @@ export default function OwnerDashboardPage() {
      if (!selectedClub) return 0;
      return currentClubBookings.filter(b => b.status === 'pending').length;
   }, [currentClubBookings, selectedClub]);
-  
+
   const servicesOfferedCount = useMemo(() => {
       if (!selectedClub || !selectedClub.services) return 0;
       return selectedClub.services.length;
@@ -111,7 +109,7 @@ export default function OwnerDashboardPage() {
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -142,7 +140,7 @@ export default function OwnerDashboardPage() {
       </div>
     );
   }
-  
+
   if (!selectedClub && ownerClubs.length > 0 && !isLoading) {
      return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -167,8 +165,8 @@ export default function OwnerDashboardPage() {
       </div>
     );
   }
-  
-  if (!selectedClub && !isLoading) { 
+
+  if (!selectedClub && !isLoading) {
       return <div className="flex justify-center items-center min-h-[200px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Preparing club data...</p></div>;
   }
 
@@ -182,7 +180,7 @@ export default function OwnerDashboardPage() {
         </div>
         <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             {ownerClubs.length > 1 && (
-            <div className="min-w-[200px] sm:min-w-0 md:min-w-[200px]"> 
+            <div className="min-w-[200px] sm:min-w-0 md:min-w-[200px]">
                 <Select value={selectedClub!._id} onValueChange={handleClubChange}>
                 <SelectTrigger id="club-selector" aria-label="Switch managed club">
                     <SelectValue placeholder="Switch Club..." />
@@ -214,7 +212,7 @@ export default function OwnerDashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold">
                 {totalRevenue.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
-            </div> 
+            </div>
             <p className="text-xs text-muted-foreground">From confirmed & completed bookings</p>
           </CardContent>
         </Card>
@@ -269,7 +267,7 @@ export default function OwnerDashboardPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       <Tabs defaultValue="bookings">
         <TabsList className="grid w-full grid-cols-1 md:grid-cols-2 mb-4">
           <TabsTrigger value="bookings">Booking Requests</TabsTrigger>
@@ -303,10 +301,10 @@ export default function OwnerDashboardPage() {
                         <TableCell className="text-right space-x-1">
                            {booking.status === 'pending' && (
                             <>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                title="Accept Booking" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Accept Booking"
                                 className="text-green-600 hover:text-green-700"
                                 onClick={() => {
                                     toast({
@@ -321,7 +319,7 @@ export default function OwnerDashboardPage() {
                                     const bookingIndex = baseMockOwnerBookings.findIndex(b => b.id === booking.id);
                                     if (bookingIndex !== -1) {
                                       baseMockOwnerBookings[bookingIndex].status = 'confirmed';
-                                      setSelectedClub(prev => prev ? {...prev, _timestamp: Date.now()} : null); 
+                                      setSelectedClub(prev => prev ? {...prev, _timestamp: Date.now()} : null);
                                     }
                                 }}
                               >

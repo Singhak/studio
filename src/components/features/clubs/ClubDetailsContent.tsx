@@ -1,50 +1,47 @@
 
 "use client";
 
-import type { Club } from '@/lib/types';
+import type { Club, Service } from '@/lib/types';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { BookingCalendar } from '@/components/features/booking/BookingCalendar';
-import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle } from 'lucide-react';
+import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle, Clock, Palette } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
-import { mockServices } from '@/lib/mockData'; 
-import { useAuth } from '@/contexts/AuthContext'; 
+// import { mockServices as defaultMockServices } from '@/lib/mockData'; // Use club.services instead
+import { useAuth } from '@/contexts/AuthContext';
 
 export function ClubDetailsContent({ club }: { club: Club }) {
   const { toast } = useToast();
-  const { addNotification, currentUser } = useAuth(); 
+  const { addNotification, currentUser } = useAuth();
 
   const handleBookSlot = () => {
-    console.log("Booking slot for club:", club.id);
+    console.log("Booking slot for club:", club._id);
 
     toast({
         title: "Booking Request Received",
         description: "Preparing for payment...",
     });
 
-    // Notify the owner (simulated)
     addNotification(
       `New Booking Request: ${club.name}`,
       `A new booking has been requested for ${club.name} by user ${currentUser?.displayName || currentUser?.email || 'a user'}. Please review.`,
-      '/dashboard/owner' 
+      '/dashboard/owner'
     );
 
-    // Simulate redirection to PhonePe
     setTimeout(() => {
       toast({
         title: (
           <div className="flex items-center">
-            <CreditCard className="h-5 w-5 mr-2 text-purple-600" /> 
+            <CreditCard className="h-5 w-5 mr-2 text-purple-600" />
             Redirecting to PhonePe...
           </div>
         ),
         description: "Please complete your payment (Simulated).",
       });
-    }, 2000); // 2-second delay
+    }, 2000);
 
-    // Simulate successful payment after another delay
     setTimeout(() => {
       toast({
         title: (
@@ -56,18 +53,18 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         description: `Your booking at ${club.name} is confirmed (Simulated).`,
       });
 
-      // Notify the user about their confirmed booking
       addNotification(
         `Booking Confirmed: ${club.name}`,
         `Your booking at ${club.name} has been successfully confirmed.`,
         '/dashboard/user'
       );
-    }, 5000); // Additional 3-second delay (total 5 seconds)
+    }, 5000);
   };
+
+  const clubServicesToDisplay = club.services && club.services.length > 0 ? club.services : [];
 
   return (
     <>
-      {/* Header Section */}
       <section className="mb-8">
         <div className="relative h-64 md:h-96 rounded-lg overflow-hidden shadow-xl">
           <Image
@@ -76,28 +73,24 @@ export function ClubDetailsContent({ club }: { club: Club }) {
             layout="fill"
             objectFit="cover"
             className="transition-transform duration-500 hover:scale-105"
-            data-ai-hint={`${club.sport.toLowerCase()} facility`}
+            data-ai-hint={`${club.sport?.toLowerCase()} facility`}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
           <div className="absolute bottom-0 left-0 p-6 md:p-8">
             <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight">{club.name}</h1>
             <div className="flex items-center mt-2 space-x-4 text-white/90">
-              <span className="flex items-center"><Zap size={18} className="mr-1.5" /> {club.sport}</span>
-              <span className="flex items-center"><MapPin size={18} className="mr-1.5" /> {club.location}</span>
-              {club.rating && <span className="flex items-center"><Star size={18} className="mr-1.5 text-yellow-400 fill-yellow-400" /> {club.rating.toFixed(1)}</span>}
+              {club.sport && <span className="flex items-center"><Zap size={18} className="mr-1.5" /> {club.sport}</span>}
+              {club.address.city && <span className="flex items-center"><MapPin size={18} className="mr-1.5" /> {club.address.city}</span>}
+              {club.averageRating && <span className="flex items-center"><Star size={18} className="mr-1.5 text-yellow-400 fill-yellow-400" /> {club.averageRating.toFixed(1)}</span>}
             </div>
           </div>
         </div>
       </section>
 
-      <div className="grid lg:grid-cols-3 gap-8"> 
-        {/* Main Content - Left Column */}
-        <div className="lg:col-span-2 space-y-8"> 
-          {/* Description Card */}
+      <div className="grid lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">About {club.name}</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-2xl">About {club.name}</CardTitle></CardHeader>
             <CardContent>
               <p className="text-muted-foreground leading-relaxed">{club.description}</p>
               {club.amenities && club.amenities.length > 0 && (
@@ -115,52 +108,39 @@ export function ClubDetailsContent({ club }: { club: Club }) {
             </CardContent>
           </Card>
           
-          {/* Services Card */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">Services & Pricing</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-2xl">Services & Pricing</CardTitle></CardHeader>
             <CardContent>
-              <ul className="space-y-4">
-                {club.services && club.services.length > 0 ? club.services.map((service) => (
-                  <li key={service.id} className="p-4 border rounded-md hover:shadow-sm transition-shadow">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground">{service.name}</h3>
-                        <p className="text-sm text-muted-foreground">{service.description || `${service.durationMinutes} minutes session`}</p>
+              {clubServicesToDisplay.length > 0 ? (
+                <ul className="space-y-4">
+                  {clubServicesToDisplay.map((service) => (
+                    <li key={service._id} className="p-4 border rounded-md hover:shadow-sm transition-shadow">
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <h3 className="text-lg font-semibold text-foreground">{service.name}</h3>
+                          <p className="text-sm text-muted-foreground mb-1">{service.description || `${service.slotDurationMinutes || 'N/A'} minutes session for ${service.sportType}`}</p>
+                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            {service.capacity && <span className="flex items-center"><Users className="w-3 h-3 mr-1"/>Max {service.capacity}</span>}
+                            {service.slotDurationMinutes && <span className="flex items-center"><Clock className="w-3 h-3 mr-1"/>{service.slotDurationMinutes} min</span>}
+                            {service.sportType && <span className="flex items-center"><Palette className="w-3 h-3 mr-1"/>{service.sportType}</span>}
+                          </div>
+                        </div>
+                        <Badge variant="default" className="text-md whitespace-nowrap">
+                          <DollarSign className="w-4 h-4 mr-1" /> {service.hourlyPrice.toFixed(2)}/hr
+                        </Badge>
                       </div>
-                      <Badge variant="default" className="text-md whitespace-nowrap">
-                        <DollarSign className="w-4 h-4 mr-1" /> {service.price.toFixed(2)}
-                      </Badge>
-                    </div>
-                  </li>
-                )) : 
-                mockServices.slice(0,2).map((service) => (
-                   <li key={service.id} className="p-4 border rounded-md">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground">{service.name} (Standard)</h3>
-                         <p className="text-sm text-muted-foreground">{service.description || `${service.durationMinutes} minutes session`}</p>
-                      </div>
-                      <Badge variant="default" className="text-md">
-                        <DollarSign className="w-4 h-4 mr-1" /> {service.price.toFixed(2)}
-                      </Badge>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-               {(!club.services || club.services.length === 0) && (
-                  <p className="text-sm text-muted-foreground mt-4">No specific services listed for this club. Standard services may apply.</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                 <p className="text-sm text-muted-foreground mt-4">No specific services listed for this club. Please check with the club directly for offerings.</p>
               )}
             </CardContent>
           </Card>
 
-          {/* Image Gallery (Optional) */}
           {club.images && club.images.length > 1 && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-2xl">Gallery</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-2xl">Gallery</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {club.images.slice(0,6).map((img, index) => (
                   <div key={index} className="aspect-square rounded-md overflow-hidden shadow-md">
@@ -172,21 +152,14 @@ export function ClubDetailsContent({ club }: { club: Club }) {
           )}
         </div>
 
-        {/* Sidebar - Right Column (will stack below main content on screens smaller than lg) */}
         <div className="space-y-8">
-          <BookingCalendar /> 
-          <Button 
-            size="lg" 
-            className="w-full text-lg py-6"
-            onClick={handleBookSlot} 
-          >
+          <BookingCalendar />
+          <Button size="lg" className="w-full text-lg py-6" onClick={handleBookSlot}>
             Book Selected Slot
           </Button>
           
           <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">Contact Information</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-xl">Contact Information</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {club.contactPhone && (
                 <div className="flex items-center">
@@ -202,7 +175,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
               )}
               <div className="flex items-center">
                 <MapPin className="w-4 h-4 mr-2 text-primary" />
-                <span className="text-muted-foreground">{club.location}</span>
+                <span className="text-muted-foreground">{`${club.address.street}, ${club.address.city}`}</span>
               </div>
                <Button variant="outline" className="w-full mt-2">
                 <Users className="w-4 h-4 mr-2"/> View on Map (Placeholder)
