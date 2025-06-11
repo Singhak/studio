@@ -6,8 +6,8 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import Link from "next/link";
 // import { useRouter } from 'next/navigation'; // No longer needed for direct navigation here
-import React, { useState, useEffect } from 'react';
-import { RecaptchaVerifier, type ConfirmationResult } from 'firebase/auth'; // Added RecaptchaVerifier
+import React, { useState, useEffect, useCallback } from 'react';
+import { RecaptchaVerifier, type ConfirmationResult } from 'firebase/auth'; 
 import { auth } from '@/lib/firebase/config'; 
 
 import { Button } from "@/components/ui/button";
@@ -50,8 +50,8 @@ export function LoginForm() {
     loading: authLoading,
     profileCompletionPending
   } = useAuth();
-  // const router = useRouter(); // Not directly used for navigation here now
-  const [isLoadingEmail, setIsLoadingEmail] = useState(false); // Specific loading for email
+  
+  const [isLoadingEmail, setIsLoadingEmail] = useState(false); 
   const [isPhoneLoading, setIsPhoneLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
@@ -62,10 +62,9 @@ export function LoginForm() {
   
   const recaptchaContainerId = "recaptcha-container-login";
 
-  // This effect handles redirection if user is already logged in AND profile is complete
   useEffect(() => {
     if (!authLoading && currentUser && !profileCompletionPending) {
-      // router.push('/dashboard/user'); // AuthContext will handle this
+      // AuthContext will handle redirection
     }
   }, [currentUser, authLoading, profileCompletionPending]);
 
@@ -90,62 +89,73 @@ export function LoginForm() {
 
   async function onEmailSubmit(values: z.infer<typeof formSchema>) {
     setIsLoadingEmail(true);
-    // signInWithEmail in AuthContext now sets profileCompletionPending to false (for existing users)
-    // and onAuthStateChanged will handle redirection if already logged in and profile complete.
     await signInWithEmail(values.email, values.password);
     setIsLoadingEmail(false);
-    // No direct router.push here, AuthContext manages it.
   }
 
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
-    // signInWithGoogle in AuthContext now sets profileCompletionPending to true.
-    // AuthContext's useEffect will handle redirection to /auth/complete-profile.
     await signInWithGoogle();
     setIsGoogleLoading(false);
-    // No direct router.push here.
   }
   
-  const setupRecaptcha = () => {
-    if (!(window as any).recaptchaVerifier && document.getElementById(recaptchaContainerId)) {
-        (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
+  const setupRecaptcha = useCallback(() => {
+    if (!window.recaptchaVerifier && document.getElementById(recaptchaContainerId)) {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
         'size': 'invisible',
-        'callback': (response: any) => {},
+        'callback': (response: any) => {
+            console.log("reCAPTCHA solved (invisible):", response);
+        },
         'expired-callback': () => {
            alert("reCAPTCHA expired. Please try again.");
-           if ((window as any).recaptchaVerifier) {
-                (window as any).recaptchaVerifier.render().then((widgetId: any) => {
-                    if(typeof grecaptcha !== 'undefined' && grecaptcha.reset) {
-                        grecaptcha.reset(widgetId);
-                    }
-                });
-            }
+           if (window.recaptchaVerifier) {
+                window.recaptchaVerifier.clear();
+                window.recaptchaVerifier = undefined; // Ensure it's re-created on next attempt
+           }
         }
       });
+      // It's good practice to render it once after creation if it's invisible,
+      // though signInWithPhoneNumber often handles this.
+      // window.recaptchaVerifier.render().catch((error: any) => {
+      //    console.error("Error rendering reCAPTCHA after setup:", error);
+      // });
     }
-  };
+  }, [auth, recaptchaContainerId]); // auth and recaptchaContainerId are stable
 
   useEffect(() => {
     if (showPhoneInput) {
-        setTimeout(setupRecaptcha, 100);
+        const timer = setTimeout(() => {
+            if (document.getElementById(recaptchaContainerId)) {
+                setupRecaptcha();
+            } else {
+                console.warn(`Login Form: reCAPTCHA container '${recaptchaContainerId}' not found during initial setup.`);
+            }
+        }, 100); 
+        return () => clearTimeout(timer);
     }
     return () => {
-        if ((window as any).recaptchaVerifier) {
-            (window as any).recaptchaVerifier.clear();
-            (window as any).recaptchaVerifier = null;
+        if (window.recaptchaVerifier) {
+            window.recaptchaVerifier.clear();
+            window.recaptchaVerifier = undefined; 
         }
     };
-  }, [showPhoneInput]);
+  }, [showPhoneInput, setupRecaptcha]);
 
 
   async function onPhoneSubmit(values: z.infer<typeof phoneFormSchema>) {
     setIsPhoneLoading(true);
-    if (!(window as any).recaptchaVerifier) {
+    if (!window.recaptchaVerifier) {
+        setupRecaptcha(); // Attempt to set it up if not already
+        // Wait a moment for reCAPTCHA to initialize if setupRecaptcha was just called
+        await new Promise(resolve => setTimeout(resolve, 500)); 
+    }
+
+    if (!window.recaptchaVerifier) {
         alert("reCAPTCHA not initialized. Please wait a moment and try again.");
         setIsPhoneLoading(false);
         return;
     }
-    const appVerifier = (window as any).recaptchaVerifier;
+    const appVerifier = window.recaptchaVerifier;
     const formattedPhoneNumber = values.phoneNumber.startsWith('+') ? values.phoneNumber : `+1${values.phoneNumber}`;
 
     const confirmationResult = await signInWithPhoneNumberFlow(formattedPhoneNumber, appVerifier);
@@ -163,14 +173,11 @@ export function LoginForm() {
       return;
     }
     setIsVerifyingCode(true);
-    // confirmPhoneNumberCode in AuthContext now sets profileCompletionPending to true.
-    // AuthContext's useEffect will handle redirection.
     await confirmPhoneNumberCode(confirmationResultState, values.verificationCode);
     
     setIsVerifyingCode(false);
-    setShowVerificationCodeInput(false); // Reset UI regardless of AuthContext redirect
+    setShowVerificationCodeInput(false); 
     setConfirmationResultState(null);
-    // No direct router.push here.
   }
 
   const currentLoadingState = isLoadingEmail || isPhoneLoading || isGoogleLoading || isVerifyingCode || authLoading;
@@ -244,7 +251,7 @@ export function LoginForm() {
                     {isPhoneLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldQuestion className="mr-2 h-4 w-4" />}
                     Send Verification Code
                 </Button>
-                <Button variant="outline" onClick={() => {setShowPhoneInput(false); if((window as any).recaptchaVerifier) (window as any).recaptchaVerifier.clear();}} disabled={currentLoadingState}>Cancel</Button>
+                <Button variant="outline" onClick={() => {setShowPhoneInput(false); if(window.recaptchaVerifier) window.recaptchaVerifier.clear(); window.recaptchaVerifier = undefined;}} disabled={currentLoadingState}>Cancel</Button>
               </div>
             </form>
           </Form>
