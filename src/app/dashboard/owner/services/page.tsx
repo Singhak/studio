@@ -9,30 +9,42 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, PlusCircle, Edit, Trash2, ListChecks, Loader2, AlertTriangle, ShoppingBag } from 'lucide-react';
 import type { Club, Service } from '@/lib/types';
-import { mockClubs } from '@/lib/mockData'; // Using mockClubs to find the club by ID
+import { getClubById } from '@/services/clubService';
 
 function ManageServicesContent() {
   const searchParams = useSearchParams();
   const clubId = searchParams.get('clubId');
 
-  const [club, setClub] = useState<Club | null | undefined>(undefined); // undefined for loading, null for not found
+  const [club, setClub] = useState<Club | null | undefined>(undefined); // undefined for loading, null for not found/error
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (clubId) {
       setIsLoading(true);
-      const foundClub = mockClubs.find(c => c.id === clubId);
-      if (foundClub) {
-        setClub(foundClub);
-        // Use club-specific services if available, otherwise it will be an empty array or message.
-        setServices(foundClub.services || []);
-      } else {
-        setClub(null); // Club not found
-      }
-      setIsLoading(false);
+      setError(null);
+      getClubById(clubId)
+        .then(foundClub => {
+          if (foundClub) {
+            setClub(foundClub);
+            setServices(foundClub.services || []);
+          } else {
+            setClub(null);
+            setError(`Could not find details for a club with ID: ${clubId}.`);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to fetch club:", err);
+          setClub(null);
+          setError(err instanceof Error ? err.message : "An unknown error occurred.");
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
     } else {
       setClub(null); // No clubId provided
+      setError('No club selected. Please select a club from the owner dashboard to manage its services.');
       setIsLoading(false);
     }
   }, [clubId]);
@@ -46,15 +58,15 @@ function ManageServicesContent() {
     );
   }
 
-  if (!clubId || !club) {
+  if (error || !club) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold text-foreground mb-2">
-          {clubId ? 'Club Not Found' : 'No Club Selected'}
+          {clubId && !club && !error ? 'Club Not Found' : 'Error Loading Services'}
         </h2>
         <p className="text-muted-foreground mb-6">
-          {clubId ? `Could not find details for a club with ID: ${clubId}.` : 'Please select a club from the owner dashboard to manage its services.'}
+          {error || 'The requested club could not be loaded or does not exist.'}
         </p>
         <Button asChild variant="outline">
           <Link href="/dashboard/owner">

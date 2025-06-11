@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -14,11 +14,11 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
-} from "@/components/ui/dialog"; // Using Dialog components
+} from "@/components/ui/dialog"; 
 import { Label } from "@/components/ui/label";
-import { Star, MessageSquare, Award, Home } from "lucide-react";
+import { Star, MessageSquare, Award, Home, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { mockClubs } from "@/lib/mockData"; // To find club name
+import { getClubById } from "@/services/clubService"; // Import service to fetch club details
 
 const reviewFormSchema = z.object({
   clubRating: z.number().min(1, "Club rating is required.").max(5),
@@ -30,7 +30,7 @@ type ReviewFormValues = z.infer<typeof reviewFormSchema>;
 
 interface ReviewFormProps {
   booking: Booking;
-  onReviewSubmit: (reviewData: ReviewFormValues) => void; // Callback after successful submission
+  onReviewSubmit: (reviewData: ReviewFormValues) => void; 
 }
 
 const StarRatingInput = ({
@@ -83,9 +83,35 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
   const { toast } = useToast();
   const [clubRating, setClubRating] = useState(0);
   const [serviceRating, setServiceRating] = useState(0);
+  const [clubDetails, setClubDetails] = useState<Club | null>(null);
+  const [serviceDetails, setServiceDetails] = useState<Service | null | undefined>(undefined);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(true);
 
-  const club = mockClubs.find(c => c.id === booking.clubId);
-  const service = club?.services.find(s => s.id === booking.serviceId);
+  useEffect(() => {
+    async function fetchDetails() {
+      setIsLoadingDetails(true);
+      try {
+        const fetchedClub = await getClubById(booking.clubId);
+        setClubDetails(fetchedClub);
+        if (fetchedClub) {
+          const fetchedService = fetchedClub.services.find(s => s.id === booking.serviceId);
+          setServiceDetails(fetchedService);
+        } else {
+          setServiceDetails(null); // Club not found, so service won't be found
+        }
+      } catch (error) {
+        console.error("Failed to fetch club/service details for review:", error);
+        toast({
+          variant: "destructive",
+          title: "Error loading details",
+          description: "Could not load club or service information for this booking.",
+        });
+      } finally {
+        setIsLoadingDetails(false);
+      }
+    }
+    fetchDetails();
+  }, [booking.clubId, booking.serviceId, toast]);
 
   const form = useForm<ReviewFormValues>({
     resolver: zodResolver(reviewFormSchema),
@@ -111,23 +137,31 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
       bookingId: booking.id,
       clubId: booking.clubId,
       serviceId: booking.serviceId,
-      // userId: currentUser.id, // In a real app, get current user ID
     };
     console.log("Review Submitted:", reviewData);
     toast({
       title: "Review Submitted!",
       description: "Thank you for your feedback.",
     });
-    onReviewSubmit(reviewData); // Call the callback, which should close the dialog
+    onReviewSubmit(reviewData); 
     form.reset();
     setClubRating(0);
     setServiceRating(0);
   };
 
-  if (!club || !service) {
+  if (isLoadingDetails) {
+    return (
+      <div className="p-4 text-center flex flex-col items-center justify-center min-h-[200px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+        <p className="text-muted-foreground">Loading booking details...</p>
+      </div>
+    );
+  }
+
+  if (!clubDetails || !serviceDetails) {
     return (
       <div className="p-4 text-center text-destructive">
-        Could not load club or service details for this booking.
+        Could not load club or service details for this booking. Please try again later.
       </div>
     );
   }
@@ -137,29 +171,25 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
       <DialogHeader>
         <DialogTitle className="text-2xl">Leave a Review</DialogTitle>
         <DialogDescription>
-          Share your experience for your booking at {club.name} for the service: {service.name} on {new Date(booking.date).toLocaleDateString()}.
+          Share your experience for your booking at {clubDetails.name} for the service: {serviceDetails.name} on {new Date(booking.date).toLocaleDateString()}.
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 py-4">
         <StarRatingInput
           rating={clubRating}
           setRating={setClubRating}
-          label={`Rate ${club.name} (Club)`}
+          label={`Rate ${clubDetails.name} (Club)`}
           icon={Home}
         />
-        {form.formState.errors.clubRating && (
-          <p className="text-sm text-destructive">{form.formState.errors.clubRating.message}</p>
-        )}
+        {/* Error message for clubRating is implicitly handled by the submit check for now */}
 
         <StarRatingInput
           rating={serviceRating}
           setRating={setServiceRating}
-          label={`Rate your ${service.name} experience`}
+          label={`Rate your ${serviceDetails.name} experience`}
           icon={Award}
         />
-        {form.formState.errors.serviceRating && (
-          <p className="text-sm text-destructive">{form.formState.errors.serviceRating.message}</p>
-        )}
+        {/* Error message for serviceRating is implicitly handled by the submit check */}
 
         <div>
           <Label htmlFor="comment" className="flex items-center text-base">
@@ -185,6 +215,7 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
             </Button>
           </DialogClose>
           <Button type="submit" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Submit Review
           </Button>
         </DialogFooter>

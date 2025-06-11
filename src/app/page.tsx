@@ -4,16 +4,37 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, PlayCircle, PlusCircle } from 'lucide-react';
+import { Search, PlayCircle, PlusCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { FormEvent } from 'react';
+import type { Club } from '@/lib/types';
+import { getAllClubs } from '@/services/clubService';
 
 export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const router = useRouter();
+  const [featuredClubs, setFeaturedClubs] = useState<Club[]>([]);
+  const [isLoadingFeatured, setIsLoadingFeatured] = useState(true);
+
+  useEffect(() => {
+    const fetchFeaturedClubs = async () => {
+      setIsLoadingFeatured(true);
+      try {
+        const allClubs = await getAllClubs();
+        // Take the first 3 clubs as featured, or fewer if less than 3 are available
+        setFeaturedClubs(allClubs.slice(0, 3)); 
+      } catch (error) {
+        console.error("Failed to fetch featured clubs:", error);
+        setFeaturedClubs([]); // Set to empty array on error
+      } finally {
+        setIsLoadingFeatured(false);
+      }
+    };
+    fetchFeaturedClubs();
+  }, []);
 
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -92,24 +113,36 @@ export default function HomePage() {
       <section className="py-16">
         <div className="container px-4 mx-auto">
           <h2 className="text-3xl font-bold text-center text-foreground mb-12">Featured Clubs</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[
-              { name: "Victory Tennis Arena", sport: "Tennis", img: "https://placehold.co/600x400.png", hint: "tennis court" },
-              { name: "Net Rippers Badminton", sport: "Badminton", img: "https://placehold.co/600x400.png", hint: "badminton court" },
-              { name: "Wallbangers Squash Hub", sport: "Squash", img: "https://placehold.co/600x400.png", hint: "squash court" },
-            ].map((club, index) => (
-              <div key={index} className="bg-card rounded-lg shadow-lg overflow-hidden transform transition-all hover:scale-105">
-                <Image src={club.img} alt={club.name} width={600} height={400} className="w-full h-48 object-cover" data-ai-hint={club.hint} />
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold text-foreground mb-1">{club.name}</h3>
-                  <p className="text-sm text-primary font-medium">{club.sport}</p>
-                  <Button variant="link" asChild className="mt-4 p-0 h-auto">
-                    <Link href="/clubs">View Details &rarr;</Link>
-                  </Button>
+          {isLoadingFeatured ? (
+            <div className="text-center">
+              <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
+              <p className="mt-2 text-muted-foreground">Loading featured clubs...</p>
+            </div>
+          ) : featuredClubs.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {featuredClubs.map((club) => (
+                <div key={club.id} className="bg-card rounded-lg shadow-lg overflow-hidden transform transition-all hover:scale-105">
+                  <Image 
+                    src={club.images?.[0] || 'https://placehold.co/600x400.png'} 
+                    alt={club.name} 
+                    width={600} 
+                    height={400} 
+                    className="w-full h-48 object-cover" 
+                    data-ai-hint={`${club.sport.toLowerCase()} court`}
+                  />
+                  <div className="p-6">
+                    <h3 className="text-xl font-semibold text-foreground mb-1">{club.name}</h3>
+                    <p className="text-sm text-primary font-medium">{club.sport}</p>
+                    <Button variant="link" asChild className="mt-4 p-0 h-auto">
+                      <Link href={`/clubs/${club.id}`}>View Details &rarr;</Link>
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground">No featured clubs available at the moment.</p>
+          )}
         </div>
       </section>
     </AppLayout>

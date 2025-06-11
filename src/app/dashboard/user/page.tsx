@@ -1,24 +1,24 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Booking, Club } from "@/lib/types"; 
-import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus } from "lucide-react"; 
+import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2 } from "lucide-react"; 
 import Link from "next/link";
 import { ClubCard } from '@/components/features/clubs/ClubCard'; 
-import { mockClubs, mockUserBookings } from '@/lib/mockData'; 
+import { mockUserBookings } from '@/lib/mockData'; 
 import { ReviewForm } from '@/components/features/reviews/ReviewForm';
 import {
   AlertDialog,
   AlertDialogContent,
-  AlertDialogCancel, // We might not need cancel if DialogClose is used in form
-  AlertDialogTrigger, // Not directly used if opening programmatically
-} from "@/components/ui/alert-dialog"; // Using AlertDialog for modal behavior
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { getAllClubs } from '@/services/clubService';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -36,10 +36,26 @@ export default function UserDashboardPage() {
   const pastBookings = mockUserBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id));
   const completedBookingsCount = mockUserBookings.filter(b => b.status === 'completed').length;
   
-  const favoriteClubs: Club[] = mockClubs.filter(club => club.isFavorite);
-
+  const [favoriteClubs, setFavoriteClubs] = useState<Club[]>([]);
+  const [isLoadingFavorites, setIsLoadingFavorites] = useState(true);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
+
+  useEffect(() => {
+    const fetchFavoriteClubs = async () => {
+      setIsLoadingFavorites(true);
+      try {
+        const allClubs = await getAllClubs();
+        setFavoriteClubs(allClubs.filter(club => club.isFavorite));
+      } catch (error) {
+        console.error("Failed to fetch favorite clubs:", error);
+        // Optionally set an error state here
+      } finally {
+        setIsLoadingFavorites(false);
+      }
+    };
+    fetchFavoriteClubs();
+  }, []);
 
   const handleOpenReviewDialog = (booking: Booking) => {
     setSelectedBookingForReview(booking);
@@ -50,14 +66,9 @@ export default function UserDashboardPage() {
     setIsReviewDialogOpen(false);
     setSelectedBookingForReview(null);
     // TODO: Potentially refresh bookings or mark booking as reviewed in a real app
-    // For now, just closing the dialog.
   };
   
-  // Mock function to check if a review has been submitted for a booking
-  // In a real app, this would check against your review data.
   const hasBeenReviewed = (bookingId: string) => {
-    // Placeholder: return false; 
-    // Or, if you want to simulate some reviewed items:
     return bookingId === 'ub3'; // Example: booking ub3 has been reviewed
   };
 
@@ -71,7 +82,6 @@ export default function UserDashboardPage() {
         </Button>
       </div>
 
-      {/* User Activity Stats Section */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -135,7 +145,7 @@ export default function UserDashboardPage() {
                   <TableBody>
                     {upcomingBookings.map((booking) => (
                       <TableRow key={booking.id}>
-                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-1)}</TableCell> {/* Placeholder name */}
+                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-1)}</TableCell> 
                         <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
                         <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
@@ -205,7 +215,12 @@ export default function UserDashboardPage() {
               <CardDescription>Your handpicked list of top sports clubs.</CardDescription>
             </CardHeader>
             <CardContent>
-              {favoriteClubs.length > 0 ? (
+              {isLoadingFavorites ? (
+                <div className="text-center py-12">
+                  <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary mb-3" />
+                  <p className="text-muted-foreground">Loading favorite clubs...</p>
+                </div>
+              ) : favoriteClubs.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {favoriteClubs.map((club) => (
                     <ClubCard key={club.id} club={club} />
@@ -231,7 +246,6 @@ export default function UserDashboardPage() {
       {selectedBookingForReview && (
         <AlertDialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
           <AlertDialogContent className="sm:max-w-lg">
-             {/* AlertDialogTitle, Description, Footer are part of ReviewForm now */}
             <ReviewForm
               booking={selectedBookingForReview}
               onReviewSubmit={handleReviewSubmitted}

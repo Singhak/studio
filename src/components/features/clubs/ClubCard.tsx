@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { MapPin, Zap, Star, Heart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
-import { mockClubs as globalMockClubs } from '@/lib/mockData'; // Import to mutate for demo
+// Removed: import { mockClubs as globalMockClubs } from '@/lib/mockData';
 
 interface ClubCardProps {
   club: Club;
@@ -20,24 +20,23 @@ export function ClubCard({ club }: ClubCardProps) {
   const [isFavorite, setIsFavorite] = useState(club.isFavorite || false);
 
   useEffect(() => {
-    // Sync with the prop if it changes (e.g., parent re-renders with updated data)
+    // Sync with the prop if it changes (e.g., parent re-renders with updated data from API)
     setIsFavorite(club.isFavorite || false);
   }, [club.isFavorite]);
 
   const handleToggleFavorite = (event: React.MouseEvent) => {
-    event.preventDefault(); // Prevent link navigation if the button is inside a Link
-    event.stopPropagation(); // Stop event from bubbling up to parent Link
+    event.preventDefault(); 
+    event.stopPropagation(); 
     
     const newFavoriteStatus = !isFavorite;
     setIsFavorite(newFavoriteStatus);
 
-    // Update the global mockClubs array (for demo purposes only)
-    const clubIndex = globalMockClubs.findIndex(c => c.id === club.id);
-    if (clubIndex !== -1) {
-      globalMockClubs[clubIndex].isFavorite = newFavoriteStatus;
-    }
     // In a real app, this would be an API call:
-    // console.log(`API call: Set club ${club.id} favorite to ${newFavoriteStatus}`);
+    // await api.updateFavoriteStatus(club.id, newFavoriteStatus);
+    // For this prototype, the change is only local to this card's state.
+    // The parent component (UserDashboardPage) fetches all clubs and filters by isFavorite.
+    // To see a change persist across the app, a backend update and re-fetch would be needed.
+    console.log(`Club ${club.id} favorite toggled to: ${newFavoriteStatus} (UI only)`);
   };
   
   return (
