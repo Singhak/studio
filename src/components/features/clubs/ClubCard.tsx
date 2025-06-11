@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { MapPin, Zap, Star, Heart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
-// Removed: import { mockClubs as globalMockClubs } from '@/lib/mockData';
 
 interface ClubCardProps {
   club: Club;
@@ -36,20 +35,20 @@ export function ClubCard({ club }: ClubCardProps) {
     // For this prototype, the change is only local to this card's state.
     // The parent component (UserDashboardPage) fetches all clubs and filters by isFavorite.
     // To see a change persist across the app, a backend update and re-fetch would be needed.
-    console.log(`Club ${club.id} favorite toggled to: ${newFavoriteStatus} (UI only)`);
+    console.log(`Club ${club._id || club.id} favorite toggled to: ${newFavoriteStatus} (UI only)`);
   };
   
   return (
     <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg">
       <CardHeader className="p-0 relative">
-        <Link href={`/clubs/${club.id}`} className="block aspect-[16/9] overflow-hidden">
+        <Link href={`/clubs/${club._id || club.id}`} className="block aspect-[16/9] overflow-hidden">
           <Image
             src={placeholderImage}
             alt={club.name}
             width={600}
             height={400}
             className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-            data-ai-hint={`${club.sport.toLowerCase()} court`}
+            data-ai-hint={`${club.sport?.toLowerCase() || 'sports'} court`}
           />
         </Link>
         <Button
@@ -63,21 +62,22 @@ export function ClubCard({ club }: ClubCardProps) {
         </Button>
       </CardHeader>
       <CardContent className="p-4 flex-grow">
-        <Link href={`/clubs/${club.id}`}>
+        <Link href={`/clubs/${club._id || club.id}`}>
           <CardTitle className="text-xl font-semibold mb-1 hover:text-primary transition-colors">{club.name}</CardTitle>
         </Link>
         <div className="flex items-center text-sm text-muted-foreground mb-1">
           <Zap className="w-4 h-4 mr-1.5 text-primary" />
-          <span>{club.sport}</span>
+          <span>{club.sport || 'Sport'}</span>
         </div>
         <div className="flex items-center text-sm text-muted-foreground mb-2">
           <MapPin className="w-4 h-4 mr-1.5 text-primary" />
-          <span>{club.location}</span>
+          <span>{club.address?.city || 'Location unspecified'}</span>
         </div>
-        {club.rating && (
+        {club.averageRating !== undefined && club.averageRating !== null && (
           <div className="flex items-center text-sm mb-2">
             <Star className="w-4 h-4 mr-1 text-yellow-400 fill-yellow-400" />
-            <span className="font-medium text-muted-foreground">{club.rating.toFixed(1)}</span>
+            <span className="font-medium text-muted-foreground">{club.averageRating.toFixed(1)}</span>
+            {club.reviewCount !== undefined && <span className="ml-1 text-xs">({club.reviewCount} reviews)</span>}
           </div>
         )}
         <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
@@ -93,7 +93,7 @@ export function ClubCard({ club }: ClubCardProps) {
       </CardContent>
       <CardFooter className="p-4 border-t">
         <Button asChild className="w-full" variant="outline">
-          <Link href={`/clubs/${club.id}`}>View Details & Book</Link>
+          <Link href={`/clubs/${club._id || club.id}`}>View Details & Book</Link>
         </Button>
       </CardFooter>
     </Card>
