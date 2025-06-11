@@ -161,14 +161,32 @@ export async function getServicesByClubId(clubId: string): Promise<Service[]> {
     const authHeaders = await getAuthHeaders(false);
     const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
-      if (response.status === 404) { // Or handle based on API spec if 404 means no services vs club not found
-        return []; // Club found, but no services
+      if (response.status === 404) { 
+        return []; 
       }
       throw new Error(`Failed to fetch services for club ${clubId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
     }
     return await response.json();
   } catch (error) {
     console.error(`Error fetching services for club ID ${clubId}:`, error);
+    throw error;
+  }
+}
+
+export async function getServiceById(serviceId: string): Promise<Service | null> {
+  const apiUrl = `${getApiBaseUrl()}/services/${serviceId}`;
+  try {
+    const authHeaders = await getAuthHeaders(false);
+    const response = await fetch(apiUrl, { headers: authHeaders });
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`Failed to fetch service ${serviceId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching service by ID ${serviceId}:`, error);
     throw error;
   }
 }
