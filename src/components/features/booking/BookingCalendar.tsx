@@ -21,20 +21,35 @@ const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
   // Less slots on weekends for this mock data
   const baseSlotsCount = (day === 0 || day === 6) ? Math.floor(Math.random() * 5) + 3 : Math.floor(Math.random() * 8) + 5;
   const slots: TimeSlot[] = [];
+  const generatedStartTimes = new Set<string>();
+  let currentHour = 9;
+
 
   for (let i = 0; i < baseSlotsCount; i++) {
-    const hour = 9 + i * (Math.random() > 0.5 ? 1 : 2); // Vary interval a bit
-    if (hour >= 21) break;
+    if (currentHour >= 21) break;
 
+    const startTime = `${currentHour.toString().padStart(2, '0')}:00`;
+    
+    // Ensure unique start time for the day
+    if (generatedStartTimes.has(startTime)) {
+      currentHour += (Math.random() > 0.3 ? 1 : 2); // Skip if already generated, try next hour
+      continue;
+    }
+    generatedStartTimes.add(startTime);
+
+    const endTime = `${(currentHour + 1).toString().padStart(2, '0')}:00`;
     const randomIndex = Math.floor(Math.random() * allStatuses.length);
     const status = allStatuses[randomIndex];
     
     slots.push({
-      startTime: `${hour.toString().padStart(2, '0')}:00`,
-      endTime: `${(hour + 1).toString().padStart(2, '0')}:00`,
+      startTime: startTime,
+      endTime: endTime,
       status: status,
     });
+
+    currentHour += (Math.random() > 0.3 ? 1 : 2); // Increment hour by 1 or 2 for next slot
   }
+  // Already sorted by generation, but can keep sort if logic becomes complex
   return slots.sort((a,b) => a.startTime.localeCompare(b.startTime));
 };
 
@@ -159,7 +174,7 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
             </h3>
             {timeSlots.length > 0 ? (
               <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
-                {timeSlots.map((slot) => {
+                {timeSlots.map((slot, index) => {
                   const { variant, isDisabled, buttonClassName, buttonText } = getSlotButtonProps(slot);
 
                   const actualButton = (
@@ -174,7 +189,7 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
                   );
 
                   return (
-                    <Tooltip key={slot.startTime}>
+                    <Tooltip key={`${slot.startTime}-${index}`}> {/* Use index for unique key */}
                       <TooltipTrigger asChild>
                         {isDisabled ? (
                           <span className="inline-block w-full" tabIndex={0}> 
