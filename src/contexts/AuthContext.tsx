@@ -22,6 +22,7 @@ import { requestNotificationPermission, initializeFirebaseMessaging } from '@/li
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
 import type { AppNotification } from '@/lib/types';
 import { Bell } from 'lucide-react';
+import { markNotificationsAsReadApi } from '@/services/notificationService'; // Import the API service
 
 interface AuthContextType {
   currentUser: User | null;
@@ -39,8 +40,8 @@ interface AuthContextType {
   notifications: AppNotification[];
   unreadCount: number;
   addNotification: (title: string, body?: string, href?: string, id?: string) => void;
-  markNotificationAsRead: (notificationId: string) => void;
-  markAllNotificationsAsRead: () => void;
+  markNotificationAsRead: (notificationId: string) => Promise<void>;
+  markAllNotificationsAsRead: () => Promise<void>;
   clearAllNotifications: () => void;
 }
 
@@ -109,34 +110,66 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       read: false,
     };
     setNotifications(prev => {
-      const updated = [newNotification, ...prev.slice(0, 19)];
+      const updated = [newNotification, ...prev.slice(0, 19)]; // Keep up to 20 notifications
       saveNotificationsToStorage(updated);
       return updated;
     });
     setUnreadCount(prev => prev + 1);
   }, [saveNotificationsToStorage]);
 
-  const markNotificationAsRead = useCallback((notificationId: string) => {
-    setNotifications(prev => {
-      const updated = prev.map(n => n.id === notificationId && !n.read ? { ...n, read: true } : n);
-      if (updated.find(n => n.id === notificationId)?.read !== prev.find(n => n.id === notificationId)?.read) {
-          setUnreadCount(currentUnread => Math.max(0, currentUnread - 1));
-      }
-      saveNotificationsToStorage(updated);
-      return updated;
-    });
-  }, [saveNotificationsToStorage]);
+  const markNotificationAsRead = useCallback(async (notificationId: string) => {
+    try {
+      await markNotificationsAsReadApi([notificationId]); // Call API first
+      setNotifications(prev => {
+        const updated = prev.map(n => n.id === notificationId && !n.read ? { ...n, read: true } : n);
+        // Check if an actual change in read status occurred before decrementing unread count
+        const wasOriginallyUnread = prev.find(n => n.id === notificationId && !n.read);
+        if (wasOriginallyUnread) {
+            setUnreadCount(currentUnread => Math.max(0, currentUnread - 1));
+        }
+        saveNotificationsToStorage(updated);
+        return updated;
+      });
+    } catch (error) {
+      console.error("Failed to mark notification as read via API:", error);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Could not mark notification as read. Please try again.",
+      });
+    }
+  }, [saveNotificationsToStorage, toast]);
 
-  const markAllNotificationsAsRead = useCallback(() => {
-    setNotifications(prev => {
-      const updated = prev.map(n => ({ ...n, read: true }));
-      saveNotificationsToStorage(updated);
-      return updated;
-    });
-    setUnreadCount(0);
-  }, [saveNotificationsToStorage]);
+  const markAllNotificationsAsRead = useCallback(async () => {
+    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+
+    try {
+      await markNotificationsAsReadApi(unreadIds); // Call API with all unread IDs
+      setNotifications(prev => {
+        const updated = prev.map(n => ({ ...n, read: true }));
+        saveNotificationsToStorage(updated);
+        return updated;
+      });
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Failed to mark all notifications as read via API:", error);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Could not mark all notifications as read. Please try again.",
+      });
+    }
+  }, [notifications, saveNotificationsToStorage, toast]);
+
 
   const clearAllNotifications = useCallback(() => {
+    // For clearing, we typically don't need to tell the backend explicitly *which* ones
+    // if the backend treats 'clear' as 'delete all for user' or similar.
+    // If your API requires IDs for deletion, this would need a similar call to markNotificationsAsReadApi
+    // with an endpoint like /notifications/delete and providing all current notification IDs.
+    // For this prototype, we'll just clear client-side.
+    console.log("Simulating: Would call API to clear/delete all notifications for user if endpoint existed.");
     setNotifications([]);
     setUnreadCount(0);
     saveNotificationsToStorage([]);
@@ -150,7 +183,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (currentUser) {
         const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!VAPID_KEY) {
-          toast({ variant: 'destructive', title: 'Notification Setup Incomplete', description: 'VAPID key missing.' });
+          // Toast handled in requestNotificationPermission now.
         }
         
         const token = await requestNotificationPermission();
@@ -184,7 +217,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfileCompletionPending(true);
           localStorage.removeItem(`profileCompletionPending_${user.uid}`);
         }
-        // If user exists, try to load custom tokens if not already loaded (e.g. on page refresh)
         if (!accessToken) {
             const storedAccessToken = localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY);
             if (storedAccessToken) setAccessToken(storedAccessToken);
@@ -195,7 +227,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         await setupFcm();
       } else {
-        // Clear custom tokens if Firebase user is null
         setAccessToken(null);
         setRefreshToken(null);
         localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
@@ -214,7 +245,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessage();
       }
     };
-  }, [currentUser, addNotification, toast, accessToken, refreshToken]);
+  }, [currentUser, addNotification, toast, accessToken, refreshToken]); // currentUser dependency added
 
   useEffect(() => {
     if (loading) return;
@@ -264,7 +295,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (firebaseUser) {
         const firebaseIdToken = await firebaseUser.getIdToken();
-        // Call your custom backend
         const response = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -274,7 +304,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ message: "Custom login failed after Firebase login."}));
           toast({ variant: "destructive", title: "Custom Login Failed", description: errorData.message || `Error ${response.status}` });
-          await signOut(auth); // Sign out from Firebase if custom login fails
+          await signOut(auth); 
           return null;
         }
 
@@ -288,7 +318,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Login Successful!", description: "Welcome back!" });
         return firebaseUser;
       }
-      return null; // Should not happen if signInWithEmailAndPassword succeeded
+      return null; 
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential') {
         toast({ variant: "destructive", title: "Login Failed", description: "Invalid email or password." });
@@ -311,11 +341,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      // TODO: Implement similar custom backend call for Google Sign-In if needed
-      // const firebaseIdToken = await result.user.getIdToken();
-      // const response = await fetch('/api/auth/login', { /* ... */ }); ...
-      // For now, Google Sign-In only uses Firebase and does not set custom tokens.
-
       const isNewUser = result.additionalUserInfo?.isNewUser;
       if (isNewUser) {
         localStorage.setItem(`profileCompletionPending_${result.user.uid}`, 'true');
@@ -361,7 +386,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userCredential = await confirmationResult.confirm(code);
-      // TODO: Implement similar custom backend call for Phone Sign-In if needed
       localStorage.setItem(`profileCompletionPending_${userCredential.user.uid}`, 'true');
       setProfileCompletionPending(true);
       toast({ title: "Phone Sign-In Successful!", description: "Please complete your profile." });
@@ -378,23 +402,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logoutUser = async () => {
     setLoading(true);
     try {
-      await signOut(auth); // Signs out from Firebase
-      // Clear custom tokens
+      const uidBeforeLogout = currentUser?.uid; 
+      await signOut(auth); 
       setAccessToken(null);
       setRefreshToken(null);
       localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
       localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
-      
       setProfileCompletionPending(false);
-      setNotifications([]);
-      setUnreadCount(0);
-      const localCurrentUser = auth.currentUser; // Should be null after signOut
-      if(localCurrentUser) { // This check might be redundant but safe
-          localStorage.removeItem(`courtly-notifications-${localCurrentUser.uid}`);
-      } else { // If currentUser in context was already set to null, try to get Uid from previous state if needed
-          // This part is tricky, usually we clear for the UID that *was* logged in.
-          // The onAuthStateChanged listener already handles clearing for the new (null) user state.
+      
+      // Clear notifications for the user who just logged out
+      if (uidBeforeLogout) {
+          localStorage.removeItem(`courtly-notifications-${uidBeforeLogout}`);
       }
+      setNotifications([]); // Clear in-memory state
+      setUnreadCount(0);   // Clear in-memory state
 
       toast({ title: "Logged Out", description: "You have been successfully logged out." });
       router.push('/');
