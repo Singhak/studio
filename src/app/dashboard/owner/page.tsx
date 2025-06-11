@@ -14,9 +14,9 @@ import Link from 'next/link';
 import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
-import { getClubsByOwnerId } from '@/services/clubService'; // Changed from getAllClubs
+import { getLoggedInOwnerClubs } from '@/services/clubService'; // Changed to getLoggedInOwnerClubs
 
-const CURRENT_OWNER_ID = 'owner123'; // This should ideally come from the authenticated user context
+// const CURRENT_OWNER_ID = 'owner123'; // No longer needed here for fetching clubs
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -42,8 +42,7 @@ export default function OwnerDashboardPage() {
       setIsLoading(true);
       setError(null);
       try {
-        // Use the new service function to fetch clubs specifically for the current owner
-        const clubsForOwner = await getClubsByOwnerId(CURRENT_OWNER_ID);
+        const clubsForOwner = await getLoggedInOwnerClubs(); // Use the new service function
         setOwnerClubs(clubsForOwner);
         if (clubsForOwner.length > 0) {
           setSelectedClub(clubsForOwner[0]);
@@ -58,17 +57,15 @@ export default function OwnerDashboardPage() {
       }
     };
     fetchClubsForOwner();
-  }, []); // Effect runs once on mount
+  }, []); 
 
   const handleClubChange = (clubId: string) => {
-    const club = ownerClubs.find(c => c._id === clubId); // Match by _id now
+    const club = ownerClubs.find(c => c._id === clubId);
     setSelectedClub(club || null);
   };
  
   const currentClubBookings = useMemo(() => {
     if (!selectedClub) return [];
-    // In a real app, bookings would be fetched based on selectedClub._id
-    // For this prototype, mockBookings are filtered if they match selectedClub.id (or _id after API change)
     return baseMockOwnerBookings.filter(booking => booking.clubId === (selectedClub._id || selectedClub.id));
   }, [selectedClub]);
   
@@ -159,7 +156,7 @@ export default function OwnerDashboardPage() {
                 </SelectTrigger>
                 <SelectContent>
                     {ownerClubs.map((club) => (
-                    <SelectItem key={club._id} value={club._id}> {/* Use _id */}
+                    <SelectItem key={club._id} value={club._id}>
                         {club.name}
                     </SelectItem>
                     ))}
@@ -186,13 +183,13 @@ export default function OwnerDashboardPage() {
         <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             {ownerClubs.length > 1 && (
             <div className="min-w-[200px] sm:min-w-0 md:min-w-[200px]"> 
-                <Select value={selectedClub!._id} onValueChange={handleClubChange}> {/* Use _id */}
+                <Select value={selectedClub!._id} onValueChange={handleClubChange}>
                 <SelectTrigger id="club-selector" aria-label="Switch managed club">
                     <SelectValue placeholder="Switch Club..." />
                 </SelectTrigger>
                 <SelectContent>
                     {ownerClubs.map((club) => (
-                    <SelectItem key={club._id} value={club._id}> {/* Use _id */}
+                    <SelectItem key={club._id} value={club._id}>
                         {club.name}
                     </SelectItem>
                     ))}
@@ -201,7 +198,7 @@ export default function OwnerDashboardPage() {
             </div>
             )}
             <Button asChild variant="outline" className="w-full sm:w-auto">
-                <Link href={`/clubs/${selectedClub!._id}`}> {/* Use _id */}
+                <Link href={`/clubs/${selectedClub!._id}`}>
                     <Eye className="mr-2 h-4 w-4" /> View Club Page
                 </Link>
             </Button>
@@ -257,8 +254,8 @@ export default function OwnerDashboardPage() {
             <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{selectedClub!.averageRating || "N/A"} / 5.0</div> {/* Use averageRating */}
-            <p className="text-xs text-muted-foreground">Based on user reviews ({selectedClub!.reviewCount} reviews)</p> {/* Add reviewCount */}
+            <div className="text-2xl font-bold">{selectedClub!.averageRating || "N/A"} / 5.0</div>
+            <p className="text-xs text-muted-foreground">Based on user reviews ({selectedClub!.reviewCount} reviews)</p>
           </CardContent>
         </Card>
         <Card>
@@ -377,27 +374,27 @@ export default function OwnerDashboardPage() {
                   <h3 className="font-semibold">Club Information</h3>
                   <p className="text-sm text-muted-foreground">Edit name, description, location, images for {selectedClub!.name}.</p>
                 </div>
-                <Button variant="outline" asChild><Link href={`/dashboard/owner/settings?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Edit</Link></Button> {/* Use _id */}
+                <Button variant="outline" asChild><Link href={`/dashboard/owner/settings?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Edit</Link></Button>
               </div>
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="font-semibold">Services & Pricing</h3>
                   <p className="text-sm text-muted-foreground">Manage services for {selectedClub!.name}.</p>
                 </div>
-                <Button variant="outline" asChild><Link href={`/dashboard/owner/services?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Manage</Link></Button> {/* Use _id */}
+                <Button variant="outline" asChild><Link href={`/dashboard/owner/services?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Manage</Link></Button>
               </div>
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="font-semibold">Availability Calendar</h3>
                   <p className="text-sm text-muted-foreground">Set hours and block dates for {selectedClub!.name}.</p>
                 </div>
-                 <Button variant="outline" asChild><Link href={`/dashboard/owner/availability?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Update</Link></Button> {/* Use _id */}
+                 <Button variant="outline" asChild><Link href={`/dashboard/owner/availability?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Update</Link></Button>
               </div>
             </CardContent>
              <CardFooter>
                 <Button asChild variant="destructive" className="ml-auto"
                  onClick={() => {
-                     alert(`Placeholder: Would attempt to delete club: ${selectedClub!.name} (ID: ${selectedClub!._id})`); {/* Use _id */}
+                     alert(`Placeholder: Would attempt to delete club: ${selectedClub!.name} (ID: ${selectedClub!._id})`);
                  }}>
                     <Link href="#"><Trash2 className="mr-2 h-4 w-4"/> Delete {selectedClub!.name.substring(0,15)}...</Link>
                 </Button>

@@ -54,6 +54,25 @@ export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
   }
 }
 
+export async function getLoggedInOwnerClubs(): Promise<Club[]> {
+  const apiUrl = `${getApiBaseUrl()}/clubs/my-owned`;
+  try {
+    const response = await fetch(apiUrl, {
+      // In a real app, you would include an Authorization header:
+      // headers: {
+      //   'Authorization': `Bearer ${your_access_token}`
+      // }
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch logged-in owner's clubs: ${response.statusText} (${response.status}) from ${apiUrl}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching logged-in owner's clubs:", error);
+    throw error;
+  }
+}
+
 interface RegisterClubPayload {
   name: string;
   address: ClubAddress;
