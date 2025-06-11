@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, PlusCircle, Edit, Trash2, ListChecks, Loader2, AlertTriangle, ShoppingBag, CheckCircle, XCircle, Clock } from 'lucide-react';
 import type { Club, Service } from '@/lib/types';
-import { getClubById } from '@/services/clubService';
+import { getClubById, getServicesByClubId } from '@/services/clubService'; // Added getServicesByClubId
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { AddServiceForm } from '@/components/features/services/AddServiceForm';
 import { Badge } from '@/components/ui/badge';
@@ -24,11 +24,12 @@ function ManageServicesContent() {
   const [error, setError] = useState<string | null>(null);
   const [isAddServiceDialogOpen, setIsAddServiceDialogOpen] = useState(false);
 
-  const fetchClubData = useCallback(async () => {
+  const fetchClubAndServiceData = useCallback(async () => {
     if (!clubId) {
       setError('No club selected. Please select a club from the owner dashboard to manage its services.');
       setIsLoading(false);
       setClub(null);
+      setServices([]);
       return;
     }
     setIsLoading(true);
@@ -37,28 +38,18 @@ function ManageServicesContent() {
       const foundClub = await getClubById(clubId);
       if (foundClub) {
         setClub(foundClub);
-        // Ensure services from the club match the new detailed Service structure
-        const fetchedServices = (foundClub.services || []).map(s => ({
-            ...s, // Spread existing service data
-            _id: s._id || (s as any).id, // Ensure _id consistency
-            club: s.club || clubId, // Ensure club ID reference
-            hourlyPrice: s.hourlyPrice || (s as any).price || 0,
-            slotDurationMinutes: s.slotDurationMinutes || (s as any).durationMinutes || 60,
-            sportType: s.sportType || foundClub.sport || "Tennis", // Default if not specified
-            capacity: s.capacity || 2,
-            isActive: s.isActive !== undefined ? s.isActive : true,
-            availableDays: s.availableDays || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            openingTime: s.openingTime || "09:00",
-            closingTime: s.closingTime || "21:00",
-        }));
-        setServices(fetchedServices);
+        // Fetch services separately
+        const fetchedServices = await getServicesByClubId(clubId);
+        setServices(fetchedServices || []); // Ensure services is an array
       } else {
         setClub(null);
+        setServices([]);
         setError(`Could not find details for a club with ID: ${clubId}.`);
       }
     } catch (err) {
-      console.error("Failed to fetch club:", err);
+      console.error("Failed to fetch club or services:", err);
       setClub(null);
+      setServices([]);
       setError(err instanceof Error ? err.message : "An unknown error occurred.");
     } finally {
       setIsLoading(false);
@@ -66,14 +57,14 @@ function ManageServicesContent() {
   }, [clubId]);
 
   useEffect(() => {
-    fetchClubData();
-  }, [fetchClubData]);
+    fetchClubAndServiceData();
+  }, [fetchClubAndServiceData]);
 
   const handleServiceAdded = (newService: Service) => {
     // Optimistically update UI or re-fetch
     setServices(prevServices => [...prevServices, newService]);
     setIsAddServiceDialogOpen(false); // Close dialog
-    // Or better: fetchClubData(); to get the latest list from server
+    // Or better: fetchClubAndServiceData(); to get the latest list from server
   };
 
 

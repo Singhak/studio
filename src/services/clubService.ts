@@ -5,15 +5,17 @@ const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 
 function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
+    // Client-side: use relative path
     return '/api';
   }
+  // Server-side: use absolute path from environment variable or default
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
   return `${baseUrl}/api`;
 }
 
-async function getAuthHeaders(isPostOrPut: boolean = true): Promise<HeadersInit> {
+async function getAuthHeaders(isPostOrPutOrDelete: boolean = false): Promise<HeadersInit> {
   const headers: HeadersInit = {};
-  if (isPostOrPut) {
+  if (isPostOrPutOrDelete) {
     headers['Content-Type'] = 'application/json';
   }
   if (typeof window !== 'undefined') {
@@ -150,5 +152,23 @@ export async function addClubService(serviceData: AddServicePayload): Promise<Se
     } else {
       throw new Error('An unexpected error occurred while adding the service.');
     }
+  }
+}
+
+export async function getServicesByClubId(clubId: string): Promise<Service[]> {
+  const apiUrl = `${getApiBaseUrl()}/services/club/${clubId}`;
+  try {
+    const authHeaders = await getAuthHeaders(false);
+    const response = await fetch(apiUrl, { headers: authHeaders });
+    if (!response.ok) {
+      if (response.status === 404) { // Or handle based on API spec if 404 means no services vs club not found
+        return []; // Club found, but no services
+      }
+      throw new Error(`Failed to fetch services for club ${clubId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching services for club ID ${clubId}:`, error);
+    throw error;
   }
 }
