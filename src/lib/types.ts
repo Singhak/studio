@@ -1,33 +1,55 @@
 
+export interface ClubAddress {
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+}
+
+export interface ClubLocationGeo {
+  type: "Point";
+  coordinates: [number, number]; // [longitude, latitude]
+}
+
 export interface Club {
-  id: string;
-  ownerId?: string; // Added to associate club with an owner
+  _id: string; 
+  owner?: string; 
   name: string;
-  sport: string;
-  location: string;
+  address: ClubAddress; 
+  location: ClubLocationGeo; 
   description: string;
-  images: string[];
-  services: Service[];
+  images: string[]; 
+  services?: Service[]; // Services might be fetched/updated separately after club creation
   contactEmail?: string;
   contactPhone?: string;
-  rating?: number; // Optional: average rating
-  amenities?: string[]; // e.g., Parking, Showers, Cafe
-  isFavorite?: boolean; // Added for favorite feature
+  amenities?: string[]; 
+  averageRating?: number; 
+  reviewCount?: number; 
+  isActive?: boolean; 
+  isDeleted?: boolean; 
+  isFeatured?: boolean; 
+  createdAt?: string; 
+  updatedAt?: string; 
+  isFavorite?: boolean; 
+  sport?: SportType; // Keep primary sport type for the club, even if not in this specific POST
+  id?: string; // Keep original id for compatibility if needed during transition
+  ownerId?: string; // Keep original ownerId for compatibility
 }
 
 export interface Service {
-  id: string;
+  id: string; 
   name: string;
   description?: string;
   price: number;
-  durationMinutes: number; // e.g., 60 for 1 hour
+  durationMinutes: number; 
+  sport?: SportType; 
 }
 
 export type TimeSlotStatus = 'available' | 'pending' | 'confirmed' | 'in-progress' | 'unavailable';
 
 export interface TimeSlot {
-  startTime: string; // e.g., "09:00"
-  endTime: string;   // e.g., "10:00"
+  startTime: string; 
+  endTime: string;   
   status: TimeSlotStatus;
 }
 
@@ -36,13 +58,12 @@ export interface Booking {
   userId: string;
   clubId: string;
   serviceId: string;
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:mm
-  endTime: string; // HH:mm
+  date: string; 
+  startTime: string; 
+  endTime: string; 
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
   totalPrice: number;
-  createdAt: string; // ISO date string
-  // reviewed?: boolean; // Optional: To track if a review has been left
+  createdAt: string; 
 }
 
 export interface User {
@@ -70,19 +91,19 @@ export interface AppNotification {
   id: string;
   title: string;
   body?: string;
-  timestamp: number; // Unix timestamp
+  timestamp: number; 
   read: boolean;
-  href?: string; // Optional link for navigation on click
+  href?: string; 
 }
 
 export interface Review {
-  id: string; // Auto-generated or from backend
+  id: string; 
   bookingId: string;
   clubId: string;
   serviceId: string;
-  userId: string; // ID of the user who wrote the review
-  clubRating: number; // e.g., 1-5
-  serviceRating: number; // e.g., 1-5
+  userId: string; 
+  clubRating: number; 
+  serviceRating: number; 
   comment?: string;
-  createdAt: string; // ISO date string
+  createdAt: string; 
 }
