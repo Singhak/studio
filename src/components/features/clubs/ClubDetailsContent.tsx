@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
-import { createBooking } from '@/services/bookingService'; // Import the new service
+import { createBooking } from '@/services/bookingService'; 
 import { useState } from 'react';
 import { format } from 'date-fns';
 
@@ -19,7 +19,6 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const { addNotification, currentUser } = useAuth();
   const [isBooking, setIsBooking] = useState(false);
 
-  // State to hold selected date and time slot from BookingCalendar
   const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
   const [selectedBookingSlot, setSelectedBookingSlot] = useState<TimeSlot | null>(null);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<Service | null>(null);
@@ -30,11 +29,8 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     setSelectedBookingSlot(slot);
   };
 
-  // Simple function to select the first service. In a real app, user would select a service.
-  // Call this when a service is clicked or a "Book this service" button is hit.
   const handleServiceSelectionForBooking = (service: Service) => {
     setSelectedServiceForBooking(service);
-    // Optionally, reset calendar selections if service changes
     setSelectedBookingDate(undefined); 
     setSelectedBookingSlot(null);
     toast({
@@ -55,7 +51,6 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     }
     if (!currentUser) {
       toast({ variant: "destructive", title: "Not Logged In", description: "Please log in to make a booking." });
-      // router.push('/login'); // or prompt login
       return;
     }
 
@@ -70,7 +65,6 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       bookingDate: format(selectedBookingDate, 'yyyy-MM-dd'),
       startTime: selectedBookingSlot.startTime,
       endTime: selectedBookingSlot.endTime,
-      // notes: "Optional user notes here", // Add a notes field if desired
     };
 
     try {
@@ -78,25 +72,23 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       toast({
         title: "Booking Submitted!",
         description: bookingResponse.message,
-        variant: bookingResponse.status === 'pending' ? 'default' : 'default', // Could vary based on status
+        variant: bookingResponse.status === 'pending' ? 'default' : 'default', 
       });
 
       addNotification(
         `New Booking Request: ${club.name}`,
         `A new booking for "${selectedServiceForBooking.name}" has been requested by ${currentUser?.displayName || currentUser?.email || 'a user'}. Please review.`,
-        '/dashboard/owner' // Owner dashboard link
+        '/dashboard/owner' 
       );
       
       addNotification(
         `Booking for ${selectedServiceForBooking.name} Pending`,
         `Your booking request for ${club.name} is ${bookingResponse.status}.`,
-        '/dashboard/user' // User dashboard link
+        '/dashboard/user' 
       );
       
-      // Reset selections
       setSelectedBookingDate(undefined);
       setSelectedBookingSlot(null);
-      // setSelectedServiceForBooking(null); // Optionally reset service selection
 
     } catch (error) {
       console.error("Booking failed:", error);
@@ -237,11 +229,39 @@ export function ClubDetailsContent({ club }: { club: Club }) {
                 <MapPin className="w-4 h-4 mr-2 text-primary" />
                 <span className="text-muted-foreground">{`${club.address.street}, ${club.address.city}`}</span>
               </div>
-               <Button variant="outline" className="w-full mt-2">
-                <Users className="w-4 h-4 mr-2"/> View on Map (Placeholder)
-               </Button>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center">
+                <MapPin className="w-5 h-5 mr-2 text-primary" /> Location Map
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(club.location && club.location.coordinates && club.location.coordinates.length === 2) ? (
+                <>
+                  <div className="aspect-video w-full bg-muted rounded-md overflow-hidden border">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      allowFullScreen
+                      referrerPolicy="no-referrer-when-downgrade"
+                      src={`https://www.google.com/maps/embed/v1/view?key=YOUR_GOOGLE_MAPS_API_KEY_HERE&center=${club.location.coordinates[1]},${club.location.coordinates[0]}&zoom=15&maptype=roadmap`}
+                    ></iframe>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Note: This map is a placeholder. To enable live Google Maps, obtain a Google Maps Embed API key and replace "YOUR_GOOGLE_MAPS_API_KEY_HERE" in the file <code className="p-0.5 bg-muted rounded text-xs">src/components/features/clubs/ClubDetailsContent.tsx</code> with your actual key.
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">Location coordinates not available for this club.</p>
+              )}
+            </CardContent>
+          </Card>
+
         </div>
       </div>
     </>
