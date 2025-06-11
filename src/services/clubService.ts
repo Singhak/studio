@@ -24,11 +24,6 @@ export async function getAllClubs(): Promise<Club[]> {
 }
 
 export async function getClubById(clubId: string): Promise<Club | null> {
-  // First, try to find in mockClubs if available (for data consistency in prototype if we add to it)
-  // const mockClub = (await import('@/lib/mockData')).mockClubs.find(c => c._id === clubId || c.id === clubId);
-  // if (mockClub) return mockClub;
-
-
   const apiUrl = `${getApiBaseUrl()}/clubs/${clubId}`;
   try {
     const response = await fetch(apiUrl);
@@ -41,6 +36,20 @@ export async function getClubById(clubId: string): Promise<Club | null> {
     return await response.json();
   } catch (error) {
     console.error(`Error fetching club by ID ${clubId}:`, error);
+    throw error;
+  }
+}
+
+export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
+  const apiUrl = `${getApiBaseUrl()}/clubs/owner/${ownerId}`;
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch clubs for owner ${ownerId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching clubs by owner ID ${ownerId}:`, error);
     throw error;
   }
 }

@@ -9,14 +9,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Booking, Club, Service } from "@/lib/types";
-import { mockServices as allMockServices, baseMockOwnerBookings } from '@/lib/mockData'; // baseMockOwnerBookings remains for now
+import { mockServices as allMockServices, baseMockOwnerBookings } from '@/lib/mockData'; 
 import Link from 'next/link';
-import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2 } from "lucide-react"; // Renamed ClubIcon to ClubIconLucide
+import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllClubs } from '@/services/clubService';
+import { getClubsByOwnerId } from '@/services/clubService'; // Changed from getAllClubs
 
-const CURRENT_OWNER_ID = 'owner123';
+const CURRENT_OWNER_ID = 'owner123'; // This should ideally come from the authenticated user context
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -32,20 +32,18 @@ const statusBadgeVariant = (status: Booking['status']) => {
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
   const { addNotification } = useAuth();
-  const [allClubs, setAllClubs] = useState<Club[]>([]);
   const [ownerClubs, setOwnerClubs] = useState<Club[]>([]);
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchClubs = async () => {
+    const fetchClubsForOwner = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const fetchedClubs = await getAllClubs();
-        setAllClubs(fetchedClubs);
-        const clubsForOwner = fetchedClubs.filter(club => club.ownerId === CURRENT_OWNER_ID);
+        // Use the new service function to fetch clubs specifically for the current owner
+        const clubsForOwner = await getClubsByOwnerId(CURRENT_OWNER_ID);
         setOwnerClubs(clubsForOwner);
         if (clubsForOwner.length > 0) {
           setSelectedClub(clubsForOwner[0]);
@@ -53,29 +51,28 @@ export default function OwnerDashboardPage() {
           setSelectedClub(null);
         }
       } catch (err) {
-        console.error("Failed to fetch clubs:", err);
+        console.error("Failed to fetch owner's clubs:", err);
         setError(err instanceof Error ? err.message : "An unknown error occurred while fetching clubs.");
       } finally {
         setIsLoading(false);
       }
     };
-    fetchClubs();
-  }, []);
+    fetchClubsForOwner();
+  }, []); // Effect runs once on mount
 
   const handleClubChange = (clubId: string) => {
-    const club = ownerClubs.find(c => c.id === clubId);
+    const club = ownerClubs.find(c => c._id === clubId); // Match by _id now
     setSelectedClub(club || null);
   };
-
-  // Note: currentClubBookings still uses baseMockOwnerBookings. 
-  // A real app would fetch bookings related to the selectedClub.id
+ 
   const currentClubBookings = useMemo(() => {
     if (!selectedClub) return [];
-    return baseMockOwnerBookings.filter(booking => booking.clubId === selectedClub.id);
+    // In a real app, bookings would be fetched based on selectedClub._id
+    // For this prototype, mockBookings are filtered if they match selectedClub.id (or _id after API change)
+    return baseMockOwnerBookings.filter(booking => booking.clubId === (selectedClub._id || selectedClub.id));
   }, [selectedClub]);
   
   const getServiceName = (serviceId: string): string => {
-    // Assuming allMockServices contains all possible services for now
     const service = allMockServices.find(s => s.id === serviceId);
     return service ? service.name : 'Unknown Service';
   };
@@ -124,7 +121,7 @@ export default function OwnerDashboardPage() {
         <ClubIconLucide className="w-24 h-24 text-destructive mb-6" />
         <h1 className="text-3xl font-bold mb-2 text-destructive">Error Loading Clubs</h1>
         <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
-        <Button onClick={() => window.location.reload()} className="mt-6"> {/* Basic retry */}
+        <Button onClick={() => window.location.reload()} className="mt-6">
           Try Again
         </Button>
       </div>
@@ -162,7 +159,7 @@ export default function OwnerDashboardPage() {
                 </SelectTrigger>
                 <SelectContent>
                     {ownerClubs.map((club) => (
-                    <SelectItem key={club.id} value={club.id}>
+                    <SelectItem key={club._id} value={club._id}> {/* Use _id */}
                         {club.name}
                     </SelectItem>
                     ))}
@@ -174,8 +171,6 @@ export default function OwnerDashboardPage() {
     );
   }
   
-  // This case should ideally not be hit if loading and error states are handled correctly.
-  // Could be a temporary state before selectedClub is set.
   if (!selectedClub && !isLoading) { 
       return <div className="flex justify-center items-center min-h-[200px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Preparing club data...</p></div>;
   }
@@ -191,13 +186,13 @@ export default function OwnerDashboardPage() {
         <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             {ownerClubs.length > 1 && (
             <div className="min-w-[200px] sm:min-w-0 md:min-w-[200px]"> 
-                <Select value={selectedClub!.id} onValueChange={handleClubChange}>
+                <Select value={selectedClub!._id} onValueChange={handleClubChange}> {/* Use _id */}
                 <SelectTrigger id="club-selector" aria-label="Switch managed club">
                     <SelectValue placeholder="Switch Club..." />
                 </SelectTrigger>
                 <SelectContent>
                     {ownerClubs.map((club) => (
-                    <SelectItem key={club.id} value={club.id}>
+                    <SelectItem key={club._id} value={club._id}> {/* Use _id */}
                         {club.name}
                     </SelectItem>
                     ))}
@@ -206,7 +201,7 @@ export default function OwnerDashboardPage() {
             </div>
             )}
             <Button asChild variant="outline" className="w-full sm:w-auto">
-                <Link href={`/clubs/${selectedClub!.id}`}>
+                <Link href={`/clubs/${selectedClub!._id}`}> {/* Use _id */}
                     <Eye className="mr-2 h-4 w-4" /> View Club Page
                 </Link>
             </Button>
@@ -262,8 +257,8 @@ export default function OwnerDashboardPage() {
             <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{selectedClub!.rating || "N/A"} / 5.0</div>
-            <p className="text-xs text-muted-foreground">Based on user reviews</p>
+            <div className="text-2xl font-bold">{selectedClub!.averageRating || "N/A"} / 5.0</div> {/* Use averageRating */}
+            <p className="text-xs text-muted-foreground">Based on user reviews ({selectedClub!.reviewCount} reviews)</p> {/* Add reviewCount */}
           </CardContent>
         </Card>
         <Card>
@@ -326,11 +321,9 @@ export default function OwnerDashboardPage() {
                                         `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} has been confirmed.`,
                                         '/dashboard/user'
                                     );
-                                    // For prototype: Update mock data if desired for immediate reflection
                                     const bookingIndex = baseMockOwnerBookings.findIndex(b => b.id === booking.id);
                                     if (bookingIndex !== -1) {
                                       baseMockOwnerBookings[bookingIndex].status = 'confirmed';
-                                      // Trigger re-calculation of memos by creating a new object reference for selectedClub
                                       setSelectedClub(prev => prev ? {...prev, _timestamp: Date.now()} : null); 
                                     }
                                 }}
@@ -384,27 +377,27 @@ export default function OwnerDashboardPage() {
                   <h3 className="font-semibold">Club Information</h3>
                   <p className="text-sm text-muted-foreground">Edit name, description, location, images for {selectedClub!.name}.</p>
                 </div>
-                <Button variant="outline" asChild><Link href={`/dashboard/owner/settings?clubId=${selectedClub!.id}`}><Edit className="mr-2 h-4 w-4"/>Edit</Link></Button>
+                <Button variant="outline" asChild><Link href={`/dashboard/owner/settings?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Edit</Link></Button> {/* Use _id */}
               </div>
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="font-semibold">Services & Pricing</h3>
                   <p className="text-sm text-muted-foreground">Manage services for {selectedClub!.name}.</p>
                 </div>
-                <Button variant="outline" asChild><Link href={`/dashboard/owner/services?clubId=${selectedClub!.id}`}><Edit className="mr-2 h-4 w-4"/>Manage</Link></Button>
+                <Button variant="outline" asChild><Link href={`/dashboard/owner/services?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Manage</Link></Button> {/* Use _id */}
               </div>
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="font-semibold">Availability Calendar</h3>
                   <p className="text-sm text-muted-foreground">Set hours and block dates for {selectedClub!.name}.</p>
                 </div>
-                 <Button variant="outline" asChild><Link href={`/dashboard/owner/availability?clubId=${selectedClub!.id}`}><Edit className="mr-2 h-4 w-4"/>Update</Link></Button>
+                 <Button variant="outline" asChild><Link href={`/dashboard/owner/availability?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Update</Link></Button> {/* Use _id */}
               </div>
             </CardContent>
              <CardFooter>
                 <Button asChild variant="destructive" className="ml-auto"
                  onClick={() => {
-                     alert(`Placeholder: Would attempt to delete club: ${selectedClub!.name} (ID: ${selectedClub!.id})`);
+                     alert(`Placeholder: Would attempt to delete club: ${selectedClub!.name} (ID: ${selectedClub!._id})`); {/* Use _id */}
                  }}>
                     <Link href="#"><Trash2 className="mr-2 h-4 w-4"/> Delete {selectedClub!.name.substring(0,15)}...</Link>
                 </Button>
