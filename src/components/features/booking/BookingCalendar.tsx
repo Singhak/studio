@@ -3,14 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button'; // Removed buttonVariants
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Clock, Loader2 } from 'lucide-react';
 import type { TimeSlot, TimeSlotStatus } from '@/lib/types';
 import { format } from 'date-fns';
 import type { DateMatcher } from 'react-day-picker';
-import { cn } from '@/lib/utils';
+// import { cn } from '@/lib/utils'; // Not used directly here
 
 const allStatuses: TimeSlotStatus[] = ['available', 'pending', 'confirmed', 'in-progress', 'unavailable'];
 
@@ -38,8 +38,12 @@ const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
   return slots.sort((a,b) => a.startTime.localeCompare(b.startTime));
 };
 
+interface BookingCalendarProps {
+  // Callback to inform parent about selection changes
+  onSlotSelect?: (date: Date | undefined, slot: TimeSlot | null) => void;
+}
 
-export function BookingCalendar() {
+export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
@@ -49,26 +53,37 @@ export function BookingCalendar() {
   useEffect(() => {
     setClientLoaded(true);
     const today = new Date();
-    // Initialize selectedDate on client to prevent hydration mismatch for new Date()
     setSelectedDate(today); 
-    // Disable past dates - also client-side
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     setDisabledDaysConfig({ before: startOfToday });
   }, []); 
 
   useEffect(() => {
     if (clientLoaded && selectedDate) {
-      // Generate slots only on client-side after date is set
       setTimeSlots(generateMockTimeSlots(selectedDate));
       setSelectedTimeSlot(null); // Reset selected slot when date changes
+      if (onSlotSelect) onSlotSelect(selectedDate, null);
     } else if (clientLoaded && !selectedDate) {
-      // Clear slots if no date is selected (e.g., calendar cleared)
       setTimeSlots([]);
       setSelectedTimeSlot(null);
+      if (onSlotSelect) onSlotSelect(undefined, null);
     }
-  }, [selectedDate, clientLoaded]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, clientLoaded]); // onSlotSelect is not included to prevent re-triggering on parent re-render
 
-  if (!clientLoaded || selectedDate === undefined) { // Check if selectedDate is explicitly undefined
+  const handleDateChange = (date: Date | undefined) => {
+    setSelectedDate(date);
+    // onSlotSelect will be called by the useEffect above
+  };
+
+  const handleTimeSlotClick = (slot: TimeSlot) => {
+    if (slot.status === 'available') {
+      setSelectedTimeSlot(slot);
+      if (onSlotSelect) onSlotSelect(selectedDate, slot);
+    }
+  };
+
+  if (!clientLoaded || selectedDate === undefined) {
     return (
       <Card className="shadow-lg">
         <CardHeader>
@@ -86,7 +101,7 @@ export function BookingCalendar() {
   const getSlotButtonProps = (slot: TimeSlot) => {
     let variant: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive" = "outline";
     let isDisabled = false;
-    let buttonClassName = "w-full"; // Common class, ensures button takes full width in grid cell
+    let buttonClassName = "w-full";
     let buttonText = slot.startTime;
 
     switch (slot.status) {
@@ -95,22 +110,22 @@ export function BookingCalendar() {
         isDisabled = false;
         break;
       case 'pending':
-        variant = 'secondary'; // Use secondary for pending
+        variant = 'secondary';
         isDisabled = true;
-        buttonClassName += " opacity-80"; // Custom styling for pending
+        buttonClassName += " opacity-80";
         break;
       case 'confirmed':
-        variant = 'default'; // Use default (primary) for confirmed
+        variant = 'default';
         isDisabled = true;
-        buttonClassName += " opacity-80"; // Custom styling for confirmed
+        buttonClassName += " opacity-80";
         break;
       case 'in-progress':
-        variant = 'secondary'; // Example: secondary with pulse
+        variant = 'secondary';
         isDisabled = true;
         buttonClassName += " opacity-70 animate-pulse";
         break;
       case 'unavailable':
-        variant = 'outline'; // Outline for unavailable
+        variant = 'outline';
         isDisabled = true;
         buttonClassName += " text-muted-foreground line-through";
         break;
@@ -127,17 +142,15 @@ export function BookingCalendar() {
             <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6"> {/* Ensures vertical stacking */}
+        <CardContent className="space-y-6">
           <div className="overflow-x-auto flex justify-center">
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={(date) => {
-                setSelectedDate(date);
-              }}
+              onSelect={handleDateChange}
               className="rounded-md border" 
-              disabled={disabledDaysConfig} // Use the client-side generated config
-              captionLayout="buttons" // Explicitly set for clarity if needed
+              disabled={disabledDaysConfig}
+              captionLayout="buttons"
             />
           </div>
           <div>
@@ -153,14 +166,8 @@ export function BookingCalendar() {
                     <Button
                       variant={variant}
                       disabled={isDisabled}
-                      onClick={() => {
-                        // onClick logic is inherently guarded by isDisabled,
-                        // but explicit check for 'available' is safer.
-                        if (slot.status === 'available') {
-                          setSelectedTimeSlot(slot);
-                        }
-                      }}
-                      className={buttonClassName} // This className already includes w-full
+                      onClick={() => handleTimeSlotClick(slot)}
+                      className={buttonClassName}
                     >
                       {buttonText}
                     </Button>
@@ -170,13 +177,10 @@ export function BookingCalendar() {
                     <Tooltip key={slot.startTime}>
                       <TooltipTrigger asChild>
                         {isDisabled ? (
-                          // For disabled buttons, wrap with a span that gets the trigger props.
-                          // The Button inside is visually disabled and doesn't interfere with TooltipTrigger.
                           <span className="inline-block w-full" tabIndex={0}> 
                             {actualButton}
                           </span>
                         ) : (
-                          // For enabled buttons, the Button itself is the trigger.
                           actualButton
                         )}
                       </TooltipTrigger>

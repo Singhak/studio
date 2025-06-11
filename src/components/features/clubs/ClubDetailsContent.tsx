@@ -1,64 +1,113 @@
 
 "use client";
 
-import type { Club, Service } from '@/lib/types';
+import type { Club, Service, TimeSlot, CreateBookingPayload } from '@/lib/types';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { BookingCalendar } from '@/components/features/booking/BookingCalendar';
-import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle, Clock, Palette } from 'lucide-react';
+import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle, Clock, Palette, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
-// import { mockServices as defaultMockServices } from '@/lib/mockData'; // Use club.services instead
 import { useAuth } from '@/contexts/AuthContext';
+import { createBooking } from '@/services/bookingService'; // Import the new service
+import { useState } from 'react';
+import { format } from 'date-fns';
 
 export function ClubDetailsContent({ club }: { club: Club }) {
   const { toast } = useToast();
   const { addNotification, currentUser } = useAuth();
+  const [isBooking, setIsBooking] = useState(false);
 
-  const handleBookSlot = () => {
-    console.log("Booking slot for club:", club._id);
+  // State to hold selected date and time slot from BookingCalendar
+  const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
+  const [selectedBookingSlot, setSelectedBookingSlot] = useState<TimeSlot | null>(null);
+  const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<Service | null>(null);
 
+
+  const handleCalendarSlotSelect = (date: Date | undefined, slot: TimeSlot | null) => {
+    setSelectedBookingDate(date);
+    setSelectedBookingSlot(slot);
+  };
+
+  // Simple function to select the first service. In a real app, user would select a service.
+  // Call this when a service is clicked or a "Book this service" button is hit.
+  const handleServiceSelectionForBooking = (service: Service) => {
+    setSelectedServiceForBooking(service);
+    // Optionally, reset calendar selections if service changes
+    setSelectedBookingDate(undefined); 
+    setSelectedBookingSlot(null);
     toast({
-        title: "Booking Request Received",
-        description: "Preparing for payment...",
+        title: `Service Selected: ${service.name}`,
+        description: "Please pick a date and time slot for this service.",
+    });
+  };
+
+
+  const handleBookSlot = async () => {
+    if (!selectedServiceForBooking) {
+      toast({ variant: "destructive", title: "No Service Selected", description: "Please select a service before booking." });
+      return;
+    }
+    if (!selectedBookingDate || !selectedBookingSlot) {
+      toast({ variant: "destructive", title: "Date/Time Not Selected", description: "Please select a date and an available time slot." });
+      return;
+    }
+    if (!currentUser) {
+      toast({ variant: "destructive", title: "Not Logged In", description: "Please log in to make a booking." });
+      // router.push('/login'); // or prompt login
+      return;
+    }
+
+    setIsBooking(true);
+    toast({
+        title: "Submitting Booking Request...",
+        description: `For ${selectedServiceForBooking.name} on ${format(selectedBookingDate, 'MMM d, yyyy')} at ${selectedBookingSlot.startTime}.`,
     });
 
-    addNotification(
-      `New Booking Request: ${club.name}`,
-      `A new booking has been requested for ${club.name} by user ${currentUser?.displayName || currentUser?.email || 'a user'}. Please review.`,
-      '/dashboard/owner'
-    );
+    const bookingPayload: CreateBookingPayload = {
+      serviceId: selectedServiceForBooking._id,
+      bookingDate: format(selectedBookingDate, 'yyyy-MM-dd'),
+      startTime: selectedBookingSlot.startTime,
+      endTime: selectedBookingSlot.endTime,
+      // notes: "Optional user notes here", // Add a notes field if desired
+    };
 
-    setTimeout(() => {
+    try {
+      const bookingResponse = await createBooking(bookingPayload);
       toast({
-        title: (
-          <div className="flex items-center">
-            <CreditCard className="h-5 w-5 mr-2 text-purple-600" />
-            Redirecting to PhonePe...
-          </div>
-        ),
-        description: "Please complete your payment (Simulated).",
-      });
-    }, 2000);
-
-    setTimeout(() => {
-      toast({
-        title: (
-          <div className="flex items-center">
-            <CheckCircle className="h-5 w-5 mr-2 text-green-500" />
-            Payment Successful!
-          </div>
-        ),
-        description: `Your booking at ${club.name} is confirmed (Simulated).`,
+        title: "Booking Submitted!",
+        description: bookingResponse.message,
+        variant: bookingResponse.status === 'pending' ? 'default' : 'default', // Could vary based on status
       });
 
       addNotification(
-        `Booking Confirmed: ${club.name}`,
-        `Your booking at ${club.name} has been successfully confirmed.`,
-        '/dashboard/user'
+        `New Booking Request: ${club.name}`,
+        `A new booking for "${selectedServiceForBooking.name}" has been requested by ${currentUser?.displayName || currentUser?.email || 'a user'}. Please review.`,
+        '/dashboard/owner' // Owner dashboard link
       );
-    }, 5000);
+      
+      addNotification(
+        `Booking for ${selectedServiceForBooking.name} Pending`,
+        `Your booking request for ${club.name} is ${bookingResponse.status}.`,
+        '/dashboard/user' // User dashboard link
+      );
+      
+      // Reset selections
+      setSelectedBookingDate(undefined);
+      setSelectedBookingSlot(null);
+      // setSelectedServiceForBooking(null); // Optionally reset service selection
+
+    } catch (error) {
+      console.error("Booking failed:", error);
+      toast({
+        variant: "destructive",
+        title: "Booking Failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+      });
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   const clubServicesToDisplay = club.services && club.services.length > 0 ? club.services : [];
@@ -81,7 +130,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
             <div className="flex items-center mt-2 space-x-4 text-white/90">
               {club.sport && <span className="flex items-center"><Zap size={18} className="mr-1.5" /> {club.sport}</span>}
               {club.address.city && <span className="flex items-center"><MapPin size={18} className="mr-1.5" /> {club.address.city}</span>}
-              {club.averageRating && <span className="flex items-center"><Star size={18} className="mr-1.5 text-yellow-400 fill-yellow-400" /> {club.averageRating.toFixed(1)}</span>}
+              {club.averageRating !== undefined && club.averageRating !== null && <span className="flex items-center"><Star size={18} className="mr-1.5 text-yellow-400 fill-yellow-400" /> {club.averageRating.toFixed(1)}</span>}
             </div>
           </div>
         </div>
@@ -114,7 +163,12 @@ export function ClubDetailsContent({ club }: { club: Club }) {
               {clubServicesToDisplay.length > 0 ? (
                 <ul className="space-y-4">
                   {clubServicesToDisplay.map((service) => (
-                    <li key={service._id} className="p-4 border rounded-md hover:shadow-sm transition-shadow">
+                    <li 
+                        key={service._id} 
+                        className={`p-4 border rounded-md hover:shadow-sm transition-all cursor-pointer 
+                                    ${selectedServiceForBooking?._id === service._id ? 'ring-2 ring-primary shadow-lg' : 'border-border'}`}
+                        onClick={() => handleServiceSelectionForBooking(service)}
+                    >
                       <div className="flex justify-between items-start gap-2">
                         <div>
                           <h3 className="text-lg font-semibold text-foreground">{service.name}</h3>
@@ -153,8 +207,14 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         </div>
 
         <div className="space-y-8">
-          <BookingCalendar />
-          <Button size="lg" className="w-full text-lg py-6" onClick={handleBookSlot}>
+          <BookingCalendar onSlotSelect={handleCalendarSlotSelect} />
+          <Button 
+            size="lg" 
+            className="w-full text-lg py-6" 
+            onClick={handleBookSlot}
+            disabled={!selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking}
+          >
+            {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
             Book Selected Slot
           </Button>
           

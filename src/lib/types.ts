@@ -89,6 +89,7 @@ export interface Booking {
   endTime: string;
   status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
   totalPrice: number;
+  notes?: string; // Added optional notes
   createdAt: string;
 }
 
@@ -119,4 +120,20 @@ export interface Review {
   serviceRating: number;
   comment?: string;
   createdAt: string;
+}
+
+// Payload for creating a booking
+export interface CreateBookingPayload {
+  serviceId: string;
+  bookingDate: string; // "YYYY-MM-DD"
+  startTime: string; // "HH:MM"
+  endTime: string; // "HH:MM"
+  notes?: string;
+}
+
+// Response from creating a booking
+export interface CreateBookingResponse {
+  message: string;
+  bookingId: string;
+  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed'; // Should match Booking['status']
 }
