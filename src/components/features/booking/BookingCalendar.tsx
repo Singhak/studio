@@ -5,11 +5,11 @@ import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button'; // Removed buttonVariants
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Clock, Loader2 } from 'lucide-react';
 import type { TimeSlot, TimeSlotStatus } from '@/lib/types';
 import { format } from 'date-fns';
-import type { DateMatcher } from 'react-day-picker';
+import type { Matcher } from 'react-day-picker'; // Changed DateMatcher to Matcher
 // import { cn } from '@/lib/utils'; // Not used directly here
 
 const allStatuses: TimeSlotStatus[] = ['available', 'pending', 'confirmed', 'in-progress', 'unavailable'];
@@ -63,7 +63,7 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [clientLoaded, setClientLoaded] = useState(false);
-  const [disabledDaysConfig, setDisabledDaysConfig] = useState<DateMatcher | undefined>();
+  const [disabledDaysConfig, setDisabledDaysConfig] = useState<Matcher | undefined>(); // Changed DateMatcher to Matcher
 
   useEffect(() => {
     setClientLoaded(true);
@@ -189,7 +189,7 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
                   );
 
                   return (
-                    <Tooltip key={`${slot.startTime}-${index}`}> {/* Use index for unique key */}
+                    <Tooltip key={`${slot.startTime}-${index}`}>
                       <TooltipTrigger asChild>
                         {isDisabled ? (
                           <span className="inline-block w-full" tabIndex={0}> 
