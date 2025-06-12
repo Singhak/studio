@@ -5,9 +5,16 @@ const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 
 function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
+    // Client-side: use relative path, correctly targets internal Next.js API routes
     return '/api';
   }
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+  // Server-side: use absolute path.
+  // NEXT_PUBLIC_APP_URL should be set to the application's root URL (e.g., http://localhost:9002 or https://yourdomain.com)
+  let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+  // Remove trailing slash from baseUrl if present to prevent double slashes
+  if (baseUrl.endsWith('/')) {
+    baseUrl = baseUrl.slice(0, -1);
+  }
   return `${baseUrl}/api`;
 }
 
@@ -53,7 +60,7 @@ export async function markNotificationsAsReadApi(notificationIds: string[]): Pro
       const errorBody = await response.json().catch(() => ({ message: `Failed to mark notifications as read: ${response.statusText} (${response.status})` }));
       throw new Error(errorBody.message);
     }
-    console.warn(`Mark notifications as read API returned status ${response.status} instead of 204, but was 'ok'.`);
+    console.warn(`Mark notifications as read API API returned status ${response.status} instead of 204, but was 'ok'.`);
 
   } catch (error) {
     console.error('Error marking notifications as read via API:', error);
