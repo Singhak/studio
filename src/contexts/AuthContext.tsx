@@ -18,8 +18,8 @@ import {
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging'; // Updated import
-import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging'; // Added for direct FCM handling
+import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging';
+import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
 import type { AppNotification, ApiNotification } from '@/lib/types';
 import { Bell } from 'lucide-react';
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
@@ -170,8 +170,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Failed to mark notification as read (AuthContext):", error);
       toast({
         variant: "destructive",
-        title: "Update Failed",
-        description: "Could not mark notification as read.",
+        toastTitle: "Update Failed",
+        toastDescription: "Could not mark notification as read.",
       });
     }
   }, [saveNotificationsToStorage, toast]);
@@ -192,8 +192,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Failed to mark all notifications as read (AuthContext):", error);
       toast({
         variant: "destructive",
-        title: "Update Failed",
-        description: "Could not mark all notifications as read.",
+        toastTitle: "Update Failed",
+        toastDescription: "Could not mark all notifications as read.",
       });
     }
   }, [notifications, saveNotificationsToStorage, toast]);
@@ -204,7 +204,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setNotifications([]);
     setUnreadCount(0);
     saveNotificationsToStorage([]);
-    toast({title: "Notifications Cleared"});
+    toast({toastTitle: "Notifications Cleared"});
   }, [saveNotificationsToStorage, toast]);
 
   // Centralized function to handle custom API login
@@ -219,7 +219,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: "Custom login failed after Firebase sign-in." }));
-        toast({ variant: "destructive", title: "Custom Login Failed", description: errorData.message || `Error ${response.status}` });
+        toast({ variant: "destructive", toastTitle: "Custom Login Failed", toastDescription: errorData.message || `Error ${response.status}` });
         await signOut(auth); // Sign out Firebase user if custom login fails
         return false;
       }
@@ -232,7 +232,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (error) {
       console.error("Error during custom API login:", error);
-      toast({ variant: "destructive", title: "Login Error", description: "Failed to communicate with authentication server." });
+      toast({ variant: "destructive", toastTitle: "Login Error", toastDescription: "Failed to communicate with authentication server." });
       await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure:", e));
       return false;
     }
@@ -242,21 +242,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let unsubscribeFcmOnMessage: (() => void) | null = null;
 
     const setupFcm = async () => {
-      if (currentUser) { // Ensure currentUser is available
+      if (currentUser) { 
         const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!VAPID_KEY) {
             // Warning logged in messaging.tsx
         }
         
-        const token = await requestNotificationPermission(); // requestNotificationPermission is imported from messaging.tsx
+        const token = await requestNotificationPermission(); 
         if (token) {
              toast({
-                title: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-green-500" /><span>Notifications Enabled</span></div>),
-                description: 'You will receive updates via push notifications.',
+                toastTitle: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-green-500" /><span>Notifications Enabled</span></div>),
+                toastDescription: 'You will receive updates via push notifications.',
             });
         }
 
-        const messaging = await initializeFirebaseMessaging(); // initializeFirebaseMessaging is imported from messaging.tsx
+        const messaging = await initializeFirebaseMessaging(); 
         if (messaging) {
           unsubscribeFcmOnMessage = onMessage(messaging, (payload: MessagePayload) => {
             console.log('Foreground Message received. ', payload);
@@ -264,8 +264,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const body = payload.notification?.body;
             addNotification(title, body, payload.data?.href, payload.messageId);
             toast({
-              title: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /><span>{title}</span></div>),
-              description: body || 'You have a new message.',
+              toastTitle: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /><span>{title}</span></div>),
+              toastDescription: body || 'You have a new message.',
             });
           });
         }
@@ -279,7 +279,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfileCompletionPending(true);
           localStorage.removeItem(`profileCompletionPending_${user.uid}`);
         }
-        // Attempt to load tokens if not already set and user exists
         if (!accessToken && localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY)) {
             setAccessToken(localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY));
         }
@@ -309,7 +308,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessage();
       }
     };
-  }, [addNotification, toast, accessToken, refreshToken, fetchAndSetWeeklyNotifications, currentUser]); // Added currentUser to dependency array
+  }, [addNotification, toast, accessToken, refreshToken, fetchAndSetWeeklyNotifications, currentUser]);
 
   useEffect(() => {
     if (loading) return;
@@ -343,14 +342,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
       setProfileCompletionPending(true);
-      toast({ title: "Registration Successful!", description: "Please complete your profile." });
+      toast({ toastTitle: "Registration Successful!", toastDescription: "Please complete your profile." });
       return firebaseUser;
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
-        toast({ variant: "destructive", title: "Registration Failed", description: "This email address is already in use. Please try logging in or use a different email address." });
+        toast({ variant: "destructive", toastTitle: "Registration Failed", toastDescription: "This email address is already in use. Please try logging in or use a different email address." });
       } else {
         console.error("Error signing up:", error);
-        toast({ variant: "destructive", title: "Registration Failed", description: error.message });
+        toast({ variant: "destructive", toastTitle: "Registration Failed", toastDescription: error.message });
       }
       return null;
     } finally {
@@ -368,14 +367,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!customLoginSuccess) return null;
         
       setProfileCompletionPending(false); 
-      toast({ title: "Login Successful!", description: "Welcome back!" });
+      toast({ toastTitle: "Login Successful!", toastDescription: "Welcome back!" });
       return firebaseUser;
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential') {
-        toast({ variant: "destructive", title: "Login Failed", description: "Invalid email or password." });
+        toast({ variant: "destructive", toastTitle: "Login Failed", toastDescription: "Invalid email or password." });
       } else {
         console.error("Error signing in:", error);
-        toast({ variant: "destructive", title: "Login Failed", description: error.message || "An unexpected error occurred." });
+        toast({ variant: "destructive", toastTitle: "Login Failed", toastDescription: error.message || "An unexpected error occurred." });
       }
       setAccessToken(null);
       setRefreshToken(null);
@@ -399,15 +398,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (localStorage.getItem(`profileCompletionPending_${firebaseUser.uid}`) === 'true') {
         setProfileCompletionPending(true);
-        toast({ title: "Google Sign-In Successful!", description: "Welcome! Please complete your profile." });
+        toast({ toastTitle: "Google Sign-In Successful!", toastDescription: "Welcome! Please complete your profile." });
       } else {
         setProfileCompletionPending(false);
-        toast({ title: "Google Sign-In Successful!", description: "Welcome back!" });
+        toast({ toastTitle: "Google Sign-In Successful!", toastDescription: "Welcome back!" });
       }
       return firebaseUser;
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
-      toast({ variant: "destructive", title: "Google Sign-In Failed", description: error.message });
+      toast({ variant: "destructive", toastTitle: "Google Sign-In Failed", toastDescription: error.message });
       return null;
     } finally {
       setLoading(false);
@@ -418,7 +417,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const confirmationResult = await firebaseSignInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      toast({ title: "Verification Code Sent", description: "Please check your phone for the SMS code." });
+      toast({ toastTitle: "Verification Code Sent", toastDescription: "Please check your phone for the SMS code." });
       setLoading(false);
       return confirmationResult;
     } catch (error: any) {
@@ -427,10 +426,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         window.recaptchaVerifier = undefined; 
       }
       if (error.code === 'auth/operation-not-allowed') {
-        toast({ variant: "destructive", title: "Phone Sign-In Error", description: "Phone number sign-in is not enabled." });
+        toast({ variant: "destructive", toastTitle: "Phone Sign-In Error", toastDescription: "Phone number sign-in is not enabled." });
       } else {
         console.error("Error sending SMS for phone auth:", error);
-        toast({ variant: "destructive", title: "Phone Sign-In Error", description: error.message });
+        toast({ variant: "destructive", toastTitle: "Phone Sign-In Error", toastDescription: error.message });
       }
       setLoading(false);
       return null;
@@ -448,11 +447,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
       setProfileCompletionPending(true);
-      toast({ title: "Phone Sign-In Successful!", description: "Please complete your profile." });
+      toast({ toastTitle: "Phone Sign-In Successful!", toastDescription: "Please complete your profile." });
       return firebaseUser;
     } catch (error: any) {
       console.error("Error verifying phone code:", error);
-      toast({ variant: "destructive", title: "Verification Failed", description: error.message });
+      toast({ variant: "destructive", toastTitle: "Verification Failed", toastDescription: error.message });
       return null;
     } finally {
       setLoading(false);
@@ -476,11 +475,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setNotifications([]);
       setUnreadCount(0);
 
-      toast({ title: "Logged Out", description: "You have been successfully logged out." });
+      toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
       router.push('/'); 
     } catch (error: any) {
       console.error("Error signing out:", error);
-      toast({ variant: "destructive", title: "Logout Failed", description: error.message });
+      toast({ variant: "destructive", toastTitle: "Logout Failed", toastDescription: error.message });
     } finally {
       setLoading(false);
     }

@@ -1,3 +1,4 @@
+
 "use client"
 
 // Inspired by react-hot-toast library
@@ -13,9 +14,9 @@ const TOAST_REMOVE_DELAY = 1000000
 
 type ToasterToast = ToastProps & {
   id: string
-  title?: React.ReactNode
-  description?: React.ReactNode
-  action?: ToastActionElement
+  toastTitle?: React.ReactNode // Renamed from title
+  toastDescription?: React.ReactNode // Renamed from description
+  toastAction?: ToastActionElement // Renamed from action
 }
 
 const actionTypes = {
@@ -41,7 +42,7 @@ type Action =
     }
   | {
       type: ActionType["UPDATE_TOAST"]
-      toast: Partial<ToasterToast>
+      toast: Partial<ToasterToast> // Allow partial updates
     }
   | {
       type: ActionType["DISMISS_TOAST"]
@@ -93,8 +94,6 @@ export const reducer = (state: State, action: Action): State => {
     case "DISMISS_TOAST": {
       const { toastId } = action
 
-      // ! Side effects ! - This could be extracted into a dismissToast() action,
-      // but I'll keep it here for simplicity
       if (toastId) {
         addToRemoveQueue(toastId)
       } else {
@@ -140,15 +139,15 @@ function dispatch(action: Action) {
   })
 }
 
-type Toast = Omit<ToasterToast, "id">
+type ToastArg = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+function toast({ ...props }: ToastArg) {
   const id = genId()
 
-  const update = (props: ToasterToast) =>
+  const update = (newToastProps: Partial<ToastArg>) => // Argument is now partial of ToastArg
     dispatch({
       type: "UPDATE_TOAST",
-      toast: { ...props, id },
+      toast: { ...newToastProps, id }, // Spread newToastProps and ensure id is included
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
