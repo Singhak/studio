@@ -20,8 +20,13 @@ interface GRecaptcha {
 }
 
 // Extend the global Window interface
-interface Window {
-  grecaptcha?: GRecaptcha; // Google reCAPTCHA API, loaded asynchronously. Optional.
-  recaptchaVerifier?: import('firebase/auth').RecaptchaVerifier; // Firebase's RecaptchaVerifier instance. Optional.
-  onRecaptchaLoad?: () => void; // Optional callback for when reCAPTCHA script is loaded.
+declare global {
+  interface Window {
+    grecaptcha?: GRecaptcha; // Google reCAPTCHA API, loaded asynchronously. Optional.
+    recaptchaVerifier?: import('firebase/auth').RecaptchaVerifier; // Firebase's RecaptchaVerifier instance. Optional.
+    onRecaptchaLoad?: () => void; // Optional callback for when reCAPTCHA script is loaded.
+  }
 }
+
+// To make this file a module, especially if it's not automatically treated as one.
+export {};
