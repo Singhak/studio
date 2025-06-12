@@ -18,8 +18,8 @@ import {
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { requestNotificationPermission, initializeFirebaseMessaging } from '@/lib/firebase/messaging';
-import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
+import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging'; // Updated import
+import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging'; // Added for direct FCM handling
 import type { AppNotification, ApiNotification } from '@/lib/types';
 import { Bell } from 'lucide-react';
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
@@ -245,10 +245,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (currentUser) { // Ensure currentUser is available
         const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!VAPID_KEY) {
-            // Warning logged in messaging.ts
+            // Warning logged in messaging.tsx
         }
         
-        const token = await requestNotificationPermission();
+        const token = await requestNotificationPermission(); // requestNotificationPermission is imported from messaging.tsx
         if (token) {
              toast({
                 title: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-green-500" /><span>Notifications Enabled</span></div>),
@@ -256,7 +256,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             });
         }
 
-        const messaging = await initializeFirebaseMessaging();
+        const messaging = await initializeFirebaseMessaging(); // initializeFirebaseMessaging is imported from messaging.tsx
         if (messaging) {
           unsubscribeFcmOnMessage = onMessage(messaging, (payload: MessagePayload) => {
             console.log('Foreground Message received. ', payload);
@@ -309,7 +309,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessage();
       }
     };
-  }, [addNotification, toast, accessToken, refreshToken, fetchAndSetWeeklyNotifications, currentUser]);
+  }, [addNotification, toast, accessToken, refreshToken, fetchAndSetWeeklyNotifications, currentUser]); // Added currentUser to dependency array
 
   useEffect(() => {
     if (loading) return;
@@ -319,13 +319,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else if (currentUser && !profileCompletionPending) {
       const authPages = ['/login', '/register', '/auth/complete-profile'];
       if (authPages.includes(pathname)) {
-        // Redirect only if custom tokens are also present, indicating full login
         if (accessToken && refreshToken) {
           router.push('/dashboard/user');
-        } else if (!authPages.includes(pathname) && !pathname.startsWith('/dashboard')) {
-          // If not on auth pages and no tokens, but Firebase user exists, something is off
-          // This case might need more specific handling if custom login can fail silently
-          // for now, we assume onAuthStateChanged + custom login handles it.
         }
       }
     } else if (!currentUser) {
@@ -343,9 +338,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
       
-      // Custom API Login after Firebase Sign Up
       const customLoginSuccess = await handleCustomApiLogin(firebaseUser);
-      if (!customLoginSuccess) return null; // handleCustomApiLogin already showed toast and signed out Firebase user
+      if (!customLoginSuccess) return null;
 
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
       setProfileCompletionPending(true);
@@ -403,17 +397,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const customLoginSuccess = await handleCustomApiLogin(firebaseUser);
       if (!customLoginSuccess) return null;
 
-      // Check if it's a new user AFTER custom login is successful
-      // Firebase's isNewUser is often unreliable with federated providers or can be true even on re-auth.
-      // A better check would be to see if profile data exists in your custom backend.
-      // For this prototype, we'll assume profile completion is needed if not explicitly set otherwise.
-      // The `profileCompletionPending` flag in localStorage (set during signup) is more reliable here.
       if (localStorage.getItem(`profileCompletionPending_${firebaseUser.uid}`) === 'true') {
         setProfileCompletionPending(true);
         toast({ title: "Google Sign-In Successful!", description: "Welcome! Please complete your profile." });
       } else {
-        // Potentially check if the user has a profile in your DB if this isn't a fresh signup
-        // For now, assume if not pending, it's complete.
         setProfileCompletionPending(false);
         toast({ title: "Google Sign-In Successful!", description: "Welcome back!" });
       }
@@ -435,7 +422,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       return confirmationResult;
     } catch (error: any) {
-      if (window.recaptchaVerifier) { // Using window.recaptchaVerifier
+      if (window.recaptchaVerifier) { 
         window.recaptchaVerifier.clear(); 
         window.recaptchaVerifier = undefined; 
       }
@@ -490,7 +477,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUnreadCount(0);
 
       toast({ title: "Logged Out", description: "You have been successfully logged out." });
-      router.push('/'); // Redirect to home after logout
+      router.push('/'); 
     } catch (error: any) {
       console.error("Error signing out:", error);
       toast({ variant: "destructive", title: "Logout Failed", description: error.message });
@@ -530,5 +517,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-
-

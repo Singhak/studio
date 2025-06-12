@@ -2,10 +2,11 @@
 "use client"; // Ensure this runs on the client
 
 import React from 'react'; // Import React for JSX
-import { getMessaging, getToken, isSupported, type MessagePayload } from 'firebase/messaging'; // Removed onMessage
+import { getMessaging, getToken, isSupported } from 'firebase/messaging'; // Removed onMessage
 import { app } from './config'; // Your Firebase app instance
-import { toast } from '@/hooks/use-toast';
-import { Bell } from 'lucide-react'; // Import the Bell icon
+// Toasting is now handled in AuthContext to avoid import cycles
+// import { toast } from '@/hooks/use-toast';
+// import { Bell } from 'lucide-react'; // Bell icon also handled in AuthContext
 
 // Ensure this VAPID key is generated from your Firebase project settings:
 // Project settings > Cloud Messaging > Web configuration > Web Push certificates.
@@ -30,7 +31,7 @@ export const initializeFirebaseMessaging = async () => {
 export const requestNotificationPermission = async () => {
   if (!VAPID_KEY) {
     console.warn("Firebase Messaging: NEXT_PUBLIC_FIREBASE_VAPID_KEY is not set in your environment variables. Please set it in .env.local (or similar).");
-    // Toasting from AuthContext now, to avoid import cycle if messaging toasts AuthContext.
+    // Toasting will be handled in AuthContext where this function is called.
     return null;
   }
 
@@ -53,19 +54,20 @@ export const requestNotificationPermission = async () => {
         return currentToken;
       } else {
         console.log('No registration token available. Request permission to generate one.');
-        // Toasting from AuthContext
+        // Toasting will be handled in AuthContext
         return null;
       }
     } else {
       console.log('Unable to get permission to notify.');
-      // Toasting from AuthContext
+      // Toasting will be handled in AuthContext
       return null;
     }
   } catch (error) {
     console.error('An error occurred while requesting permission or getting token:', error);
-    // Toasting from AuthContext
+    // Toasting will be handled in AuthContext
     return null;
   }
 };
 
-// onForegroundMessageListener is removed as AuthContext will handle its own onMessage subscription.
+// onForegroundMessageListener has been removed.
+// Foreground message handling is now done directly in AuthContext.tsx using onMessage.
