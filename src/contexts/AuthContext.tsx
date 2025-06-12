@@ -216,6 +216,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleCustomApiLogin = async (firebaseUser: User): Promise<boolean> => {
     try {
       const firebaseIdToken = await firebaseUser.getIdToken();
+      // Use relative path for client-side calls to internal Next.js API routes
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -323,17 +324,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (loading) return; // Wait for initial auth check
 
-    if (currentUser && profileCompletionPending && pathname !== '/auth/complete-profile') {
-      router.push('/auth/complete-profile');
-    } else if (currentUser && !profileCompletionPending) {
-      const authPages = ['/login', '/register', '/auth/complete-profile'];
-      if (authPages.includes(pathname)) {
-        if (accessToken && refreshToken) { // Ensure custom login was also successful
-          router.push('/dashboard/user');
+    const authPages = ['/login', '/register', '/auth/complete-profile'];
+    const protectedRoutes = ['/auth/complete-profile', '/dashboard']; // Broader match for dashboard/*
+
+    if (currentUser) {
+      if (profileCompletionPending) {
+        if (pathname !== '/auth/complete-profile') {
+          router.push('/auth/complete-profile');
+        }
+      } else if (accessToken && refreshToken) { // Ensure custom login was also successful
+        if (authPages.includes(pathname)) {
+          router.push('/dashboard/user'); 
         }
       }
-    } else if (!currentUser) {
-      const protectedRoutes = ['/auth/complete-profile', '/dashboard'];
+      // If user is logged in but custom tokens are missing, they might be stuck if trying to access protected content.
+      // This could indicate an incomplete login flow. For now, we let them stay on non-auth pages.
+      // More complex handling might be needed if custom tokens are strictly required for all post-login states.
+
+    } else { // No currentUser
       if (protectedRoutes.some(route => pathname.startsWith(route))) {
         router.push('/login');
       }
@@ -480,7 +488,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (uidBeforeLogout) {
           const notificationKey = getNotificationStorageKey(uidBeforeLogout);
           if (notificationKey) localStorage.removeItem(notificationKey);
-          // Clear any other user-specific localStorage items here
+          localStorage.removeItem(`profileCompletionPending_${uidBeforeLogout}`);
       }
       
       toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
