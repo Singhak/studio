@@ -28,7 +28,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, Repeat, ChevronDown, Send } from 'lucide-react'; // Added Send icon
+import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, Repeat, ChevronDown, Send } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -46,41 +47,38 @@ const ownerNavItems = [
   { href: '/dashboard/owner/services', label: 'Services & Pricing', icon: CreditCard },
   { href: '/dashboard/owner/availability', label: 'Availability', icon: ShieldCheck },
   { href: '/dashboard/owner/settings', label: 'Club Settings', icon: Settings },
-  { href: '/dashboard/owner/promotions', label: 'Promotions', icon: Send }, // Added Promotions link
+  { href: '/dashboard/owner/promotions', label: 'Promotions', icon: Send },
 ];
 
 const commonBottomNavItems = [
     { href: '/settings', label: 'Account Settings', icon: Settings },
 ];
 
-// Mock user role
-const userRole: 'user' | 'owner' = 'owner'; // Change to 'user' or 'owner' to test
+// Mock user role (can be replaced with actual role from AuthContext if available)
+const MOCK_USER_ROLE: 'user' | 'owner' = 'owner'; 
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [currentView, setCurrentView] = useState<'user' | 'owner'>(userRole);
-
-  useEffect(() => {
-    // Initialize currentView based on userRole when the component mounts or userRole changes.
-    setCurrentView(userRole);
-  }, [userRole]);
+  const { logoutUser, currentUser } = useAuth(); // Get logoutUser and currentUser
+  
+  // Determine initial view based on currentUser's profile or a mock/default
+  // For a real app, you'd fetch user profile data that includes their preferred role or default to 'user'.
+  const [currentView, setCurrentView] = useState<'user' | 'owner'>(MOCK_USER_ROLE);
+  const isOwnerRole = MOCK_USER_ROLE === 'owner'; // In a real app: currentUser?.profile?.role === 'owner'
 
   useEffect(() => {
     // Synchronize currentView with the pathname
     if (pathname.startsWith('/dashboard/user')) {
       setCurrentView('user');
     } else if (pathname.startsWith('/dashboard/owner')) {
-      if (userRole === 'owner') {
+      if (isOwnerRole) {
         setCurrentView('owner');
       } else {
-        // If a non-owner somehow lands on an owner path, default their sidebar view to 'user'.
-        // The page content itself is handled by Next.js routing.
         setCurrentView('user');
       }
     }
-    // If the path is not a dashboard path, currentView remains as set by userRole or dropdown.
-  }, [pathname, userRole]);
+  }, [pathname, isOwnerRole]);
 
   const handleViewChange = (newView: 'user' | 'owner') => {
     setCurrentView(newView);
@@ -92,8 +90,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   const navItems = currentView === 'owner' ? ownerNavItems : userNavItems;
-  const isOwnerRole = userRole === 'owner';
 
+  const handleLogout = async () => {
+    await logoutUser();
+    // AuthContext already handles navigation to '/' on logout
+  };
 
   return (
     <SidebarProvider defaultOpen>
@@ -101,7 +102,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <SidebarHeader className="p-4 flex flex-col space-y-3">
           <div className="flex items-center justify-between">
             <Logo className="text-lg" />
-            <SidebarTrigger /> {/* Removed md:hidden to make it always visible */}
+            <SidebarTrigger />
           </div>
           {isOwnerRole && (
             <DropdownMenu>
@@ -126,7 +127,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </DropdownMenu>
           )}
         </SidebarHeader>
-        <ScrollArea className="h-[calc(100vh-12rem-4rem)]"> {/* Adjusted height for switcher */}
+        <ScrollArea className="h-[calc(100vh-12rem-4rem)]">
           <SidebarContent className="p-2">
             <SidebarMenu>
               {navItems.map((item) => (
@@ -179,7 +180,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 </SidebarMenuItem>
               ))}
             <SidebarMenuItem>
-                <SidebarMenuButton>
+                <SidebarMenuButton onClick={handleLogout} tooltip={{ children: "Log Out", side: 'right' }}>
                     <LogOut className="h-4 w-4" />
                     <span>Log Out</span>
                 </SidebarMenuButton>
