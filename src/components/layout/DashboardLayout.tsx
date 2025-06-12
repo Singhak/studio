@@ -28,8 +28,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, Repeat, ChevronDown, Send } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, Repeat, ChevronDown, Send, Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext'; 
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -54,30 +54,27 @@ const commonBottomNavItems = [
     { href: '/settings', label: 'Account Settings', icon: Settings },
 ];
 
-// Mock user role (can be replaced with actual role from AuthContext if available)
 const MOCK_USER_ROLE: 'user' | 'owner' = 'owner'; 
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logoutUser, currentUser } = useAuth(); // Get logoutUser and currentUser
+  const { logoutUser, currentUser, loading: authLoading } = useAuth(); 
   
-  // Determine initial view based on currentUser's profile or a mock/default
-  // For a real app, you'd fetch user profile data that includes their preferred role or default to 'user'.
   const [currentView, setCurrentView] = useState<'user' | 'owner'>(MOCK_USER_ROLE);
-  const isOwnerRole = MOCK_USER_ROLE === 'owner'; // In a real app: currentUser?.profile?.role === 'owner'
+  const isOwnerRole = MOCK_USER_ROLE === 'owner'; 
 
   useEffect(() => {
-    // Synchronize currentView with the pathname
     if (pathname.startsWith('/dashboard/user')) {
       setCurrentView('user');
     } else if (pathname.startsWith('/dashboard/owner')) {
       if (isOwnerRole) {
         setCurrentView('owner');
       } else {
-        setCurrentView('user');
+        setCurrentView('user'); // Default to user view if not an owner trying to access owner path
       }
     }
+    // No direct redirection here; AuthContext handles primary auth redirection
   }, [pathname, isOwnerRole]);
 
   const handleViewChange = (newView: 'user' | 'owner') => {
@@ -89,12 +86,33 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   };
 
-  const navItems = currentView === 'owner' ? ownerNavItems : userNavItems;
-
   const handleLogout = async () => {
     await logoutUser();
-    // AuthContext already handles navigation to '/' on logout
+    // AuthContext's useEffect will handle navigation away from protected routes
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // If auth is done loading, and there's no user, but we're on a dashboard path,
+  // AuthContext should be redirecting. Return null to prevent flash of dashboard content.
+  if (!currentUser && pathname.startsWith('/dashboard')) {
+    return (
+        <div className="flex h-screen items-center justify-center bg-background">
+            <p className="text-muted-foreground">Redirecting to login...</p>
+        </div>
+    );
+  }
+  
+  // If somehow currentUser is null but we are not on a dashboard path, this layout shouldn't be used.
+  // However, this component is specifically for /dashboard routes.
+  // The check above ensures that if !currentUser for a /dashboard path, we don't render the layout.
+
 
   return (
     <SidebarProvider defaultOpen>
@@ -130,7 +148,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <ScrollArea className="h-[calc(100vh-12rem-4rem)]">
           <SidebarContent className="p-2">
             <SidebarMenu>
-              {navItems.map((item) => (
+              {(currentView === 'owner' ? ownerNavItems : userNavItems).map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
