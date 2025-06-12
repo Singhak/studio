@@ -87,6 +87,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (storedRefreshToken) setRefreshToken(storedRefreshToken);
   }, []);
 
+  const saveNotificationsToStorage = useCallback((updatedNotifications: AppNotification[]) => {
+    const storageKey = getNotificationStorageKey();
+    if (storageKey) {
+      localStorage.setItem(storageKey, JSON.stringify(updatedNotifications));
+    }
+  }, [getNotificationStorageKey]);
+  
   const fetchAndSetWeeklyNotifications = useCallback(async () => {
     if (!currentUser) return;
     try {
@@ -97,7 +104,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       saveNotificationsToStorage(appNotifications);
     } catch (error) {
       console.error("Failed to fetch weekly notifications:", error);
-      // Load from storage as fallback or clear if API preferred as single source of truth on load
       const storageKey = getNotificationStorageKey();
       if (storageKey) {
         const stored = localStorage.getItem(storageKey);
@@ -111,14 +117,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     }
-  }, [currentUser, getNotificationStorageKey]); // Removed saveNotificationsToStorage from dep array as it's defined below
+  }, [currentUser, getNotificationStorageKey, saveNotificationsToStorage]);
 
-  const saveNotificationsToStorage = useCallback((updatedNotifications: AppNotification[]) => {
-    const storageKey = getNotificationStorageKey();
-    if (storageKey) {
-      localStorage.setItem(storageKey, JSON.stringify(updatedNotifications));
-    }
-  }, [getNotificationStorageKey]);
+
 
   useEffect(() => {
     if (currentUser) {
@@ -132,7 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const addNotification = useCallback((title: string, body?: string, href?: string, id?: string) => {
     const newAppNotification: AppNotification = {
-      id: id || `client_${Date.now().toString()}`, // Prefix client-side IDs
+      id: id || `client_${Date.now().toString()}`, 
       title,
       body,
       href,
@@ -199,8 +200,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const clearAllNotifications = useCallback(async () => {
-    // Consider if an API call to delete notifications on backend is needed.
-    // For now, clearing client-side state and storage.
     console.log("Simulating: Would call API to clear/delete all notifications for user if endpoint existed.");
     setNotifications([]);
     setUnreadCount(0);
@@ -208,12 +207,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     toast({title: "Notifications Cleared"});
   }, [saveNotificationsToStorage, toast]);
 
+  // Centralized function to handle custom API login
+  const handleCustomApiLogin = async (firebaseUser: User): Promise<boolean> => {
+    try {
+      const firebaseIdToken = await firebaseUser.getIdToken();
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: firebaseIdToken }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Custom login failed after Firebase sign-in." }));
+        toast({ variant: "destructive", title: "Custom Login Failed", description: errorData.message || `Error ${response.status}` });
+        await signOut(auth); // Sign out Firebase user if custom login fails
+        return false;
+      }
+
+      const customTokenData = await response.json();
+      setAccessToken(customTokenData.accessToken);
+      setRefreshToken(customTokenData.refreshToken);
+      localStorage.setItem(CUSTOM_ACCESS_TOKEN_KEY, customTokenData.accessToken);
+      localStorage.setItem(CUSTOM_REFRESH_TOKEN_KEY, customTokenData.refreshToken);
+      return true;
+    } catch (error) {
+      console.error("Error during custom API login:", error);
+      toast({ variant: "destructive", title: "Login Error", description: "Failed to communicate with authentication server." });
+      await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure:", e));
+      return false;
+    }
+  };
 
   useEffect(() => {
     let unsubscribeFcmOnMessage: (() => void) | null = null;
 
     const setupFcm = async () => {
-      if (currentUser) {
+      if (currentUser) { // Ensure currentUser is available
         const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!VAPID_KEY) {
             // Warning logged in messaging.ts
@@ -233,7 +262,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log('Foreground Message received. ', payload);
             const title = payload.notification?.title || 'New Notification';
             const body = payload.notification?.body;
-            // For FCM messages, use addNotification to prepend to the list
             addNotification(title, body, payload.data?.href, payload.messageId);
             toast({
               title: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary" /><span>{title}</span></div>),
@@ -251,22 +279,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfileCompletionPending(true);
           localStorage.removeItem(`profileCompletionPending_${user.uid}`);
         }
-        if (!accessToken) {
-            const storedAccessToken = localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY);
-            if (storedAccessToken) setAccessToken(storedAccessToken);
+        // Attempt to load tokens if not already set and user exists
+        if (!accessToken && localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY)) {
+            setAccessToken(localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY));
         }
-        if(!refreshToken) {
-            const storedRefreshToken = localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY);
-            if (storedRefreshToken) setRefreshToken(storedRefreshToken);
+        if (!refreshToken && localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY)) {
+            setRefreshToken(localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY));
         }
-        await fetchAndSetWeeklyNotifications(); // Fetch weekly notifications on login
+        await fetchAndSetWeeklyNotifications();
         await setupFcm();
       } else {
         setAccessToken(null);
         setRefreshToken(null);
         localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
         localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
-        setNotifications([]); // Clear notifications on logout
+        setNotifications([]); 
         setUnreadCount(0);
         if (unsubscribeFcmOnMessage) {
           unsubscribeFcmOnMessage();
@@ -282,7 +309,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessage();
       }
     };
-  }, [addNotification, toast, accessToken, refreshToken, fetchAndSetWeeklyNotifications]); // Added dependencies
+  }, [addNotification, toast, accessToken, refreshToken, fetchAndSetWeeklyNotifications, currentUser]);
 
   useEffect(() => {
     if (loading) return;
@@ -292,7 +319,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else if (currentUser && !profileCompletionPending) {
       const authPages = ['/login', '/register', '/auth/complete-profile'];
       if (authPages.includes(pathname)) {
-        router.push('/dashboard/user');
+        // Redirect only if custom tokens are also present, indicating full login
+        if (accessToken && refreshToken) {
+          router.push('/dashboard/user');
+        } else if (!authPages.includes(pathname) && !pathname.startsWith('/dashboard')) {
+          // If not on auth pages and no tokens, but Firebase user exists, something is off
+          // This case might need more specific handling if custom login can fail silently
+          // for now, we assume onAuthStateChanged + custom login handles it.
+        }
       }
     } else if (!currentUser) {
       const protectedAuthPages = ['/auth/complete-profile'];
@@ -300,17 +334,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         router.push('/login');
       }
     }
-  }, [currentUser, profileCompletionPending, loading, router, pathname]);
+  }, [currentUser, profileCompletionPending, loading, router, pathname, accessToken, refreshToken]);
 
 
   const signUpWithEmail = async (email: string, password: string): Promise<User | null> => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      localStorage.setItem(`profileCompletionPending_${userCredential.user.uid}`, 'true');
+      const firebaseUser = userCredential.user;
+      
+      // Custom API Login after Firebase Sign Up
+      const customLoginSuccess = await handleCustomApiLogin(firebaseUser);
+      if (!customLoginSuccess) return null; // handleCustomApiLogin already showed toast and signed out Firebase user
+
+      localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
       setProfileCompletionPending(true);
       toast({ title: "Registration Successful!", description: "Please complete your profile." });
-      return userCredential.user;
+      return firebaseUser;
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
         toast({ variant: "destructive", title: "Registration Failed", description: "This email address is already in use. Please try logging in or use a different email address." });
@@ -330,33 +370,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
-      if (firebaseUser) {
-        const firebaseIdToken = await firebaseUser.getIdToken();
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken: firebaseIdToken }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: "Custom login failed after Firebase login."}));
-          toast({ variant: "destructive", title: "Custom Login Failed", description: errorData.message || `Error ${response.status}` });
-          await signOut(auth); 
-          return null;
-        }
-
-        const customTokenData = await response.json();
-        setAccessToken(customTokenData.accessToken);
-        setRefreshToken(customTokenData.refreshToken);
-        localStorage.setItem(CUSTOM_ACCESS_TOKEN_KEY, customTokenData.accessToken);
-        localStorage.setItem(CUSTOM_REFRESH_TOKEN_KEY, customTokenData.refreshToken);
+      const customLoginSuccess = await handleCustomApiLogin(firebaseUser);
+      if (!customLoginSuccess) return null;
         
-        setProfileCompletionPending(false); 
-        toast({ title: "Login Successful!", description: "Welcome back!" });
-        // setCurrentUser will be set by onAuthStateChanged, which then triggers fetchAndSetWeeklyNotifications
-        return firebaseUser;
-      }
-      return null; 
+      setProfileCompletionPending(false); 
+      toast({ title: "Login Successful!", description: "Welcome back!" });
+      return firebaseUser;
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential') {
         toast({ variant: "destructive", title: "Login Failed", description: "Invalid email or password." });
@@ -379,17 +398,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      const isNewUser = result.additionalUserInfo?.isNewUser; // Deprecated, but still works for now
-      if (isNewUser) {
-        localStorage.setItem(`profileCompletionPending_${result.user.uid}`, 'true');
+      const firebaseUser = result.user;
+
+      const customLoginSuccess = await handleCustomApiLogin(firebaseUser);
+      if (!customLoginSuccess) return null;
+
+      // Check if it's a new user AFTER custom login is successful
+      // Firebase's isNewUser is often unreliable with federated providers or can be true even on re-auth.
+      // A better check would be to see if profile data exists in your custom backend.
+      // For this prototype, we'll assume profile completion is needed if not explicitly set otherwise.
+      // The `profileCompletionPending` flag in localStorage (set during signup) is more reliable here.
+      if (localStorage.getItem(`profileCompletionPending_${firebaseUser.uid}`) === 'true') {
         setProfileCompletionPending(true);
-        toast({ title: "Google Sign-Up Successful!", description: "Welcome! Please complete your profile." });
+        toast({ title: "Google Sign-In Successful!", description: "Welcome! Please complete your profile." });
       } else {
+        // Potentially check if the user has a profile in your DB if this isn't a fresh signup
+        // For now, assume if not pending, it's complete.
         setProfileCompletionPending(false);
         toast({ title: "Google Sign-In Successful!", description: "Welcome back!" });
       }
-      // setCurrentUser will be set by onAuthStateChanged, which then triggers fetchAndSetWeeklyNotifications
-      return result.user;
+      return firebaseUser;
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       toast({ variant: "destructive", title: "Google Sign-In Failed", description: error.message });
@@ -407,8 +435,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       return confirmationResult;
     } catch (error: any) {
-      if ((window as any).recaptchaVerifierInstance) {
-        (window as any).recaptchaVerifierInstance.clear();
+      if (window.recaptchaVerifier) { // Using window.recaptchaVerifier
+        window.recaptchaVerifier.clear(); 
+        window.recaptchaVerifier = undefined; 
       }
       if (error.code === 'auth/operation-not-allowed') {
         toast({ variant: "destructive", title: "Phone Sign-In Error", description: "Phone number sign-in is not enabled." });
@@ -425,17 +454,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       const userCredential = await confirmationResult.confirm(code);
-      localStorage.setItem(`profileCompletionPending_${userCredential.user.uid}`, 'true');
+      const firebaseUser = userCredential.user;
+
+      const customLoginSuccess = await handleCustomApiLogin(firebaseUser);
+      if (!customLoginSuccess) return null;
+      
+      localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
       setProfileCompletionPending(true);
       toast({ title: "Phone Sign-In Successful!", description: "Please complete your profile." });
-      setLoading(false);
-      // setCurrentUser will be set by onAuthStateChanged, which then triggers fetchAndSetWeeklyNotifications
-      return userCredential.user;
+      return firebaseUser;
     } catch (error: any) {
       console.error("Error verifying phone code:", error);
       toast({ variant: "destructive", title: "Verification Failed", description: error.message });
-      setLoading(false);
       return null;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -457,7 +490,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUnreadCount(0);
 
       toast({ title: "Logged Out", description: "You have been successfully logged out." });
-      router.push('/');
+      router.push('/'); // Redirect to home after logout
     } catch (error: any) {
       console.error("Error signing out:", error);
       toast({ variant: "destructive", title: "Logout Failed", description: error.message });
@@ -497,3 +530,5 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
+
