@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
-  const realAuthApiUrl = process.env.REAL_AUTH_API_URL;
+  const realAuthApiUrl = process.env.NEXT_PUBLIC_APP_URL + '/api/auth/login';
 
   if (!realAuthApiUrl) {
     console.error('REAL_AUTH_API_URL environment variable is not set.');
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
         // Add any other headers your real API might need, like an API key
         // 'X-Api-Key': process.env.REAL_AUTH_API_KEY || '',
       },
-      body: JSON.stringify({ firebaseToken: idToken }), // Sending idToken as firebaseToken
+      body: JSON.stringify({ idToken: idToken }), // Sending idToken as firebaseToken
     });
 
     const responseData = await realApiResponse.json();
