@@ -91,15 +91,22 @@ const ToastClose = React.forwardRef<
 ))
 ToastClose.displayName = ToastPrimitives.Close.displayName
 
+// Explicitly define props for ToastTitle, including children
+interface ToastTitleProps extends React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title> {
+  children?: React.ReactNode;
+}
+
 const ToastTitle = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Title>,
-  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title>
->(({ className, ...props }, ref) => (
+  ToastTitleProps // Use the explicit props type
+>(({ className, children, ...props }, ref) => ( // Destructure children explicitly
   <ToastPrimitives.Title
     ref={ref}
     className={cn("text-sm font-semibold", className)}
     {...props}
-  />
+  >
+    {children} {/* Pass children explicitly */}
+  </ToastPrimitives.Title>
 ))
 ToastTitle.displayName = ToastPrimitives.Title.displayName
 
