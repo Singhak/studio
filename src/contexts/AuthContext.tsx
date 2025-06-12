@@ -94,8 +94,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [getNotificationStorageKey]);
   
-  const fetchAndSetWeeklyNotifications = useCallback(async (userForNotifications: User) => {
-    if (!userForNotifications) return;
+  const fetchAndSetWeeklyNotifications = useCallback(async (userForNotifications: User | null) => {
+    if (!userForNotifications) {
+        setNotifications([]);
+        setUnreadCount(0);
+        // Potentially clear localStorage for notifications if a user just logged out,
+        // though logoutUser function might be a better place if UID is needed.
+        return;
+    }
     try {
       const apiNotifications = await getWeeklyNotificationsApi();
       const appNotifications = apiNotifications.map(transformApiNotificationToApp);
@@ -123,16 +129,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     // This effect runs when `currentUser` state changes.
-    // `fetchAndSetWeeklyNotifications` is called here if a user is present.
-    if (currentUser) {
-      fetchAndSetWeeklyNotifications(currentUser);
-    } else {
-        // User is null, clear notifications from state.
-        // LocalStorage for notifications is cleared in `logoutUser` using the UID
-        // before `currentUser` becomes null.
-        setNotifications([]);
-        setUnreadCount(0);
-    }
+    // `fetchAndSetWeeklyNotifications` is called here.
+    fetchAndSetWeeklyNotifications(currentUser);
   }, [currentUser, fetchAndSetWeeklyNotifications]);
 
 
@@ -216,7 +214,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleCustomApiLogin = async (firebaseUser: User): Promise<boolean> => {
     try {
       const firebaseIdToken = await firebaseUser.getIdToken();
-      // Use relative path for client-side calls to internal Next.js API routes
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -226,7 +223,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: "Custom login failed after Firebase sign-in." }));
         toast({ variant: "destructive", toastTitle: "Custom Login Failed", toastDescription: errorData.message || `Error ${response.status}` });
-        await signOut(auth); // Sign out Firebase user if custom login fails
+        await signOut(auth); 
         return false;
       }
 
@@ -243,11 +240,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
   };
+  
+  const logoutUser = useCallback(async () => {
+    try {
+      const uidBeforeLogout = currentUser?.uid; 
+      await signOut(auth); 
+
+      if (uidBeforeLogout) {
+          const notificationKey = getNotificationStorageKey(uidBeforeLogout);
+          if (notificationKey) localStorage.removeItem(notificationKey);
+          localStorage.removeItem(`profileCompletionPending_${uidBeforeLogout}`);
+      }
+      
+      toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
+      // Main redirection is handled by the useEffect below, which watches currentUser
+    } catch (error: any) {
+      console.error("Error signing out:", error);
+      toast({ variant: "destructive", toastTitle: "Logout Failed", toastDescription: error.message });
+    }
+  }, [currentUser, getNotificationStorageKey, toast]);
+
 
   useEffect(() => {
     let unsubscribeFcmOnMessage: (() => void) | null = null;
 
-    const setupFcm = async (fcmUser: User) => { // Pass user to setupFcm
+    const setupFcm = async (fcmUser: User | null) => { 
       if (fcmUser) { 
         const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!VAPID_KEY) {
@@ -275,82 +292,82 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             });
           });
         }
+      } else { // No user, cleanup FCM listener if it exists
+         if (unsubscribeFcmOnMessage) {
+          unsubscribeFcmOnMessage();
+          unsubscribeFcmOnMessage = null;
+        }
       }
     };
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user); // Update currentUser state
+      setCurrentUser(user); 
       if (user) {
         if (localStorage.getItem(`profileCompletionPending_${user.uid}`) === 'true') {
           setProfileCompletionPending(true);
           localStorage.removeItem(`profileCompletionPending_${user.uid}`);
         }
-        // Attempt to load custom tokens if not in state (e.g., on refresh)
         if (!accessToken && localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY)) {
             setAccessToken(localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY));
         }
         if (!refreshToken && localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY)) {
             setRefreshToken(localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY));
         }
-        // fetchAndSetWeeklyNotifications will be called by the other useEffect that depends on currentUser
-        await setupFcm(user); // Pass the current user to setupFcm
-      } else {
-        // User is logged out
+      } else { 
         setAccessToken(null);
         setRefreshToken(null);
         localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
         localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
-        setProfileCompletionPending(false); // Clear profile pending flag
-        // Notifications from state (like `notifications` and `unreadCount`)
-        // are cleared by the other useEffect that depends on `currentUser` becoming null.
-        // User-specific localStorage for notifications is cleared in `logoutUser`.
-        if (unsubscribeFcmOnMessage) {
-          unsubscribeFcmOnMessage();
-          unsubscribeFcmOnMessage = null;
-        }
+        setProfileCompletionPending(false); 
+        setNotifications([]); 
+        setUnreadCount(0);
       }
-      setLoading(false); // Initial auth check is complete
+      await setupFcm(user); // Setup or cleanup FCM based on user state
+      setLoading(false); 
     });
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeFcmOnMessage) {
+      if (unsubscribeFcmOnMessage) { // Ensure cleanup on provider unmount
         unsubscribeFcmOnMessage();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addNotification, toast, accessToken, refreshToken]); // Removed fetchAndSetWeeklyNotifications, currentUser from here to avoid loop with other useEffect
+  }, [addNotification, toast, accessToken, refreshToken]);
+
 
   useEffect(() => {
-    if (loading) return; // Wait for initial auth check
+    if (loading) return; 
 
     const authPages = ['/login', '/register', '/auth/complete-profile'];
-    const protectedRoutes = ['/auth/complete-profile', '/dashboard']; // Broader match for dashboard/*
+    const isAuthPage = authPages.includes(pathname);
+    const isProtectedPath = pathname.startsWith('/dashboard');
 
-    if (currentUser) {
+    if (currentUser) { // User is authenticated with Firebase
       if (profileCompletionPending) {
         if (pathname !== '/auth/complete-profile') {
           router.push('/auth/complete-profile');
         }
-      } else if (accessToken && refreshToken) { // Ensure custom login was also successful
-        if (authPages.includes(pathname)) {
+      } else if (accessToken && refreshToken) { // User is fully logged in (Firebase + Custom)
+        if (isAuthPage) {
           router.push('/dashboard/user'); 
         }
+      } else { // Firebase user exists, but no custom tokens (e.g., custom login failed or tokens lost)
+        if (isProtectedPath) {
+          // This implies an inconsistent state. Log out fully and redirect to login.
+          logoutUser(); // This will set currentUser to null, and this effect will run again.
+        }
+        // If on an auth page, let them stay to try logging in again.
+        // If on a public page, also let them stay.
       }
-      // If user is logged in but custom tokens are missing, they might be stuck if trying to access protected content.
-      // This could indicate an incomplete login flow. For now, we let them stay on non-auth pages.
-      // More complex handling might be needed if custom tokens are strictly required for all post-login states.
-
-    } else { // No currentUser
-      if (protectedRoutes.some(route => pathname.startsWith(route))) {
+    } else { // No currentUser (logged out or never logged in)
+      if (isProtectedPath) {
         router.push('/login');
       }
     }
-  }, [currentUser, profileCompletionPending, loading, router, pathname, accessToken, refreshToken]);
+  }, [currentUser, profileCompletionPending, loading, router, pathname, accessToken, refreshToken, logoutUser]);
 
 
   const signUpWithEmail = async (email: string, password: string): Promise<User | null> => {
-    // setLoading(true); // Local loading state if needed for specific button
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
@@ -359,7 +376,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!customLoginSuccess) return null;
 
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
-      setProfileCompletionPending(true); // This will trigger redirection via useEffect
+      setProfileCompletionPending(true); 
       toast({ toastTitle: "Registration Successful!", toastDescription: "Please complete your profile." });
       return firebaseUser;
     } catch (error: any) {
@@ -370,13 +387,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toast({ variant: "destructive", toastTitle: "Registration Failed", toastDescription: error.message });
       }
       return null;
-    } finally {
-      // setLoading(false);
     }
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<User | null> => {
-    // setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
@@ -386,7 +400,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
       setProfileCompletionPending(false); 
       toast({ toastTitle: "Login Successful!", toastDescription: "Welcome back!" });
-      // Redirection handled by useEffect
       return firebaseUser;
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential') {
@@ -400,13 +413,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
       localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
       return null;
-    } finally {
-      // setLoading(false);
     }
   };
 
   const signInWithGoogle = async (): Promise<User | null> => {
-    // setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
@@ -415,31 +425,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const customLoginSuccess = await handleCustomApiLogin(firebaseUser);
       if (!customLoginSuccess) return null;
 
-      // Check if profile was previously marked as pending completion
       if (localStorage.getItem(`profileCompletionPending_${firebaseUser.uid}`) === 'true') {
-        setProfileCompletionPending(true); // This will trigger redirection
+        setProfileCompletionPending(true); 
         toast({ toastTitle: "Google Sign-In Successful!", toastDescription: "Welcome! Please complete your profile." });
       } else {
         setProfileCompletionPending(false);
         toast({ toastTitle: "Google Sign-In Successful!", toastDescription: "Welcome back!" });
-        // Redirection handled by useEffect if on auth page
       }
       return firebaseUser;
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       toast({ variant: "destructive", toastTitle: "Google Sign-In Failed", toastDescription: error.message });
       return null;
-    } finally {
-      // setLoading(false);
     }
   };
 
   const signInWithPhoneNumberFlow = async (phoneNumber: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
-    // setLoading(true);
     try {
       const confirmationResult = await firebaseSignInWithPhoneNumber(auth, phoneNumber, appVerifier);
       toast({ toastTitle: "Verification Code Sent", toastDescription: "Please check your phone for the SMS code." });
-      // setLoading(false);
       return confirmationResult;
     } catch (error: any) {
       if (window.recaptchaVerifier) { 
@@ -452,13 +456,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("Error sending SMS for phone auth:", error);
         toast({ variant: "destructive", toastTitle: "Phone Sign-In Error", toastDescription: error.message });
       }
-      // setLoading(false);
       return null;
     }
   };
 
   const confirmPhoneNumberCode = async (confirmationResult: ConfirmationResult, code: string): Promise<User | null> => {
-    // setLoading(true);
     try {
       const userCredential = await confirmationResult.confirm(code);
       const firebaseUser = userCredential.user;
@@ -467,41 +469,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!customLoginSuccess) return null;
       
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
-      setProfileCompletionPending(true); // Will trigger redirection
+      setProfileCompletionPending(true); 
       toast({ toastTitle: "Phone Sign-In Successful!", toastDescription: "Please complete your profile." });
       return firebaseUser;
     } catch (error: any) {
       console.error("Error verifying phone code:", error);
       toast({ variant: "destructive", toastTitle: "Verification Failed", toastDescription: error.message });
       return null;
-    } finally {
-      // setLoading(false);
     }
   };
 
-  const logoutUser = async () => {
-    try {
-      const uidBeforeLogout = currentUser?.uid;
-      await signOut(auth); // Triggers onAuthStateChanged, which handles state cleanup
-
-      // Clear user-specific localStorage items
-      if (uidBeforeLogout) {
-          const notificationKey = getNotificationStorageKey(uidBeforeLogout);
-          if (notificationKey) localStorage.removeItem(notificationKey);
-          localStorage.removeItem(`profileCompletionPending_${uidBeforeLogout}`);
-      }
-      
-      toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
-      router.push('/'); // Navigate to home page after logout
-    } catch (error: any) {
-      console.error("Error signing out:", error);
-      toast({ variant: "destructive", toastTitle: "Logout Failed", toastDescription: error.message });
-    }
-  };
 
   const value = {
     currentUser,
-    loading, // This is the initial auth loading state
+    loading, 
     profileCompletionPending,
     accessToken,
     refreshToken,
@@ -530,4 +511,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-
