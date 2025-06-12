@@ -9,8 +9,8 @@ function getApiBaseUrl(): string {
     return '/api';
   }
   // Server-side: use absolute path.
-  // NEXT_PUBLIC_APP_URL should be set to the application's root URL (e.g., http://localhost:9002 or https://yourdomain.com)
-  let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+  // NEXT_PUBLIC_APP_URL should be set to the application's root URL (e.g., http://localhost:3000 or https://yourdomain.com)
+  let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'; // Changed default port
   // Remove trailing slash from baseUrl if present to prevent double slashes
   if (baseUrl.endsWith('/')) {
     baseUrl = baseUrl.slice(0, -1);
@@ -100,3 +100,4 @@ export async function getWeeklyNotificationsApi(): Promise<ApiNotification[]> {
     }
   }
 }
+
