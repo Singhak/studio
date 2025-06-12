@@ -33,9 +33,9 @@ const baseNavLinks = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter(); // Initialize useRouter
-  const { 
-    currentUser, 
-    logoutUser, 
+  const {
+    currentUser,
+    logoutUser,
     loading,
     notifications,
     unreadCount,
@@ -50,7 +50,7 @@ export function Header() {
     await logoutUser();
     setMobileMenuOpen(false);
   };
-  
+
   const userInitial = currentUser?.email ? currentUser.email.charAt(0).toUpperCase() : "?";
 
   let allNavLinks = [...baseNavLinks];
@@ -77,7 +77,7 @@ export function Header() {
       markNotificationAsRead(notification.id);
     }
     if (notification.href) {
-      router.push(notification.href); 
+      router.push(notification.href);
     }
   };
 
@@ -85,7 +85,7 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
         <Logo />
-        
+
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
           {allNavLinks.map((link) => (
             <Link
@@ -100,7 +100,7 @@ export function Header() {
 
         <div className="flex items-center space-x-1 sm:space-x-2">
           <ThemeToggleButton />
-          
+
           {isAuthenticated && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -131,14 +131,14 @@ export function Header() {
                     </div>
                   ) : (
                     notifications.map((notification) => (
-                      <DropdownMenuItem 
-                        key={notification.id} 
+                      <DropdownMenuItem
+                        key={notification.id}
                         className={`flex flex-col items-start gap-1 whitespace-normal cursor-pointer ${!notification.read ? 'bg-accent/50 hover:bg-accent/70' : ''}`}
                         onClick={() => handleNotificationClick(notification)}
                         onSelect={(e) => e.preventDefault()} // Prevent auto-close for custom click handling
                       >
                         <div className="w-full flex justify-between items-center">
-                           <span className={`font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.title}</span>
+                           <span className={`font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>{notification.title || 'Untitled Notification'}</span>
                            {!notification.read && <div className="w-2 h-2 rounded-full bg-primary shrink-0 ml-2"></div>}
                         </div>
                         {notification.body && <p className="text-xs text-muted-foreground line-clamp-2">{notification.body}</p>}
@@ -208,7 +208,7 @@ export function Header() {
               </Button>
             </div>
           )}
-          
+
           <div className="md:hidden">
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
@@ -273,3 +273,5 @@ export function Header() {
     </header>
   );
 }
+
+    
