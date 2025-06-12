@@ -65,7 +65,7 @@ const transformApiNotificationToApp = (apiNotif: ApiNotification): AppNotificati
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // For initial auth state check
   const [profileCompletionPending, setProfileCompletionPending] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
@@ -76,9 +76,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const getNotificationStorageKey = useCallback(() => {
-    return currentUser ? `courtly-app-notifications-${currentUser.uid}` : null;
-  }, [currentUser]);
+  const getNotificationStorageKey = useCallback((uid: string | null | undefined) => {
+    return uid ? `courtly-app-notifications-${uid}` : null;
+  }, []);
 
   useEffect(() => {
     const storedAccessToken = localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY);
@@ -87,24 +87,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (storedRefreshToken) setRefreshToken(storedRefreshToken);
   }, []);
 
-  const saveNotificationsToStorage = useCallback((updatedNotifications: AppNotification[]) => {
-    const storageKey = getNotificationStorageKey();
+  const saveNotificationsToStorage = useCallback((updatedNotifications: AppNotification[], uid: string | null | undefined) => {
+    const storageKey = getNotificationStorageKey(uid);
     if (storageKey) {
       localStorage.setItem(storageKey, JSON.stringify(updatedNotifications));
     }
   }, [getNotificationStorageKey]);
   
-  const fetchAndSetWeeklyNotifications = useCallback(async () => {
-    if (!currentUser) return;
+  const fetchAndSetWeeklyNotifications = useCallback(async (userForNotifications: User) => {
+    if (!userForNotifications) return;
     try {
       const apiNotifications = await getWeeklyNotificationsApi();
       const appNotifications = apiNotifications.map(transformApiNotificationToApp);
       setNotifications(appNotifications);
       setUnreadCount(appNotifications.filter(n => !n.read).length);
-      saveNotificationsToStorage(appNotifications);
+      saveNotificationsToStorage(appNotifications, userForNotifications.uid);
     } catch (error) {
       console.error("Failed to fetch weekly notifications:", error);
-      const storageKey = getNotificationStorageKey();
+      const storageKey = getNotificationStorageKey(userForNotifications.uid);
       if (storageKey) {
         const stored = localStorage.getItem(storageKey);
         if (stored) {
@@ -117,14 +117,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     }
-  }, [currentUser, getNotificationStorageKey, saveNotificationsToStorage]);
+  }, [getNotificationStorageKey, saveNotificationsToStorage]);
 
 
 
   useEffect(() => {
+    // This effect runs when `currentUser` state changes.
+    // `fetchAndSetWeeklyNotifications` is called here if a user is present.
     if (currentUser) {
-      fetchAndSetWeeklyNotifications();
+      fetchAndSetWeeklyNotifications(currentUser);
     } else {
+        // User is null, clear notifications from state.
+        // LocalStorage for notifications is cleared in `logoutUser` using the UID
+        // before `currentUser` becomes null.
         setNotifications([]);
         setUnreadCount(0);
     }
@@ -142,11 +147,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     setNotifications(prev => {
       const updated = [newAppNotification, ...prev.slice(0, 19)]; 
-      saveNotificationsToStorage(updated);
+      saveNotificationsToStorage(updated, currentUser?.uid);
       return updated;
     });
     setUnreadCount(prev => prev + 1);
-  }, [saveNotificationsToStorage]);
+  }, [saveNotificationsToStorage, currentUser]);
 
   const markNotificationAsRead = useCallback(async (notificationId: string) => {
     try {
@@ -163,7 +168,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (unreadChanged) {
           setUnreadCount(currentUnread => Math.max(0, currentUnread - 1));
         }
-        saveNotificationsToStorage(updated);
+        saveNotificationsToStorage(updated, currentUser?.uid);
         return updated;
       });
     } catch (error) {
@@ -174,7 +179,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toastDescription: "Could not mark notification as read.",
       });
     }
-  }, [saveNotificationsToStorage, toast]);
+  }, [saveNotificationsToStorage, toast, currentUser]);
 
   const markAllNotificationsAsRead = useCallback(async () => {
     const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
@@ -184,7 +189,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await markNotificationsAsReadApi(unreadIds); 
       setNotifications(prev => {
         const updated = prev.map(n => ({ ...n, read: true }));
-        saveNotificationsToStorage(updated);
+        saveNotificationsToStorage(updated, currentUser?.uid);
         return updated;
       });
       setUnreadCount(0);
@@ -196,16 +201,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toastDescription: "Could not mark all notifications as read.",
       });
     }
-  }, [notifications, saveNotificationsToStorage, toast]);
+  }, [notifications, saveNotificationsToStorage, toast, currentUser]);
 
 
   const clearAllNotifications = useCallback(async () => {
     console.log("Simulating: Would call API to clear/delete all notifications for user if endpoint existed.");
     setNotifications([]);
     setUnreadCount(0);
-    saveNotificationsToStorage([]);
+    saveNotificationsToStorage([], currentUser?.uid);
     toast({toastTitle: "Notifications Cleared"});
-  }, [saveNotificationsToStorage, toast]);
+  }, [saveNotificationsToStorage, toast, currentUser]);
 
   // Centralized function to handle custom API login
   const handleCustomApiLogin = async (firebaseUser: User): Promise<boolean> => {
@@ -241,8 +246,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let unsubscribeFcmOnMessage: (() => void) | null = null;
 
-    const setupFcm = async () => {
-      if (currentUser) { 
+    const setupFcm = async (fcmUser: User) => { // Pass user to setupFcm
+      if (fcmUser) { 
         const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!VAPID_KEY) {
             // Warning logged in messaging.tsx
@@ -273,33 +278,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
+      setCurrentUser(user); // Update currentUser state
       if (user) {
         if (localStorage.getItem(`profileCompletionPending_${user.uid}`) === 'true') {
           setProfileCompletionPending(true);
           localStorage.removeItem(`profileCompletionPending_${user.uid}`);
         }
+        // Attempt to load custom tokens if not in state (e.g., on refresh)
         if (!accessToken && localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY)) {
             setAccessToken(localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY));
         }
         if (!refreshToken && localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY)) {
             setRefreshToken(localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY));
         }
-        await fetchAndSetWeeklyNotifications();
-        await setupFcm();
+        // fetchAndSetWeeklyNotifications will be called by the other useEffect that depends on currentUser
+        await setupFcm(user); // Pass the current user to setupFcm
       } else {
+        // User is logged out
         setAccessToken(null);
         setRefreshToken(null);
         localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
         localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
-        setNotifications([]); 
-        setUnreadCount(0);
+        setProfileCompletionPending(false); // Clear profile pending flag
+        // Notifications from state (like `notifications` and `unreadCount`)
+        // are cleared by the other useEffect that depends on `currentUser` becoming null.
+        // User-specific localStorage for notifications is cleared in `logoutUser`.
         if (unsubscribeFcmOnMessage) {
           unsubscribeFcmOnMessage();
           unsubscribeFcmOnMessage = null;
         }
       }
-      setLoading(false);
+      setLoading(false); // Initial auth check is complete
     });
 
     return () => {
@@ -308,23 +317,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessage();
       }
     };
-  }, [addNotification, toast, accessToken, refreshToken, fetchAndSetWeeklyNotifications, currentUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addNotification, toast, accessToken, refreshToken]); // Removed fetchAndSetWeeklyNotifications, currentUser from here to avoid loop with other useEffect
 
   useEffect(() => {
-    if (loading) return;
+    if (loading) return; // Wait for initial auth check
 
     if (currentUser && profileCompletionPending && pathname !== '/auth/complete-profile') {
       router.push('/auth/complete-profile');
     } else if (currentUser && !profileCompletionPending) {
       const authPages = ['/login', '/register', '/auth/complete-profile'];
       if (authPages.includes(pathname)) {
-        if (accessToken && refreshToken) {
+        if (accessToken && refreshToken) { // Ensure custom login was also successful
           router.push('/dashboard/user');
         }
       }
     } else if (!currentUser) {
-      const protectedAuthPages = ['/auth/complete-profile'];
-      if (protectedAuthPages.includes(pathname)) {
+      const protectedRoutes = ['/auth/complete-profile', '/dashboard'];
+      if (protectedRoutes.some(route => pathname.startsWith(route))) {
         router.push('/login');
       }
     }
@@ -332,7 +342,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const signUpWithEmail = async (email: string, password: string): Promise<User | null> => {
-    setLoading(true);
+    // setLoading(true); // Local loading state if needed for specific button
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
@@ -341,7 +351,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!customLoginSuccess) return null;
 
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
-      setProfileCompletionPending(true);
+      setProfileCompletionPending(true); // This will trigger redirection via useEffect
       toast({ toastTitle: "Registration Successful!", toastDescription: "Please complete your profile." });
       return firebaseUser;
     } catch (error: any) {
@@ -353,12 +363,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return null;
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<User | null> => {
-    setLoading(true);
+    // setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
@@ -368,6 +378,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
       setProfileCompletionPending(false); 
       toast({ toastTitle: "Login Successful!", toastDescription: "Welcome back!" });
+      // Redirection handled by useEffect
       return firebaseUser;
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential') {
@@ -382,12 +393,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
       return null;
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 
   const signInWithGoogle = async (): Promise<User | null> => {
-    setLoading(true);
+    // setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
@@ -396,12 +407,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const customLoginSuccess = await handleCustomApiLogin(firebaseUser);
       if (!customLoginSuccess) return null;
 
+      // Check if profile was previously marked as pending completion
       if (localStorage.getItem(`profileCompletionPending_${firebaseUser.uid}`) === 'true') {
-        setProfileCompletionPending(true);
+        setProfileCompletionPending(true); // This will trigger redirection
         toast({ toastTitle: "Google Sign-In Successful!", toastDescription: "Welcome! Please complete your profile." });
       } else {
         setProfileCompletionPending(false);
         toast({ toastTitle: "Google Sign-In Successful!", toastDescription: "Welcome back!" });
+        // Redirection handled by useEffect if on auth page
       }
       return firebaseUser;
     } catch (error: any) {
@@ -409,16 +422,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast({ variant: "destructive", toastTitle: "Google Sign-In Failed", toastDescription: error.message });
       return null;
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 
   const signInWithPhoneNumberFlow = async (phoneNumber: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
-    setLoading(true);
+    // setLoading(true);
     try {
       const confirmationResult = await firebaseSignInWithPhoneNumber(auth, phoneNumber, appVerifier);
       toast({ toastTitle: "Verification Code Sent", toastDescription: "Please check your phone for the SMS code." });
-      setLoading(false);
+      // setLoading(false);
       return confirmationResult;
     } catch (error: any) {
       if (window.recaptchaVerifier) { 
@@ -431,13 +444,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("Error sending SMS for phone auth:", error);
         toast({ variant: "destructive", toastTitle: "Phone Sign-In Error", toastDescription: error.message });
       }
-      setLoading(false);
+      // setLoading(false);
       return null;
     }
   };
 
   const confirmPhoneNumberCode = async (confirmationResult: ConfirmationResult, code: string): Promise<User | null> => {
-    setLoading(true);
+    // setLoading(true);
     try {
       const userCredential = await confirmationResult.confirm(code);
       const firebaseUser = userCredential.user;
@@ -446,7 +459,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!customLoginSuccess) return null;
       
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
-      setProfileCompletionPending(true);
+      setProfileCompletionPending(true); // Will trigger redirection
       toast({ toastTitle: "Phone Sign-In Successful!", toastDescription: "Please complete your profile." });
       return firebaseUser;
     } catch (error: any) {
@@ -454,40 +467,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast({ variant: "destructive", toastTitle: "Verification Failed", toastDescription: error.message });
       return null;
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   };
 
   const logoutUser = async () => {
-    setLoading(true);
     try {
-      const uidBeforeLogout = currentUser?.uid; 
-      await signOut(auth); 
-      setAccessToken(null);
-      setRefreshToken(null);
-      localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
-      localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
-      setProfileCompletionPending(false);
-      
-      if (uidBeforeLogout) {
-          localStorage.removeItem(getNotificationStorageKey() || `courtly-app-notifications-${uidBeforeLogout}`);
-      }
-      setNotifications([]);
-      setUnreadCount(0);
+      const uidBeforeLogout = currentUser?.uid;
+      await signOut(auth); // Triggers onAuthStateChanged, which handles state cleanup
 
+      // Clear user-specific localStorage items
+      if (uidBeforeLogout) {
+          const notificationKey = getNotificationStorageKey(uidBeforeLogout);
+          if (notificationKey) localStorage.removeItem(notificationKey);
+          // Clear any other user-specific localStorage items here
+      }
+      
       toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
-      router.push('/'); 
+      router.push('/'); // Navigate to home page after logout
     } catch (error: any) {
       console.error("Error signing out:", error);
       toast({ variant: "destructive", toastTitle: "Logout Failed", toastDescription: error.message });
-    } finally {
-      setLoading(false);
     }
   };
 
   const value = {
     currentUser,
-    loading,
+    loading, // This is the initial auth loading state
     profileCompletionPending,
     accessToken,
     refreshToken,
@@ -516,3 +522,4 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
