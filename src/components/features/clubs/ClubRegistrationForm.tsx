@@ -44,8 +44,6 @@ const serviceSchema = z.object({
 
 const formSchema = z.object({
   clubName: z.string().min(3, "Club name must be at least 3 characters."),
-  // Primary sport for the club - kept in form, but not sent in *this specific* API call per spec.
-  // Will be part of the Club type, can be updated via another mechanism if needed.
   primarySport: z.enum(SPORTS_TYPES, { required_error: "Please select a primary sport for your club." }),
   
   addressStreet: z.string().min(3, "Street is required."),
@@ -54,12 +52,30 @@ const formSchema = z.object({
   addressZipCode: z.string().min(3, "Zip code is required.").max(10),
 
   locationLongitude: z.preprocess(
-    (val) => (typeof val === 'string' && val.trim() !== '' ? parseFloat(val) : undefined),
-    z.number({invalid_type_error: "Longitude must be a number."}).min(-180, "Invalid longitude").max(180, "Invalid longitude")
+    (val) => {
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string' && val.trim() !== '') {
+        const num = parseFloat(val);
+        return isNaN(num) ? undefined : num; // Let z.number handle NaN by making it undefined first
+      }
+      return undefined;
+    },
+    z.number({ required_error: "Longitude is required.", invalid_type_error: "Longitude must be a valid number." })
+      .min(-180, "Longitude must be between -180 and 180.")
+      .max(180, "Longitude must be between -180 and 180.")
   ),
   locationLatitude: z.preprocess(
-    (val) => (typeof val === 'string' && val.trim() !== '' ? parseFloat(val) : undefined),
-    z.number({invalid_type_error: "Latitude must be a number."}).min(-90, "Invalid latitude").max(90, "Invalid latitude")
+    (val) => {
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string' && val.trim() !== '') {
+        const num = parseFloat(val);
+        return isNaN(num) ? undefined : num; // Let z.number handle NaN by making it undefined first
+      }
+      return undefined;
+    },
+    z.number({ required_error: "Latitude is required.", invalid_type_error: "Latitude must be a valid number." })
+      .min(-90, "Latitude must be between -90 and 90.")
+      .max(90, "Latitude must be between -90 and 90.")
   ),
 
   description: z.string().min(20, "Description must be at least 20 characters.").max(1000, "Description too long."),
@@ -85,8 +101,8 @@ export function ClubRegistrationForm() {
       addressCity: "",
       addressState: "",
       addressZipCode: "",
-      locationLongitude: undefined,
-      locationLatitude: undefined,
+      locationLongitude: undefined, // Keep as undefined initially
+      locationLatitude: undefined,  // Keep as undefined initially
       description: "",
       contactEmail: "",
       contactPhone: "",
@@ -134,24 +150,22 @@ export function ClubRegistrationForm() {
       contactPhone: values.contactPhone || undefined,
       images: imageUrls,
       amenities: amenitiesArray,
-      // Note: 'sport' (primarySport from form) is not sent in this specific API call based on provided spec.
-      // If it needs to be part of the Club entity, it would be set via another API or initial value.
     };
 
     try {
       const registeredClub = await registerClub(clubDataToSubmit);
       console.log("Club registered successfully via API (simulated):", registeredClub);
       toast({
-        title: "Club Registration Submitted!",
-        description: `${registeredClub.name} has been submitted for registration.`,
+        toastTitle: "Club Registration Submitted!",
+        toastDescription: `${registeredClub.name} has been submitted for registration.`,
       });
-      router.push(`/dashboard/owner`); // Or a page confirming submission
+      router.push(`/dashboard/owner`); 
     } catch (error) {
       console.error("Club registration API call failed:", error);
       toast({
         variant: "destructive",
-        title: "Club Registration Failed",
-        description: error instanceof Error ? error.message : "An unexpected error occurred during submission.",
+        toastTitle: "Club Registration Failed",
+        toastDescription: error instanceof Error ? error.message : "An unexpected error occurred during submission.",
       });
     } finally {
       setIsSubmitting(false);
@@ -276,7 +290,8 @@ export function ClubRegistrationForm() {
                             render={({ field }) => (
                                 <FormItem>
                                 <FormLabel className="flex items-center"><Globe className="mr-2 h-4 w-4 text-muted-foreground"/>Latitude</FormLabel>
-                                <FormControl><Input type="number" step="any" placeholder="33.9850" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} disabled={isSubmitting}/></FormControl>
+                                <FormControl><Input type="number" step="any" placeholder="33.9850" {...field} disabled={isSubmitting}/></FormControl>
+                                <FormDescription>E.g., 33.9850</FormDescription>
                                 <FormMessage />
                                 </FormItem>
                             )}
@@ -287,7 +302,8 @@ export function ClubRegistrationForm() {
                             render={({ field }) => (
                                 <FormItem>
                                 <FormLabel className="flex items-center"><Globe className="mr-2 h-4 w-4 text-muted-foreground"/>Longitude</FormLabel>
-                                <FormControl><Input type="number" step="any" placeholder="-118.4004" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} disabled={isSubmitting}/></FormControl>
+                                <FormControl><Input type="number" step="any" placeholder="-118.4004" {...field} disabled={isSubmitting}/></FormControl>
+                                <FormDescription>E.g., -118.4004</FormDescription>
                                 <FormMessage />
                                 </FormItem>
                             )}
@@ -340,7 +356,7 @@ export function ClubRegistrationForm() {
                     <FormField
                     control={form.control}
                     name="clubImages"
-                    render={({ field: { onChange, value, ...rest } }) => ( // value is not directly used for file inputs after selection by browser
+                    render={({ field: { onChange, value, ...rest } }) => ( 
                         <FormItem>
                         <FormLabel className="flex items-center"><ImageUp className="mr-2 h-4 w-4 text-muted-foreground"/>Club Images</FormLabel>
                         <FormControl>
@@ -348,9 +364,9 @@ export function ClubRegistrationForm() {
                             type="file" 
                             multiple 
                             accept="image/*"
-                            onChange={(e) => onChange(e.target.files)} // RHF expects to receive the FileList
+                            onChange={(e) => onChange(e.target.files)} 
                             disabled={isSubmitting}
-                            {...rest} // Pass other RHF props like name, ref
+                            {...rest} 
                             />
                         </FormControl>
                         <FormDescription>Upload one or more images for your club. These will be shown as placeholders.</FormDescription>
@@ -383,3 +399,5 @@ export function ClubRegistrationForm() {
     </Card>
   );
 }
+
+    
