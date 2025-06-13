@@ -11,26 +11,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { createBooking } from '@/services/bookingService'; 
-import { useState } from 'react';
+import { useState, useCallback } from 'react'; // Import useCallback
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // Import useRouter
+import { useRouter } from 'next/navigation';
 
 export function ClubDetailsContent({ club }: { club: Club }) {
   const { toast } = useToast();
   const { addNotification, currentUser } = useAuth();
-  const router = useRouter(); // Initialize useRouter
+  const router = useRouter();
   const [isBooking, setIsBooking] = useState(false);
 
   const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
   const [selectedBookingSlot, setSelectedBookingSlot] = useState<TimeSlot | null>(null);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<Service | null>(null);
 
-
-  const handleCalendarSlotSelect = (date: Date | undefined, slot: TimeSlot | null) => {
+  const handleCalendarSlotSelect = useCallback((date: Date | undefined, slot: TimeSlot | null) => {
     setSelectedBookingDate(date);
     setSelectedBookingSlot(slot);
-  };
+  }, []); // Empty dependency array makes this callback stable
 
   const handleServiceSelectionForBooking = (service: Service) => {
     setSelectedServiceForBooking(service);
@@ -42,14 +41,19 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     });
   };
 
-
   const handleBookSlot = async () => {
     if (!currentUser) {
       toast({
-        variant: "default",
+        variant: "default", // Keep it default, not destructive for a prompt
         toastTitle: "Login Required",
         toastDescription: "Please log in or register to continue with your booking.",
         duration: 5000,
+        // action: ( // Action buttons in toast are a bit much if we navigate away
+        //   <div className="flex gap-2 mt-2">
+        //     <Button onClick={() => router.push('/login')} size="sm">Login</Button>
+        //     <Button onClick={() => router.push('/register')} size="sm" variant="outline">Register</Button>
+        //   </div>
+        // ),
       });
       router.push('/login'); // Navigate to login page
       return;
@@ -64,7 +68,6 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       return;
     }
     
-
     setIsBooking(true);
     toast({
         toastTitle: "Submitting Booking Request...",
@@ -98,8 +101,11 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         '/dashboard/user' 
       );
       
-      setSelectedBookingDate(undefined);
+      // Reset selections after successful booking attempt
+      // setSelectedServiceForBooking(null); // Keep service selected for potentially another booking on different day/time
+      setSelectedBookingDate(undefined); // Reset date and slot
       setSelectedBookingSlot(null);
+
 
     } catch (error) {
       console.error("Booking failed:", error);
