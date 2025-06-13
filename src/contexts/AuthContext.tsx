@@ -21,8 +21,9 @@ import { useToast } from "@/hooks/use-toast";
 import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging';
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
 import type { AppNotification, ApiNotification } from '@/lib/types';
-import { Bell } from 'lucide-react';
+import { Bell, Settings } from 'lucide-react'; // Added Settings icon
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
+import { Button } from '@/components/ui/button'; // For the toast action
 
 interface AuthContextType {
   currentUser: User | null;
@@ -49,6 +50,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 const CUSTOM_REFRESH_TOKEN_KEY = 'courtlyCustomRefreshToken';
+const LAST_NOTIFICATION_REMINDER_KEY = 'courtly-last-notification-reminder-shown';
 
 // Helper to transform ApiNotification to AppNotification
 const transformApiNotificationToApp = (apiNotif: ApiNotification): AppNotification => {
@@ -60,6 +62,17 @@ const transformApiNotificationToApp = (apiNotif: ApiNotification): AppNotificati
     read: apiNotif.isRead,
     href: apiNotif.data?.href,
   };
+};
+
+// Helper to check if two timestamps are on the same calendar day
+const isSameDay = (ts1: number, ts2: number): boolean => {
+  const date1 = new Date(ts1);
+  const date2 = new Date(ts2);
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
 };
 
 
@@ -281,13 +294,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // Warning logged in messaging.tsx
         }
         
-        const token = await requestNotificationPermission(); 
-        if (token) {
-             toast({
-                toastTitle: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-green-500" /><span>Notifications Enabled</span></div>),
-                toastDescription: 'You will receive updates via push notifications.',
-            });
-        }
+        // We don't automatically request permission here anymore as part of setupFcm.
+        // Permission request is now more user-initiated (e.g., from reminder toast or settings).
+        // const token = await requestNotificationPermission(); 
+        // if (token) {
+        //      toast({
+        //         toastTitle: (<div className="flex items-center gap-2"><Bell className="h-5 w-5 text-green-500" /><span>Notifications Enabled</span></div>),
+        //         toastDescription: 'You will receive updates via push notifications.',
+        //     });
+        // }
 
         const messaging = await initializeFirebaseMessaging(); 
         if (messaging) {
@@ -366,7 +381,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           router.push('/dashboard/user'); 
         }
       } else { 
+        // If user is authenticated with Firebase but custom tokens are missing (e.g. after a refresh where they expired or weren't set)
+        // and they are on a protected path, it might be better to try re-establishing custom session or log them out.
+        // For now, if on protected path without custom tokens, let's log them out fully.
         if (isProtectedPath) {
+          console.warn("User is on a protected path but custom tokens are missing. Logging out.");
           logoutUser(); 
         }
       }
@@ -376,6 +395,74 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }
   }, [currentUser, profileCompletionPending, loading, router, pathname, accessToken, refreshToken, logoutUser]);
+
+  // Effect for the "once per day" notification reminder
+  useEffect(() => {
+    if (loading) { // Don't run if auth state is still loading
+      return;
+    }
+
+    // Check if Notification API is available and permission is not already granted
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+      const lastReminderTimestampStr = localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY);
+      const now = Date.now();
+      let shouldShowReminder = true;
+
+      if (lastReminderTimestampStr) {
+        const lastReminderTimestamp = parseInt(lastReminderTimestampStr, 10);
+        if (!isNaN(lastReminderTimestamp) && isSameDay(lastReminderTimestamp, now)) {
+          shouldShowReminder = false;
+        }
+      }
+
+      if (shouldShowReminder) {
+        const {id: toastId, dismiss} = toast({
+          toastTitle: (
+            <div className="flex items-start">
+              <Bell className="h-5 w-5 text-primary mr-3 mt-0.5 shrink-0" />
+              <div>
+                Stay Updated!
+              </div>
+            </div>
+          ),
+          toastDescription: "Enable push notifications to get timely alerts about your bookings and club updates.",
+          duration: 15000, // Keep it visible for a bit longer
+          toastAction: (
+            <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full">
+                 <Button
+                    size="sm"
+                    onClick={async () => {
+                      dismiss(); // Dismiss this reminder toast
+                      await requestNotificationPermission(); // This function already handles its own success/failure toasts
+                      localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
+                    }}
+                    className="w-full sm:w-auto"
+                  >
+                    <Bell className="mr-2 h-4 w-4" /> Enable
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      dismiss();
+                      localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString()); // Still mark as shown for today
+                    }}
+                     className="w-full sm:w-auto"
+                  >
+                    Maybe Later
+                  </Button>
+            </div>
+          ),
+          onDismiss: () => {
+            // Ensure it's marked as shown for today even if auto-dismissed or swiped away
+            if (!localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || !isSameDay(parseInt(localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || '0', 10), now)) {
+                 localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
+            }
+          }
+        });
+      }
+    }
+  }, [loading, toast]); // Removed requestNotificationPermission from deps as it's called inside, and toast is stable
 
 
   const signUpWithEmail = async (email: string, password: string): Promise<User | null> => {
@@ -523,3 +610,5 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
+
+    
