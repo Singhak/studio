@@ -16,9 +16,9 @@ export function Toaster() {
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, toastTitle, toastDescription, toastAction, ...props }) { // Renamed properties
+      {toasts.map(function ({ id, toastTitle, toastDescription, toastAction, onDismiss, ...props }) { // Destructure onDismiss
         return (
-          <Toast key={id} {...props}>
+          <Toast key={id} {...props}> {/* onDismiss is no longer in ...props */}
             <div className="grid gap-1">
               {toastTitle && <ToastTitle>{toastTitle}</ToastTitle>}
               {toastDescription && (
