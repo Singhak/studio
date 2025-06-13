@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { createBooking } from '@/services/bookingService'; 
-import { useState, useCallback } from 'react'; // Import useCallback
+import { useState, useCallback, useEffect } from 'react'; // Import useEffect
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -21,15 +21,31 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const { addNotification, currentUser } = useAuth();
   const router = useRouter();
   const [isBooking, setIsBooking] = useState(false);
+  const [isBookButtonDisabled, setIsBookButtonDisabled] = useState(true); // Explicit state for button
 
   const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
   const [selectedBookingSlot, setSelectedBookingSlot] = useState<TimeSlot | null>(null);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<Service | null>(null);
 
+  // useEffect to manage the booking button's disabled state
+  useEffect(() => {
+    const isDisabled = !selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking;
+    setIsBookButtonDisabled(isDisabled);
+    // For debugging:
+    // console.log("ClubDetailsContent: Button disabled state updated", {
+    //   service: !!selectedServiceForBooking,
+    //   date: !!selectedBookingDate,
+    //   slot: !!selectedBookingSlot,
+    //   isBooking,
+    //   calculatedIsDisabled: isDisabled
+    // });
+  }, [selectedServiceForBooking, selectedBookingDate, selectedBookingSlot, isBooking]);
+
+
   const handleCalendarSlotSelect = useCallback((date: Date | undefined, slot: TimeSlot | null) => {
     setSelectedBookingDate(date);
     setSelectedBookingSlot(slot);
-  }, []); // Empty dependency array makes this callback stable
+  }, []); 
 
   const handleServiceSelectionForBooking = (service: Service) => {
     setSelectedServiceForBooking(service);
@@ -44,27 +60,22 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const handleBookSlot = async () => {
     if (!currentUser) {
       toast({
-        variant: "default", // Keep it default, not destructive for a prompt
+        variant: "default",
         toastTitle: "Login Required",
         toastDescription: "Please log in or register to continue with your booking.",
         duration: 5000,
-        // action: ( // Action buttons in toast are a bit much if we navigate away
-        //   <div className="flex gap-2 mt-2">
-        //     <Button onClick={() => router.push('/login')} size="sm">Login</Button>
-        //     <Button onClick={() => router.push('/register')} size="sm" variant="outline">Register</Button>
-        //   </div>
-        // ),
       });
-      router.push('/login'); // Navigate to login page
+      router.push('/login');
       return;
     }
 
-    if (!selectedServiceForBooking) {
-      toast({ variant: "destructive", toastTitle: "No Service Selected", toastDescription: "Please select a service before booking." });
-      return;
-    }
-    if (!selectedBookingDate || !selectedBookingSlot) {
-      toast({ variant: "destructive", toastTitle: "Date/Time Not Selected", toastDescription: "Please select a date and an available time slot." });
+    // This check is redundant if the button is correctly disabled, but good for safety.
+    if (!selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot) {
+      toast({ 
+        variant: "destructive", 
+        toastTitle: "Incomplete Selection", 
+        toastDescription: "Please ensure a service, date, and time slot are selected." 
+      });
       return;
     }
     
@@ -101,18 +112,15 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         '/dashboard/user' 
       );
       
-      // Reset selections after successful booking attempt
-      // setSelectedServiceForBooking(null); // Keep service selected for potentially another booking on different day/time
-      setSelectedBookingDate(undefined); // Reset date and slot
+      setSelectedBookingDate(undefined); 
       setSelectedBookingSlot(null);
-
 
     } catch (error) {
       console.error("Booking failed:", error);
       toast({
         variant: "destructive",
-        title: "Booking Failed",
-        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+        toastTitle: "Booking Failed",
+        toastDescription: error instanceof Error ? error.message : "An unexpected error occurred.",
       });
     } finally {
       setIsBooking(false);
@@ -221,7 +229,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
             size="lg" 
             className="w-full text-lg py-6" 
             onClick={handleBookSlot}
-            disabled={!selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking}
+            disabled={isBookButtonDisabled}
           >
             {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
             Book Selected Slot

@@ -31,8 +31,8 @@ const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
     }
     generatedStartTimes.add(startTime);
     const endTime = `${(currentHour + 1).toString().padStart(2, '0')}:00`;
-    const randomIndex = Math.floor(Math.random() * allStatuses.length);
-    const status = allStatuses[randomIndex];
+    // Force the first slot to be available if slots are generated, for easier testing
+    const status = (slots.length === 0 && baseSlotsCount > 0) ? 'available' : allStatuses[Math.floor(Math.random() * allStatuses.length)];
     slots.push({ startTime, endTime, status });
     currentHour += (Math.random() > 0.3 ? 1 : 2);
   }
@@ -53,23 +53,19 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
   useEffect(() => {
     setClientLoaded(true);
     const today = new Date();
-    setSelectedDate(today); // Set internal default date
+    setSelectedDate(today); 
     if (onSlotSelect) {
-      // Inform parent of initial default date, no slot selected yet
       onSlotSelect(today, null);
     }
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     setDisabledDaysConfig({ before: startOfToday });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientLoaded, onSlotSelect]); // onSlotSelect is stable from parent
+  }, [clientLoaded]); 
 
-  // Effect to update time slots when internal selectedDate changes
   useEffect(() => {
     if (clientLoaded && selectedDate) {
       setTimeSlots(generateMockTimeSlots(selectedDate));
-      setInternalSelectedTimeSlot(null); // Reset internal visual selection of slot
-      // Note: We do NOT call onSlotSelect(selectedDate, null) here anymore.
-      // That call is now tied to explicit date changes (handleDateChange or initial load).
+      setInternalSelectedTimeSlot(null); 
     } else if (clientLoaded && !selectedDate) {
       setTimeSlots([]);
       setInternalSelectedTimeSlot(null);
@@ -77,19 +73,17 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
   }, [selectedDate, clientLoaded]);
 
   const handleDateChange = (date: Date | undefined) => {
-    setSelectedDate(date); // Update internal date
-    setInternalSelectedTimeSlot(null); // Reset internal slot styling for the new date
+    setSelectedDate(date); 
+    setInternalSelectedTimeSlot(null); 
     if (onSlotSelect) {
-      // Inform parent: date changed, so no slot is selected for this new date.
       onSlotSelect(date, null);
     }
   };
 
   const handleTimeSlotClick = (slot: TimeSlot) => {
     if (slot.status === 'available') {
-      setInternalSelectedTimeSlot(slot); // Update internal slot for styling
+      setInternalSelectedTimeSlot(slot); 
       if (onSlotSelect) {
-        // Inform parent: this slot is now selected for the current selectedDate.
         onSlotSelect(selectedDate, slot);
       }
     }
@@ -118,7 +112,6 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
 
     switch (slot.status) {
       case 'available':
-        // Use internalSelectedTimeSlot for styling the button's selected state
         variant = internalSelectedTimeSlot?.startTime === slot.startTime ? 'default' : 'outline';
         isDisabled = false;
         break;
@@ -159,7 +152,7 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={handleDateChange} // This now correctly calls onSlotSelect(newDate, null)
+              onSelect={handleDateChange} 
               className="rounded-md border"
               disabled={disabledDaysConfig}
               captionLayout="buttons"
