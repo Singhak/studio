@@ -3,7 +3,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import type { Club } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
-import { getClubById } from '@/services/clubService'; 
+import { getClubById } from '@/services/clubService';
 import { ClubDetailsContent } from '@/components/features/clubs/ClubDetailsContent'; // Import the new client component
 
 interface ClubDetailsPageProps {
@@ -16,12 +16,17 @@ async function getClubDetails(clubId: string): Promise<Club | null> {
     return club;
   } catch (error) {
     console.error(`Failed to fetch club details for ${clubId}:`, error);
-    return null; 
+    return null;
   }
 }
 
 export default async function ClubDetailsPage({ params }: ClubDetailsPageProps) {
-  const club = await getClubDetails(params.clubId);
+  const clubId = params.clubId;
+
+  // Ensure dynamic API access (params.clubId) happens after a microtask yield.
+  await Promise.resolve();
+
+  const club = await getClubDetails(clubId);
 
   if (!club) {
     return (

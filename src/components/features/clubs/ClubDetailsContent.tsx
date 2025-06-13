@@ -31,28 +31,43 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const [selectedBookingSlot, setSelectedBookingSlot] = useState<TimeSlot | null>(null);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<Service | null>(null);
 
+  // Directly use club._id for the dependency.
+  // ClubDetailsPage ensures `club` prop is always a valid Club object here.
+  const clubId = club._id;
+
   useEffect(() => {
-    const loadServices = async () => {
-      if (!club || !club._id) {
+    // console.log(`[ClubDetailsContent] useEffect for services triggered. Club ID: ${clubId}`);
+
+    const loadServicesForCurrentClub = async () => {
+      if (!clubId) {
+        // This case should ideally not be hit if ClubDetailsPage guarantees a valid club prop.
+        // console.warn("[ClubDetailsContent] Club ID is missing, cannot fetch services.");
         setIsLoadingServices(false);
-        setServicesError("Club ID is missing, cannot fetch services.");
+        setFetchedServices([]); // Clear any previous services
+        setServicesError("Club information is incomplete."); // Generic error
         return;
       }
+
+      // console.log(`[ClubDetailsContent] Attempting to fetch services for club: ${clubId}`);
       setIsLoadingServices(true);
       setServicesError(null);
+      setFetchedServices([]); // Clear previous services before fetching new ones
+
       try {
-        const services = await getServicesByClubId(club._id);
+        const services = await getServicesByClubId(clubId);
+        // console.log(`[ClubDetailsContent] Services fetched for ${clubId}:`, services);
         setFetchedServices(services || []);
       } catch (error) {
-        console.error("Failed to fetch services for club:", error);
-        setServicesError(error instanceof Error ? error.message : "Could not load services.");
-        setFetchedServices([]);
+        console.error(`[ClubDetailsContent] Failed to fetch services for club ${clubId}:`, error);
+        setServicesError(error instanceof Error ? error.message : "Could not load services for this club.");
+        setFetchedServices([]); // Ensure services are cleared on error
       } finally {
         setIsLoadingServices(false);
       }
     };
-    loadServices();
-  }, [club]);
+
+    loadServicesForCurrentClub();
+  }, [clubId]); // Depend explicitly on clubId
 
   const handleCalendarSlotSelect = useCallback((date: Date | undefined, slot: TimeSlot | null) => {
     setSelectedBookingDate(date);
