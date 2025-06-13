@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { createBooking } from '@/services/bookingService';
-import { getServicesByClubId } from '@/services/clubService'; // Import service to fetch services
+import { getServicesByClubId } from '@/services/clubService';
 import { useState, useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
 import Link from 'next/link';
@@ -23,13 +23,13 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const router = useRouter();
   const [isBooking, setIsBooking] = useState(false);
 
-  const [fetchedServices, setFetchedServices = useState<Service[] | null>(null);
-  const [isLoadingServices, setIsLoadingServices = useState(true);
-  const [servicesError, setServicesError = useState<string | null>(null);
+  const [fetchedServices, setFetchedServices] = useState<Service[] | null>(null);
+  const [isLoadingServices, setIsLoadingServices] = useState(true);
+  const [servicesError, setServicesError] = useState<string | null>(null);
 
-  const [selectedBookingDate, setSelectedBookingDate = useState<Date | undefined>(undefined);
-  const [selectedBookingSlot, setSelectedBookingSlot = useState<TimeSlot | null>(null);
-  const [selectedServiceForBooking, setSelectedServiceForBooking = useState<Service | null>(null);
+  const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
+  const [selectedBookingSlot, setSelectedBookingSlot] = useState<TimeSlot | null>(null);
+  const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<Service | null>(null);
 
   useEffect(() => {
     const loadServices = async () => {
@@ -144,13 +144,22 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       setIsBooking(false);
     }
   };
+  
+  // For debugging button disable state:
+  // console.log("ClubDetailsContent Render - Button State:", {
+  //   service: !!selectedServiceForBooking,
+  //   date: !!selectedBookingDate,
+  //   slot: !!selectedBookingSlot,
+  //   isBooking: isBooking,
+  //   buttonDisabled: !selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking
+  // });
 
   return (
     <>
       <section className="mb-8">
         <div className="relative h-64 md:h-96 rounded-lg overflow-hidden shadow-xl">
           <Image
-            src={club.images[0] || 'https://placehold.co/1200x400.png'}
+            src={club.images?.[0] || 'https://placehold.co/1200x400.png'}
             alt={`${club.name} main image`}
             layout="fill"
             objectFit="cover"
@@ -324,5 +333,3 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     </>
   );
 }
-
-    
