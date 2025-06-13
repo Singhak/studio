@@ -36,25 +36,20 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const clubId = club._id;
 
   useEffect(() => {
-    // console.log(`[ClubDetailsContent] useEffect for services triggered. Club ID: ${clubId}`);
     const loadServicesForCurrentClub = async () => {
       if (!clubId) {
-        // console.warn("[ClubDetailsContent] Club ID is missing, cannot fetch services.");
         setIsLoadingServices(false);
         setFetchedServices([]);
         setServicesError("Club information is incomplete.");
         return;
       }
-
-      // console.log(`[ClubDetailsContent] Attempting to fetch services for club: ${clubId}`);
       setIsLoadingServices(true);
       setServicesError(null);
       setFetchedServices([]);
-      setSelectedSportFilter("all"); // Reset filter when club changes
+      setSelectedSportFilter("all"); 
 
       try {
         const services = await getServicesByClubId(clubId);
-        // console.log(`[ClubDetailsContent] Services fetched for ${clubId}:`, services);
         setFetchedServices(services || []);
       } catch (error) {
         console.error(`[ClubDetailsContent] Failed to fetch services for club ${clubId}:`, error);
@@ -125,9 +120,32 @@ export function ClubDetailsContent({ club }: { club: Club }) {
 
     try {
       const bookingResponse = await createBooking(bookingPayload);
+
+      // Calculate duration for the toast
+      let durationHours = 0;
+      try {
+        const startDate = new Date(`1970-01-01T${selectedBookingSlot.startTime}:00`);
+        const endDate = new Date(`1970-01-01T${selectedBookingSlot.endTime}:00`);
+        if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+          const durationMillis = endDate.getTime() - startDate.getTime();
+          durationHours = durationMillis / (1000 * 60 * 60);
+        }
+      } catch (e) {
+        console.error("Error calculating duration for toast:", e);
+      }
+      
+      const toastDescription = `For: ${selectedServiceForBooking.name}
+Date: ${format(selectedBookingDate, 'MMM d, yyyy')}
+Time: ${selectedBookingSlot.startTime} - ${selectedBookingSlot.endTime}
+${durationHours > 0 ? `Duration: ${durationHours.toFixed(1)} hr(s)` : ''}
+Status: ${bookingResponse.message}`;
+
+
       toast({
         toastTitle: "Booking Submitted!",
-        toastDescription: bookingResponse.message,
+        toastDescription: (
+          <div className="whitespace-pre-line">{toastDescription}</div>
+        ),
         variant: bookingResponse.status === 'pending' ? 'default' : 'default',
       });
 
@@ -374,3 +392,4 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   );
 }
 
+      
