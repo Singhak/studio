@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { createBooking } from '@/services/bookingService'; 
-import { useState, useCallback, useEffect } from 'react'; // Import useEffect
+import { useState, useCallback, useEffect } from 'react'; 
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -21,26 +21,10 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const { addNotification, currentUser } = useAuth();
   const router = useRouter();
   const [isBooking, setIsBooking] = useState(false);
-  const [isBookButtonDisabled, setIsBookButtonDisabled] = useState(true); // Explicit state for button
 
   const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
   const [selectedBookingSlot, setSelectedBookingSlot] = useState<TimeSlot | null>(null);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<Service | null>(null);
-
-  // useEffect to manage the booking button's disabled state
-  useEffect(() => {
-    const isDisabled = !selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking;
-    setIsBookButtonDisabled(isDisabled);
-    // For debugging:
-    // console.log("ClubDetailsContent: Button disabled state updated", {
-    //   service: !!selectedServiceForBooking,
-    //   date: !!selectedBookingDate,
-    //   slot: !!selectedBookingSlot,
-    //   isBooking,
-    //   calculatedIsDisabled: isDisabled
-    // });
-  }, [selectedServiceForBooking, selectedBookingDate, selectedBookingSlot, isBooking]);
-
 
   const handleCalendarSlotSelect = useCallback((date: Date | undefined, slot: TimeSlot | null) => {
     setSelectedBookingDate(date);
@@ -69,7 +53,6 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       return;
     }
 
-    // This check is redundant if the button is correctly disabled, but good for safety.
     if (!selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot) {
       toast({ 
         variant: "destructive", 
@@ -114,6 +97,8 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       
       setSelectedBookingDate(undefined); 
       setSelectedBookingSlot(null);
+      // Optionally reset selectedServiceForBooking if desired after successful booking
+      // setSelectedServiceForBooking(null);
 
     } catch (error) {
       console.error("Booking failed:", error);
@@ -128,6 +113,15 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   };
 
   const clubServicesToDisplay = club.services && club.services.length > 0 ? club.services : [];
+
+  // For debugging, uncomment this:
+  // console.log("ClubDetailsContent RENDER:", {
+  //   selectedServiceForBooking: !!selectedServiceForBooking,
+  //   selectedBookingDate: !!selectedBookingDate,
+  //   selectedBookingSlot: !!selectedBookingSlot,
+  //   isBooking,
+  //   buttonDisabled: !selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking
+  // });
 
   return (
     <>
@@ -229,7 +223,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
             size="lg" 
             className="w-full text-lg py-6" 
             onClick={handleBookSlot}
-            disabled={isBookButtonDisabled}
+            disabled={!selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking}
           >
             {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
             Book Selected Slot
