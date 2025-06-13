@@ -4,13 +4,13 @@ import type { Club, ClubAddress, ClubLocationGeo, Service } from '@/lib/types';
 const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 
 function getApiBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    // Client-side: use relative path, correctly targets internal Next.js API routes
-    return '/api';
-  }
+  // if (typeof window !== 'undefined') {
+  //   // Client-side: use relative path, correctly targets internal Next.js API routes
+  //   return '/api';
+  // }
   // Server-side: use absolute path.
   // NEXT_PUBLIC_APP_URL should be set to the application's root URL (e.g., http://localhost:9002 or https://yourdomain.com)
-  let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'; // Default to 9002 for dev server
+  let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'; // Default to 9002 for dev server
   // Remove trailing slash from baseUrl if present to prevent double slashes
   if (baseUrl.endsWith('/')) {
     baseUrl = baseUrl.slice(0, -1);
