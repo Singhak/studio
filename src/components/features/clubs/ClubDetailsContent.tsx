@@ -14,10 +14,12 @@ import { createBooking } from '@/services/bookingService';
 import { useState } from 'react';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 export function ClubDetailsContent({ club }: { club: Club }) {
   const { toast } = useToast();
   const { addNotification, currentUser } = useAuth();
+  const router = useRouter(); // Initialize useRouter
   const [isBooking, setIsBooking] = useState(false);
 
   const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
@@ -44,17 +46,12 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const handleBookSlot = async () => {
     if (!currentUser) {
       toast({
-        variant: "default", // Changed from destructive to default or a custom variant for info
+        variant: "default",
         toastTitle: "Login Required",
-        toastDescription: "Please log in or register to book a service.",
-        toastAction: (
-          <div className="flex flex-col gap-2 mt-2">
-            <Button asChild size="sm"><Link href="/login">Login</Link></Button>
-            <Button asChild variant="outline" size="sm"><Link href="/register">Register</Link></Button>
-          </div>
-        ),
-        duration: 8000, // Keep toast longer
+        toastDescription: "Please log in or register to continue with your booking.",
+        duration: 5000,
       });
+      router.push('/login'); // Navigate to login page
       return;
     }
 
@@ -128,7 +125,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
             layout="fill"
             objectFit="cover"
             className="transition-transform duration-500 hover:scale-105"
-            data-ai-hint={`${club.sport?.toLowerCase()} facility`}
+            data-ai-hint={`${(club.sport || 'sports').toLowerCase()} facility`}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
           <div className="absolute bottom-0 left-0 p-6 md:p-8">
@@ -281,4 +278,3 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     </>
   );
 }
-
