@@ -129,8 +129,8 @@ export default function OwnerDashboardPage() {
         <ClubIconLucide className="w-24 h-24 text-muted-foreground mb-6" />
         <h1 className="text-3xl font-bold mb-2">No Clubs Registered Yet</h1>
         <p className="text-muted-foreground mb-6 max-w-md">
-          It looks like you haven&apos;t registered any clubs with Courtly.
-          List your club to start managing bookings and reaching new players!
+          It looks like you haven&apos;t registered any clubs with Courtly yet.
+          Register your club to start managing bookings and reaching new players!
         </p>
         <Button size="lg" asChild>
           <Link href="/dashboard/owner/register-club">
@@ -308,8 +308,8 @@ export default function OwnerDashboardPage() {
                                 className="text-green-600 hover:text-green-700"
                                 onClick={() => {
                                     toast({
-                                        title: "Booking Accepted (Sim)",
-                                        description: `Booking for User ${booking.userId.slice(-2)} at ${selectedClub!.name} accepted.`,
+                                        toastTitle: "Booking Accepted (Sim)",
+                                        toastDescription: `Booking for User ${booking.userId.slice(-2)} at ${selectedClub!.name} accepted.`,
                                     });
                                     addNotification(
                                         `Booking Confirmed: ${selectedClub!.name}`,
@@ -319,7 +319,7 @@ export default function OwnerDashboardPage() {
                                     const bookingIndex = baseMockOwnerBookings.findIndex(b => b.id === booking.id);
                                     if (bookingIndex !== -1) {
                                       baseMockOwnerBookings[bookingIndex].status = 'confirmed';
-                                      setSelectedClub(prev => prev ? {...prev, _timestamp: Date.now()} : null);
+                                      setSelectedClub(prev => prev ? {...prev, _timestamp: Date.now()} : null); // Trigger re-render
                                     }
                                 }}
                               >
@@ -329,8 +329,8 @@ export default function OwnerDashboardPage() {
                                 onClick={() => {
                                      toast({
                                         variant: "destructive",
-                                        title: "Booking Rejected (Sim)",
-                                        description: `Booking for User ${booking.userId.slice(-2)} at ${selectedClub!.name} rejected.`,
+                                        toastTitle: "Booking Rejected (Sim)",
+                                        toastDescription: `Booking for User ${booking.userId.slice(-2)} at ${selectedClub!.name} rejected.`,
                                     });
                                     addNotification(
                                         `Booking Update: ${selectedClub!.name}`,
@@ -340,7 +340,7 @@ export default function OwnerDashboardPage() {
                                     const bookingIndex = baseMockOwnerBookings.findIndex(b => b.id === booking.id);
                                     if (bookingIndex !== -1) {
                                       baseMockOwnerBookings[bookingIndex].status = 'rejected';
-                                      setSelectedClub(prev => prev ? {...prev, _timestamp: Date.now()} : null);
+                                      setSelectedClub(prev => prev ? {...prev, _timestamp: Date.now()} : null); // Trigger re-render
                                     }
                                 }}
                               >
@@ -388,6 +388,18 @@ export default function OwnerDashboardPage() {
                 </div>
                  <Button variant="outline" asChild><Link href={`/dashboard/owner/availability?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Update</Link></Button>
               </div>
+               {/* Placeholder for "Add Another Club" if desired when >0 clubs exist */}
+              {/* 
+              {ownerClubs.length > 0 && (
+                <div className="pt-4 mt-4 border-t">
+                  <Button asChild variant="default" className="w-full sm:w-auto">
+                    <Link href="/dashboard/owner/register-club">
+                      <PlusCircle className="mr-2 h-4 w-4" /> Register Another Club
+                    </Link>
+                  </Button>
+                </div>
+              )}
+              */}
             </CardContent>
              <CardFooter>
                 <Button asChild variant="destructive" className="ml-auto"

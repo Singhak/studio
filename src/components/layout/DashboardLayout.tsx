@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -28,8 +28,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, Repeat, ChevronDown, Send, Loader2 } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, ChevronDown, Send, Loader2, Club } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext'; 
+import { getLoggedInOwnerClubs } from '@/services/clubService';
+import type { Club as ClubType } from '@/lib/types';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -37,13 +39,13 @@ interface DashboardLayoutProps {
 
 const userNavItems = [
   { href: '/dashboard/user', label: 'My Bookings', icon: CalendarDays },
-  { href: '/dashboard/user/profile', label: 'Profile', icon: UserCircle },
-  { href: '/dashboard/user/payment', label: 'Payment Methods', icon: CreditCard },
+  // { href: '/dashboard/user/profile', label: 'Profile', icon: UserCircle }, // Example, can be added if page exists
+  // { href: '/dashboard/user/payment', label: 'Payment Methods', icon: CreditCard }, // Example
 ];
 
 const ownerNavItems = [
   { href: '/dashboard/owner', label: 'Club Overview', icon: LayoutDashboard },
-  { href: '/dashboard/owner/bookings', label: 'Manage Bookings', icon: CalendarDays },
+  // { href: '/dashboard/owner/bookings', label: 'Manage Bookings', icon: CalendarDays }, // Example
   { href: '/dashboard/owner/services', label: 'Services & Pricing', icon: CreditCard },
   { href: '/dashboard/owner/availability', label: 'Availability', icon: ShieldCheck },
   { href: '/dashboard/owner/settings', label: 'Club Settings', icon: Settings },
@@ -51,56 +53,94 @@ const ownerNavItems = [
 ];
 
 const commonBottomNavItems = [
-    { href: '/settings', label: 'Account Settings', icon: Settings },
+    // { href: '/settings', label: 'Account Settings', icon: Settings }, // Example
 ];
-
-const MOCK_USER_ROLE: 'user' | 'owner' = 'owner'; 
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logoutUser, currentUser, loading: authLoading } = useAuth(); 
   
-  const [currentView, setCurrentView] = useState<'user' | 'owner'>(MOCK_USER_ROLE);
-  const isOwnerRole = MOCK_USER_ROLE === 'owner'; 
+  const [currentView, setCurrentView] = useState<'user' | 'owner'>('user');
+  const [ownedClubs, setOwnedClubs] = useState<ClubType[]>([]);
+  const [isLoadingOwnedClubs, setIsLoadingOwnedClubs] = useState(true);
 
   useEffect(() => {
-    if (pathname.startsWith('/dashboard/user')) {
-      setCurrentView('user');
-    } else if (pathname.startsWith('/dashboard/owner')) {
-      if (isOwnerRole) {
-        setCurrentView('owner');
-      } else {
-        setCurrentView('user'); // Default to user view if not an owner trying to access owner path
-      }
-    }
-    // No direct redirection here; AuthContext handles primary auth redirection
-  }, [pathname, isOwnerRole]);
+    if (authLoading) return; // Wait for auth to settle
 
-  const handleViewChange = (newView: 'user' | 'owner') => {
-    setCurrentView(newView);
+    if (!currentUser) {
+      setIsLoadingOwnedClubs(false);
+      setOwnedClubs([]);
+      setCurrentView('user');
+      if (pathname.startsWith('/dashboard')) router.push('/login'); // Redirect if not logged in but on dashboard path
+      return;
+    }
+
+    const fetchClubsAndSetView = async () => {
+      setIsLoadingOwnedClubs(true);
+      try {
+        const clubs = await getLoggedInOwnerClubs();
+        setOwnedClubs(clubs);
+        if (clubs.length > 0) {
+          // User owns clubs
+          if (pathname.startsWith('/dashboard/owner')) {
+            setCurrentView('owner');
+          } else {
+            // If they own clubs but are on a user path, default to user view.
+            // They can switch to owner view via dropdown.
+            setCurrentView('user');
+          }
+        } else {
+          // User owns no clubs
+          if (pathname.startsWith('/dashboard/owner') && pathname !== '/dashboard/owner/register-club') {
+            // Attempting to access owner dashboard but owns no clubs (and not trying to register).
+            // The OwnerDashboardPage will show "register club" prompt.
+            setCurrentView('owner'); 
+          } else {
+            setCurrentView('user'); // Default to user view for all other cases
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch owner's clubs for dashboard layout:", error);
+        setOwnedClubs([]);
+        setCurrentView('user'); // Fallback to user view on error
+      } finally {
+        setIsLoadingOwnedClubs(false);
+      }
+    };
+    fetchClubsAndSetView();
+  }, [currentUser, pathname, router, authLoading]);
+
+
+  const handleViewChange = useCallback((newView: 'user' | 'owner') => {
     if (newView === 'owner') {
-      router.push('/dashboard/owner');
+      if (ownedClubs.length > 0) {
+        router.push('/dashboard/owner');
+      } else {
+        // If trying to switch to owner but has no clubs, send to register page
+        router.push('/dashboard/owner/register-club');
+      }
     } else {
       router.push('/dashboard/user');
     }
-  };
+    // setCurrentView will be updated by the useEffect reacting to pathname change
+  }, [router, ownedClubs.length]);
 
   const handleLogout = async () => {
     await logoutUser();
     // AuthContext's useEffect will handle navigation away from protected routes
   };
 
-  if (authLoading) {
+  if (authLoading || (!currentUser && pathname.startsWith('/dashboard'))) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
       </div>
     );
   }
-
-  // If auth is done loading, and there's no user, but we're on a dashboard path,
-  // AuthContext should be redirecting. Return null to prevent flash of dashboard content.
+  
+  // If auth is done, no user, and on dashboard, AuthContext should have redirected.
+  // This is an extra guard.
   if (!currentUser && pathname.startsWith('/dashboard')) {
     return (
         <div className="flex h-screen items-center justify-center bg-background">
@@ -108,11 +148,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
     );
   }
-  
-  // If somehow currentUser is null but we are not on a dashboard path, this layout shouldn't be used.
-  // However, this component is specifically for /dashboard routes.
-  // The check above ensures that if !currentUser for a /dashboard path, we don't render the layout.
-
 
   return (
     <SidebarProvider defaultOpen>
@@ -122,7 +157,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <Logo className="text-lg" />
             <SidebarTrigger />
           </div>
-          {isOwnerRole && (
+          {!isLoadingOwnedClubs && ownedClubs.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="sidebarOutline" className="w-full justify-between text-xs sm:text-sm">
@@ -145,10 +180,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </DropdownMenu>
           )}
         </SidebarHeader>
-        <ScrollArea className="h-[calc(100vh-12rem-4rem)]">
+        <ScrollArea className="h-[calc(100vh-12rem-4rem)]"> {/* Adjust height if header/footer changes */}
           <SidebarContent className="p-2">
             <SidebarMenu>
-              {(currentView === 'owner' ? ownerNavItems : userNavItems).map((item) => (
+              {(currentView === 'owner' && ownedClubs.length > 0 ? ownerNavItems : userNavItems).map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
@@ -162,23 +197,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              {isOwnerRole && currentView === 'owner' && (
-                 <SidebarMenuItem>
+            </SidebarMenu>
+            {!isLoadingOwnedClubs && ownedClubs.length === 0 && (
+              <SidebarMenu className="mt-4 pt-2 border-t border-sidebar-border">
+                <SidebarMenuItem>
                     <SidebarMenuButton
                         asChild
                         isActive={pathname === '/dashboard/owner/register-club'}
-                        tooltip={{ children: "Register New Club", side: 'right' }}
+                        tooltip={{ children: "Register Your First Club", side: 'right' }}
                         variant="outline"
-                        className="mt-4 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary border-primary/30"
+                        className="bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary border-primary/30"
                     >
                         <Link href="/dashboard/owner/register-club">
-                        <PlusCircle className="h-4 w-4" />
-                        <span>Register New Club</span>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        <span>Register First Club</span>
                         </Link>
                     </SidebarMenuButton>
-                 </SidebarMenuItem>
-              )}
-            </SidebarMenu>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            )}
           </SidebarContent>
         </ScrollArea>
         <SidebarFooter className="p-2 border-t">
