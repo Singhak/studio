@@ -16,7 +16,8 @@ function Calendar({
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
-  const isDropdownLayout = props.captionLayout === 'dropdown-buttons' || props.captionLayout === 'dropdown';
+  // Check if captionLayout explicitly includes 'dropdown'
+  const isDropdownNav = props.captionLayout?.includes('dropdown');
 
   return (
     <DayPicker
@@ -26,23 +27,23 @@ function Calendar({
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: cn(
-          "flex pt-1 items-center justify-between", // Default: pushes items to ends
-          isDropdownLayout && "relative" // Add relative only if dropdown layout uses absolute for nav buttons
+          "flex pt-1 items-center",
+          isDropdownNav ? "relative justify-center" : "justify-between" // Center if dropdown, otherwise space between
         ),
         caption_label: "text-sm font-medium",
-        nav: cn( // This div wraps both prev/next buttons IF captionLayout is dropdowns or similar
+        nav: cn(
           "flex items-center",
-          isDropdownLayout ? "space-x-1" : "" 
+          isDropdownNav ? "space-x-1" : "" 
         ),
-        nav_button: cn( // Common style for both nav buttons
+        nav_button: cn(
           buttonVariants({ variant: "outline" }),
           "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
         ),
-        nav_button_previous: cn( // Specific to previous button
-          isDropdownLayout ? "absolute left-1" : "" 
+        nav_button_previous: cn(
+          !isDropdownNav ? "" : "absolute left-1" // Apply absolute only if dropdown nav
         ),
-        nav_button_next: cn( // Specific to next button
-          isDropdownLayout ? "absolute right-1" : ""
+        nav_button_next: cn(
+          !isDropdownNav ? "" : "absolute right-1" // Apply absolute only if dropdown nav
         ),
         table: "w-full border-collapse space-y-1",
         head_row: "flex",

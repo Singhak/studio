@@ -52,8 +52,8 @@ export default function PromotionsPage() {
     );
 
     toast({
-      title: "Promotion Sent (Simulation)",
-      description: `Your message "${data.title}" has been 'sent' to all users.`,
+      toastTitle: "Promotion Sent (Simulation)",
+      toastDescription: `Your message "${data.title}" has been 'sent' to all users.`,
       action: (
         <div className="flex items-center text-green-500">
           <BellRing className="mr-2 h-5 w-5" />

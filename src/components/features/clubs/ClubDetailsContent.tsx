@@ -5,36 +5,63 @@ import type { Club, Service, TimeSlot, CreateBookingPayload } from '@/lib/types'
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { BookingCalendar } from '@/components/features/booking/BookingCalendar';
-import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle, Clock, Palette, Loader2, LogIn } from 'lucide-react';
+import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle, Clock, Palette, Loader2, LogIn, ListChecks, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
-import { createBooking } from '@/services/bookingService'; 
-import { useState } from 'react';
+import { createBooking } from '@/services/bookingService';
+import { getServicesByClubId } from '@/services/clubService';
+import { useState, useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // Import useRouter
+import { useRouter } from 'next/navigation';
 
 export function ClubDetailsContent({ club }: { club: Club }) {
   const { toast } = useToast();
   const { addNotification, currentUser } = useAuth();
-  const router = useRouter(); // Initialize useRouter
+  const router = useRouter();
   const [isBooking, setIsBooking] = useState(false);
+
+  const [fetchedServices, setFetchedServices] = useState<Service[] | null>(null);
+  const [isLoadingServices, setIsLoadingServices] = useState(true);
+  const [servicesError, setServicesError] = useState<string | null>(null);
 
   const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
   const [selectedBookingSlot, setSelectedBookingSlot] = useState<TimeSlot | null>(null);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<Service | null>(null);
 
+  useEffect(() => {
+    const loadServices = async () => {
+      if (!club || !club._id) {
+        setIsLoadingServices(false);
+        setServicesError("Club ID is missing, cannot fetch services.");
+        return;
+      }
+      setIsLoadingServices(true);
+      setServicesError(null);
+      try {
+        const services = await getServicesByClubId(club._id);
+        setFetchedServices(services || []);
+      } catch (error) {
+        console.error("Failed to fetch services for club:", error);
+        setServicesError(error instanceof Error ? error.message : "Could not load services.");
+        setFetchedServices([]);
+      } finally {
+        setIsLoadingServices(false);
+      }
+    };
+    loadServices();
+  }, [club]);
 
-  const handleCalendarSlotSelect = (date: Date | undefined, slot: TimeSlot | null) => {
+  const handleCalendarSlotSelect = useCallback((date: Date | undefined, slot: TimeSlot | null) => {
     setSelectedBookingDate(date);
     setSelectedBookingSlot(slot);
-  };
+  }, []);
 
   const handleServiceSelectionForBooking = (service: Service) => {
     setSelectedServiceForBooking(service);
-    setSelectedBookingDate(undefined); 
+    setSelectedBookingDate(undefined);
     setSelectedBookingSlot(null);
     toast({
         toastTitle: `Service Selected: ${service.name}`,
@@ -42,28 +69,32 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     });
   };
 
-
   const handleBookSlot = async () => {
     if (!currentUser) {
       toast({
         variant: "default",
         toastTitle: "Login Required",
         toastDescription: "Please log in or register to continue with your booking.",
-        duration: 5000,
+        action: (
+          <div className="flex gap-2 mt-2">
+            <Button size="sm" onClick={() => router.push('/login')}>Login</Button>
+            <Button size="sm" variant="outline" onClick={() => router.push('/register')}>Register</Button>
+          </div>
+        ),
+        duration: 7000,
       });
-      router.push('/login'); // Navigate to login page
+      router.push('/login');
       return;
     }
 
-    if (!selectedServiceForBooking) {
-      toast({ variant: "destructive", toastTitle: "No Service Selected", toastDescription: "Please select a service before booking." });
+    if (!selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot) {
+      toast({
+        variant: "destructive",
+        toastTitle: "Incomplete Selection",
+        toastDescription: "Please ensure a service, date, and time slot are selected."
+      });
       return;
     }
-    if (!selectedBookingDate || !selectedBookingSlot) {
-      toast({ variant: "destructive", toastTitle: "Date/Time Not Selected", toastDescription: "Please select a date and an available time slot." });
-      return;
-    }
-    
 
     setIsBooking(true);
     toast({
@@ -83,44 +114,52 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       toast({
         toastTitle: "Booking Submitted!",
         toastDescription: bookingResponse.message,
-        variant: bookingResponse.status === 'pending' ? 'default' : 'default', 
+        variant: bookingResponse.status === 'pending' ? 'default' : 'default',
       });
 
       addNotification(
         `New Booking Request: ${club.name}`,
         `A new booking for "${selectedServiceForBooking.name}" has been requested by ${currentUser?.displayName || currentUser?.email || 'a user'}. Please review.`,
-        '/dashboard/owner' 
+        '/dashboard/owner'
       );
-      
+
       addNotification(
         `Booking for ${selectedServiceForBooking.name} Pending`,
         `Your booking request for ${club.name} is ${bookingResponse.status}.`,
-        '/dashboard/user' 
+        '/dashboard/user'
       );
-      
+
       setSelectedBookingDate(undefined);
       setSelectedBookingSlot(null);
+      // setSelectedServiceForBooking(null); // Optionally reset selected service
 
     } catch (error) {
       console.error("Booking failed:", error);
       toast({
         variant: "destructive",
-        title: "Booking Failed",
-        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+        toastTitle: "Booking Failed",
+        toastDescription: error instanceof Error ? error.message : "An unexpected error occurred.",
       });
     } finally {
       setIsBooking(false);
     }
   };
-
-  const clubServicesToDisplay = club.services && club.services.length > 0 ? club.services : [];
+  
+  // For debugging button disable state:
+  // console.log("ClubDetailsContent Render - Button State:", {
+  //   service: !!selectedServiceForBooking,
+  //   date: !!selectedBookingDate,
+  //   slot: !!selectedBookingSlot,
+  //   isBooking: isBooking,
+  //   buttonDisabled: !selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking
+  // });
 
   return (
     <>
       <section className="mb-8">
         <div className="relative h-64 md:h-96 rounded-lg overflow-hidden shadow-xl">
           <Image
-            src={club.images[0] || 'https://placehold.co/1200x400.png'}
+            src={club.images?.[0] || 'https://placehold.co/1200x400.png'}
             alt={`${club.name} main image`}
             layout="fill"
             objectFit="cover"
@@ -132,7 +171,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
             <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight">{club.name}</h1>
             <div className="flex items-center mt-2 space-x-4 text-white/90">
               {club.sport && <span className="flex items-center"><Zap size={18} className="mr-1.5" /> {club.sport}</span>}
-              {club.address.city && <span className="flex items-center"><MapPin size={18} className="mr-1.5" /> {club.address.city}</span>}
+              {club.address?.city && <span className="flex items-center"><MapPin size={18} className="mr-1.5" /> {club.address.city}</span>}
               {club.averageRating !== undefined && club.averageRating !== null && <span className="flex items-center"><Star size={18} className="mr-1.5 text-yellow-400 fill-yellow-400" /> {club.averageRating.toFixed(1)}</span>}
             </div>
           </div>
@@ -159,16 +198,27 @@ export function ClubDetailsContent({ club }: { club: Club }) {
               )}
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader><CardTitle className="text-2xl">Services & Pricing</CardTitle></CardHeader>
             <CardContent>
-              {clubServicesToDisplay.length > 0 ? (
+              {isLoadingServices ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
+                  <span>Loading services...</span>
+                </div>
+              ) : servicesError ? (
+                <div className="text-center py-8 text-destructive">
+                   <AlertTriangle className="mx-auto h-10 w-10 mb-2" />
+                  <p className="font-semibold">Could not load services</p>
+                  <p className="text-sm">{servicesError}</p>
+                </div>
+              ) : fetchedServices && fetchedServices.length > 0 ? (
                 <ul className="space-y-4">
-                  {clubServicesToDisplay.map((service) => (
-                    <li 
-                        key={service._id} 
-                        className={`p-4 border rounded-md hover:shadow-sm transition-all cursor-pointer 
+                  {fetchedServices.map((service) => (
+                    <li
+                        key={service._id}
+                        className={`p-4 border rounded-md hover:shadow-sm transition-all cursor-pointer
                                     ${selectedServiceForBooking?._id === service._id ? 'ring-2 ring-primary shadow-lg' : 'border-border'}`}
                         onClick={() => handleServiceSelectionForBooking(service)}
                     >
@@ -190,16 +240,19 @@ export function ClubDetailsContent({ club }: { club: Club }) {
                   ))}
                 </ul>
               ) : (
-                 <p className="text-sm text-muted-foreground mt-4">No specific services listed for this club. Please check with the club directly for offerings.</p>
+                 <p className="text-sm text-muted-foreground mt-4 text-center py-8 flex flex-col items-center">
+                    <ListChecks className="w-12 h-12 mb-3 text-muted-foreground/50" />
+                    No services currently listed for this club.
+                 </p>
               )}
             </CardContent>
           </Card>
 
-          {club.images && club.images.length > 1 && (
+          {club.images && club.images.length > 1 && ( // Show gallery if more than one image
             <Card>
               <CardHeader><CardTitle className="text-2xl">Gallery</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {club.images.slice(0,6).map((img, index) => (
+                {club.images.slice(0,6).map((img, index) => ( // Show up to 6 images
                   <div key={index} className="aspect-square rounded-md overflow-hidden shadow-md">
                     <Image src={img} alt={`${club.name} gallery image ${index + 1}`} width={300} height={300} className="object-cover w-full h-full" data-ai-hint="sports facility" />
                   </div>
@@ -211,16 +264,16 @@ export function ClubDetailsContent({ club }: { club: Club }) {
 
         <div className="space-y-8">
           <BookingCalendar onSlotSelect={handleCalendarSlotSelect} />
-          <Button 
-            size="lg" 
-            className="w-full text-lg py-6" 
+          <Button
+            size="lg"
+            className="w-full text-lg py-6"
             onClick={handleBookSlot}
             disabled={!selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking}
           >
             {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
             Book Selected Slot
           </Button>
-          
+
           <Card>
             <CardHeader><CardTitle className="text-xl">Contact Information</CardTitle></CardHeader>
             <CardContent className="space-y-3">
@@ -236,10 +289,12 @@ export function ClubDetailsContent({ club }: { club: Club }) {
                    <a href={`mailto:${club.contactEmail}`} className="text-muted-foreground hover:text-primary">{club.contactEmail}</a>
                 </div>
               )}
-              <div className="flex items-center">
-                <MapPin className="w-4 h-4 mr-2 text-primary" />
-                <span className="text-muted-foreground">{`${club.address.street}, ${club.address.city}`}</span>
-              </div>
+              {club.address?.street && club.address?.city && (
+                <div className="flex items-center">
+                    <MapPin className="w-4 h-4 mr-2 text-primary" />
+                    <span className="text-muted-foreground">{`${club.address.street}, ${club.address.city}`}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
 

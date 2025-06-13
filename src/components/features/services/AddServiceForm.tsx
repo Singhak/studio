@@ -115,8 +115,8 @@ export function AddServiceForm({ clubId, onServiceAdded, onClose }: AddServiceFo
     try {
       const newService = await addClubService(servicePayload);
       toast({
-        title: "Service Added!",
-        description: `${newService.name} has been successfully added to the club.`,
+        toastTitle: "Service Added!",
+        toastDescription: `${newService.name} has been successfully added to the club.`,
       });
       onServiceAdded(newService);
       form.reset();
@@ -124,8 +124,8 @@ export function AddServiceForm({ clubId, onServiceAdded, onClose }: AddServiceFo
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Failed to Add Service",
-        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+        toastTitle: "Failed to Add Service",
+        toastDescription: error instanceof Error ? error.message : "An unexpected error occurred.",
       });
     } finally {
       setIsSubmitting(false);
