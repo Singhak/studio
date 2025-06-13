@@ -17,6 +17,7 @@ type ToasterToast = ToastProps & {
   toastTitle?: React.ReactNode // Renamed from title
   toastDescription?: React.ReactNode // Renamed from description
   toastAction?: ToastActionElement // Renamed from action
+  onDismiss?: () => void; // Added onDismiss callback
 }
 
 const actionTypes = {
@@ -144,21 +145,22 @@ type ToastArg = Omit<ToasterToast, "id">
 function toast({ ...props }: ToastArg) {
   const id = genId()
 
-  const update = (newToastProps: Partial<ToastArg>) => // Argument is now partial of ToastArg
+  const update = (newToastProps: Partial<ToastArg>) =>
     dispatch({
       type: "UPDATE_TOAST",
-      toast: { ...newToastProps, id }, // Spread newToastProps and ensure id is included
+      toast: { ...newToastProps, id },
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
   dispatch({
     type: "ADD_TOAST",
     toast: {
-      ...props,
+      ...props, // props is of type ToastArg, which now includes onDismiss
       id,
       open: true,
-      onOpenChange: (open) => {
+      onOpenChange: (open) => { // This onOpenChange is part of ToastProps
         if (!open) dismiss()
+        // The toast-specific onDismiss will be called by the Toaster component
       },
     },
   })
