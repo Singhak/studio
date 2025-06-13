@@ -3,14 +3,13 @@
 
 import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
-import { Button } from '@/components/ui/button'; // Removed buttonVariants
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Clock, Loader2 } from 'lucide-react';
 import type { TimeSlot, TimeSlotStatus } from '@/lib/types';
 import { format } from 'date-fns';
-import type { Matcher } from 'react-day-picker'; // Changed DateMatcher to Matcher
-// import { cn } from '@/lib/utils'; // Not used directly here
+import type { Matcher } from 'react-day-picker';
 
 const allStatuses: TimeSlotStatus[] = ['available', 'pending', 'confirmed', 'in-progress', 'unavailable'];
 
@@ -18,83 +17,81 @@ const allStatuses: TimeSlotStatus[] = ['available', 'pending', 'confirmed', 'in-
 const generateMockTimeSlots = (date?: Date): TimeSlot[] => {
   if (!date) return [];
   const day = date.getDay();
-  // Less slots on weekends for this mock data
   const baseSlotsCount = (day === 0 || day === 6) ? Math.floor(Math.random() * 5) + 3 : Math.floor(Math.random() * 8) + 5;
   const slots: TimeSlot[] = [];
   const generatedStartTimes = new Set<string>();
   let currentHour = 9;
 
-
   for (let i = 0; i < baseSlotsCount; i++) {
     if (currentHour >= 21) break;
-
     const startTime = `${currentHour.toString().padStart(2, '0')}:00`;
-    
-    // Ensure unique start time for the day
     if (generatedStartTimes.has(startTime)) {
-      currentHour += (Math.random() > 0.3 ? 1 : 2); // Skip if already generated, try next hour
+      currentHour += (Math.random() > 0.3 ? 1 : 2);
       continue;
     }
     generatedStartTimes.add(startTime);
-
     const endTime = `${(currentHour + 1).toString().padStart(2, '0')}:00`;
     const randomIndex = Math.floor(Math.random() * allStatuses.length);
     const status = allStatuses[randomIndex];
-    
-    slots.push({
-      startTime: startTime,
-      endTime: endTime,
-      status: status,
-    });
-
-    currentHour += (Math.random() > 0.3 ? 1 : 2); // Increment hour by 1 or 2 for next slot
+    slots.push({ startTime, endTime, status });
+    currentHour += (Math.random() > 0.3 ? 1 : 2);
   }
-  // Already sorted by generation, but can keep sort if logic becomes complex
-  return slots.sort((a,b) => a.startTime.localeCompare(b.startTime));
+  return slots.sort((a, b) => a.startTime.localeCompare(b.startTime));
 };
 
 interface BookingCalendarProps {
-  // Callback to inform parent about selection changes
   onSlotSelect?: (date: Date | undefined, slot: TimeSlot | null) => void;
 }
 
 export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
+  const [internalSelectedTimeSlot, setInternalSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [clientLoaded, setClientLoaded] = useState(false);
-  const [disabledDaysConfig, setDisabledDaysConfig] = useState<Matcher | undefined>(); // Changed DateMatcher to Matcher
+  const [disabledDaysConfig, setDisabledDaysConfig] = useState<Matcher | undefined>();
 
   useEffect(() => {
     setClientLoaded(true);
     const today = new Date();
-    setSelectedDate(today); 
+    setSelectedDate(today); // Set internal default date
+    if (onSlotSelect) {
+      // Inform parent of initial default date, no slot selected yet
+      onSlotSelect(today, null);
+    }
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     setDisabledDaysConfig({ before: startOfToday });
-  }, []); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientLoaded, onSlotSelect]); // onSlotSelect is stable from parent
 
+  // Effect to update time slots when internal selectedDate changes
   useEffect(() => {
     if (clientLoaded && selectedDate) {
       setTimeSlots(generateMockTimeSlots(selectedDate));
-      setSelectedTimeSlot(null); // Reset selected slot when date changes
-      if (onSlotSelect) onSlotSelect(selectedDate, null);
+      setInternalSelectedTimeSlot(null); // Reset internal visual selection of slot
+      // Note: We do NOT call onSlotSelect(selectedDate, null) here anymore.
+      // That call is now tied to explicit date changes (handleDateChange or initial load).
     } else if (clientLoaded && !selectedDate) {
       setTimeSlots([]);
-      setSelectedTimeSlot(null);
-      if (onSlotSelect) onSlotSelect(undefined, null);
+      setInternalSelectedTimeSlot(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, clientLoaded]); // onSlotSelect is not included to prevent re-triggering on parent re-render
+  }, [selectedDate, clientLoaded]);
 
   const handleDateChange = (date: Date | undefined) => {
-    setSelectedDate(date);
-    // onSlotSelect will be called by the useEffect above
+    setSelectedDate(date); // Update internal date
+    setInternalSelectedTimeSlot(null); // Reset internal slot styling for the new date
+    if (onSlotSelect) {
+      // Inform parent: date changed, so no slot is selected for this new date.
+      onSlotSelect(date, null);
+    }
   };
 
   const handleTimeSlotClick = (slot: TimeSlot) => {
     if (slot.status === 'available') {
-      setSelectedTimeSlot(slot);
-      if (onSlotSelect) onSlotSelect(selectedDate, slot);
+      setInternalSelectedTimeSlot(slot); // Update internal slot for styling
+      if (onSlotSelect) {
+        // Inform parent: this slot is now selected for the current selectedDate.
+        onSlotSelect(selectedDate, slot);
+      }
     }
   };
 
@@ -103,7 +100,7 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-xl flex items-center">
-             <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
+            <Clock className="w-5 h-5 mr-2 text-primary" /> Select Date & Time
           </CardTitle>
         </CardHeader>
         <CardContent className="flex justify-center items-center min-h-[200px]">
@@ -121,7 +118,8 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
 
     switch (slot.status) {
       case 'available':
-        variant = selectedTimeSlot?.startTime === slot.startTime ? 'default' : 'outline';
+        // Use internalSelectedTimeSlot for styling the button's selected state
+        variant = internalSelectedTimeSlot?.startTime === slot.startTime ? 'default' : 'outline';
         isDisabled = false;
         break;
       case 'pending':
@@ -148,7 +146,6 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
     return { variant, isDisabled, buttonClassName, buttonText };
   };
 
-
   return (
     <TooltipProvider>
       <Card className="shadow-lg">
@@ -162,8 +159,8 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={handleDateChange}
-              className="rounded-md border" 
+              onSelect={handleDateChange} // This now correctly calls onSlotSelect(newDate, null)
+              className="rounded-md border"
               disabled={disabledDaysConfig}
               captionLayout="buttons"
             />
@@ -176,7 +173,6 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
               <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
                 {timeSlots.map((slot, index) => {
                   const { variant, isDisabled, buttonClassName, buttonText } = getSlotButtonProps(slot);
-
                   const actualButton = (
                     <Button
                       variant={variant}
@@ -187,12 +183,11 @@ export function BookingCalendar({ onSlotSelect }: BookingCalendarProps) {
                       {buttonText}
                     </Button>
                   );
-
                   return (
                     <Tooltip key={`${slot.startTime}-${index}`}>
                       <TooltipTrigger asChild>
                         {isDisabled ? (
-                          <span className="inline-block w-full" tabIndex={0}> 
+                          <span className="inline-block w-full" tabIndex={0}>
                             {actualButton}
                           </span>
                         ) : (
