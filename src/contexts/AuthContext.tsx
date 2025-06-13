@@ -98,8 +98,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!userForNotifications) {
         setNotifications([]);
         setUnreadCount(0);
-        // Potentially clear localStorage for notifications if a user just logged out,
-        // though logoutUser function might be a better place if UID is needed.
         return;
     }
     try {
@@ -114,9 +112,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (storageKey) {
         const stored = localStorage.getItem(storageKey);
         if (stored) {
-          const parsed = JSON.parse(stored) as AppNotification[];
-          setNotifications(parsed);
-          setUnreadCount(parsed.filter(n => !n.read).length);
+          try {
+            const parsed = JSON.parse(stored) as AppNotification[];
+            setNotifications(parsed);
+            setUnreadCount(parsed.filter(n => !n.read).length);
+          } catch (parseError) {
+            console.error(`Failed to parse stored notifications (key: ${storageKey}). Data was: "${stored.substring(0,100)}..."`, parseError);
+            localStorage.removeItem(storageKey); // Clear corrupted data
+            setNotifications([]); // Reset to empty
+            setUnreadCount(0);
+          }
         } else {
           setNotifications([]);
           setUnreadCount(0);
@@ -128,8 +133,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   useEffect(() => {
-    // This effect runs when `currentUser` state changes.
-    // `fetchAndSetWeeklyNotifications` is called here.
     fetchAndSetWeeklyNotifications(currentUser);
   }, [currentUser, fetchAndSetWeeklyNotifications]);
 
@@ -210,7 +213,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     toast({toastTitle: "Notifications Cleared"});
   }, [saveNotificationsToStorage, toast, currentUser]);
 
-  // Centralized function to handle custom API login
   const handleCustomApiLogin = async (firebaseUser: User): Promise<boolean> => {
     try {
       const firebaseIdToken = await firebaseUser.getIdToken();
@@ -242,23 +244,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const logoutUser = useCallback(async () => {
+    const uidBeforeLogout = currentUser?.uid; 
     try {
-      const uidBeforeLogout = currentUser?.uid; 
       await signOut(auth); 
-
+      toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
+      router.push('/');
+    } catch (error: any) {
+      console.error("Error signing out:", error);
+      toast({ variant: "destructive", toastTitle: "Logout Failed", toastDescription: error.message });
+    } finally {
       if (uidBeforeLogout) {
           const notificationKey = getNotificationStorageKey(uidBeforeLogout);
           if (notificationKey) localStorage.removeItem(notificationKey);
           localStorage.removeItem(`profileCompletionPending_${uidBeforeLogout}`);
       }
-      
-      toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
-      // Main redirection is handled by the useEffect below, which watches currentUser
-    } catch (error: any) {
-      console.error("Error signing out:", error);
-      toast({ variant: "destructive", toastTitle: "Logout Failed", toastDescription: error.message });
+      // Clear other states, onAuthStateChanged will also handle some of this
+      setAccessToken(null);
+      setRefreshToken(null);
+      localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
+      localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
+      setProfileCompletionPending(false);
+      setCurrentUser(null); // Explicitly set current user to null
+      setNotifications([]); 
+      setUnreadCount(0);
     }
-  }, [currentUser, getNotificationStorageKey, toast]);
+  }, [currentUser, getNotificationStorageKey, toast, router]);
 
 
   useEffect(() => {
@@ -292,7 +302,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             });
           });
         }
-      } else { // No user, cleanup FCM listener if it exists
+      } else { 
          if (unsubscribeFcmOnMessage) {
           unsubscribeFcmOnMessage();
           unsubscribeFcmOnMessage = null;
@@ -321,14 +331,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setProfileCompletionPending(false); 
         setNotifications([]); 
         setUnreadCount(0);
+         if (unsubscribeFcmOnMessage) {
+          unsubscribeFcmOnMessage();
+          unsubscribeFcmOnMessage = null;
+        }
       }
-      await setupFcm(user); // Setup or cleanup FCM based on user state
+      await setupFcm(user); 
       setLoading(false); 
     });
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeFcmOnMessage) { // Ensure cleanup on provider unmount
+      if (unsubscribeFcmOnMessage) { 
         unsubscribeFcmOnMessage();
       }
     };
@@ -342,24 +356,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const isAuthPage = authPages.includes(pathname);
     const isProtectedPath = pathname.startsWith('/dashboard');
 
-    if (currentUser) { // User is authenticated with Firebase
+    if (currentUser) { 
       if (profileCompletionPending) {
         if (pathname !== '/auth/complete-profile') {
           router.push('/auth/complete-profile');
         }
-      } else if (accessToken && refreshToken) { // User is fully logged in (Firebase + Custom)
+      } else if (accessToken && refreshToken) { 
         if (isAuthPage) {
           router.push('/dashboard/user'); 
         }
-      } else { // Firebase user exists, but no custom tokens (e.g., custom login failed or tokens lost)
+      } else { 
         if (isProtectedPath) {
-          // This implies an inconsistent state. Log out fully and redirect to login.
-          logoutUser(); // This will set currentUser to null, and this effect will run again.
+          logoutUser(); 
         }
-        // If on an auth page, let them stay to try logging in again.
-        // If on a public page, also let them stay.
       }
-    } else { // No currentUser (logged out or never logged in)
+    } else { 
       if (isProtectedPath) {
         router.push('/login');
       }
@@ -511,3 +522,4 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
