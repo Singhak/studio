@@ -111,8 +111,8 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
         console.error("Failed to fetch club/service details for review:", error);
         toast({
           variant: "destructive",
-          title: "Error loading details",
-          description: "Could not load club or service information for this booking.",
+          toastTitle: "Error loading details",
+          toastDescription: "Could not load club or service information for this booking.",
         });
       } finally {
         setIsLoadingDetails(false);
@@ -132,8 +132,8 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
     if (clubRating === 0 || serviceRating === 0) {
       toast({
         variant: "destructive",
-        title: "Missing Ratings",
-        description: "Please provide a rating for both the club and the service.",
+        toastTitle: "Missing Ratings",
+        toastDescription: "Please provide a rating for both the club and the service.",
       });
       return;
     }
@@ -148,8 +148,8 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
     };
     console.log("Review Submitted:", reviewData);
     toast({
-      title: "Review Submitted!",
-      description: "Thank you for your feedback.",
+      toastTitle: "Review Submitted!",
+      toastDescription: "Thank you for your feedback.",
     });
     onReviewSubmit(reviewData);
     form.reset();
