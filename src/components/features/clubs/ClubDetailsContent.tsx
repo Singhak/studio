@@ -1,21 +1,22 @@
 
 "use client";
 
-import type { Club, Service, TimeSlot, CreateBookingPayload } from '@/lib/types';
+import type { Club, Service, TimeSlot, CreateBookingPayload, SportType } from '@/lib/types';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { BookingCalendar } from '@/components/features/booking/BookingCalendar';
-import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle, Clock, Palette, Loader2, LogIn, ListChecks, AlertTriangle } from 'lucide-react';
+import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle, Clock, Palette, Loader2, LogIn, ListChecks, AlertTriangle, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { createBooking } from '@/services/bookingService';
 import { getServicesByClubId } from '@/services/clubService';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function ClubDetailsContent({ club }: { club: Club }) {
   const { toast } = useToast();
@@ -30,28 +31,26 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
   const [selectedBookingSlot, setSelectedBookingSlot] = useState<TimeSlot | null>(null);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<Service | null>(null);
+  const [selectedSportFilter, setSelectedSportFilter] = useState<SportType | "all">("all");
 
-  // Directly use club._id for the dependency.
-  // ClubDetailsPage ensures `club` prop is always a valid Club object here.
   const clubId = club._id;
 
   useEffect(() => {
     // console.log(`[ClubDetailsContent] useEffect for services triggered. Club ID: ${clubId}`);
-
     const loadServicesForCurrentClub = async () => {
       if (!clubId) {
-        // This case should ideally not be hit if ClubDetailsPage guarantees a valid club prop.
         // console.warn("[ClubDetailsContent] Club ID is missing, cannot fetch services.");
         setIsLoadingServices(false);
-        setFetchedServices([]); // Clear any previous services
-        setServicesError("Club information is incomplete."); // Generic error
+        setFetchedServices([]);
+        setServicesError("Club information is incomplete.");
         return;
       }
 
       // console.log(`[ClubDetailsContent] Attempting to fetch services for club: ${clubId}`);
       setIsLoadingServices(true);
       setServicesError(null);
-      setFetchedServices([]); // Clear previous services before fetching new ones
+      setFetchedServices([]);
+      setSelectedSportFilter("all"); // Reset filter when club changes
 
       try {
         const services = await getServicesByClubId(clubId);
@@ -60,14 +59,14 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       } catch (error) {
         console.error(`[ClubDetailsContent] Failed to fetch services for club ${clubId}:`, error);
         setServicesError(error instanceof Error ? error.message : "Could not load services for this club.");
-        setFetchedServices([]); // Ensure services are cleared on error
+        setFetchedServices([]);
       } finally {
         setIsLoadingServices(false);
       }
     };
 
     loadServicesForCurrentClub();
-  }, [clubId]); // Depend explicitly on clubId
+  }, [clubId]);
 
   const handleCalendarSlotSelect = useCallback((date: Date | undefined, slot: TimeSlot | null) => {
     setSelectedBookingDate(date);
@@ -160,14 +159,19 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     }
   };
   
-  // For debugging button disable state:
-  // console.log("ClubDetailsContent Render - Button State:", {
-  //   service: !!selectedServiceForBooking,
-  //   date: !!selectedBookingDate,
-  //   slot: !!selectedBookingSlot,
-  //   isBooking: isBooking,
-  //   buttonDisabled: !selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking
-  // });
+  const availableSportTypes = useMemo(() => {
+    if (!fetchedServices) return [];
+    const types = new Set<SportType>();
+    fetchedServices.forEach(service => types.add(service.sportType));
+    return Array.from(types);
+  }, [fetchedServices]);
+
+  const filteredServices = useMemo(() => {
+    if (!fetchedServices) return [];
+    if (selectedSportFilter === "all") return fetchedServices;
+    return fetchedServices.filter(service => service.sportType === selectedSportFilter);
+  }, [fetchedServices, selectedSportFilter]);
+
 
   return (
     <>
@@ -215,7 +219,28 @@ export function ClubDetailsContent({ club }: { club: Club }) {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-2xl">Services & Pricing</CardTitle></CardHeader>
+            <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <CardTitle className="text-2xl">Services & Pricing</CardTitle>
+              {availableSportTypes.length > 1 && (
+                <div className="w-full sm:w-auto sm:min-w-[200px]">
+                  <Select
+                    value={selectedSportFilter}
+                    onValueChange={(value) => setSelectedSportFilter(value as SportType | "all")}
+                  >
+                    <SelectTrigger className="w-full" aria-label="Filter services by sport type">
+                      <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <SelectValue placeholder="Filter by sport..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sports</SelectItem>
+                      {availableSportTypes.map(sport => (
+                        <SelectItem key={sport} value={sport}>{sport}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </CardHeader>
             <CardContent>
               {isLoadingServices ? (
                 <div className="flex items-center justify-center py-8">
@@ -228,9 +253,9 @@ export function ClubDetailsContent({ club }: { club: Club }) {
                   <p className="font-semibold">Could not load services</p>
                   <p className="text-sm">{servicesError}</p>
                 </div>
-              ) : fetchedServices && fetchedServices.length > 0 ? (
+              ) : filteredServices && filteredServices.length > 0 ? (
                 <ul className="space-y-4">
-                  {fetchedServices.map((service) => (
+                  {filteredServices.map((service) => (
                     <li
                         key={service._id}
                         className={`p-4 border rounded-md hover:shadow-sm transition-all cursor-pointer
@@ -257,7 +282,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
               ) : (
                  <p className="text-sm text-muted-foreground mt-4 text-center py-8 flex flex-col items-center">
                     <ListChecks className="w-12 h-12 mb-3 text-muted-foreground/50" />
-                    No services currently listed for this club.
+                    No services found {selectedSportFilter !== "all" ? `for ${selectedSportFilter}` : "for this club"}.
                  </p>
               )}
             </CardContent>
@@ -348,3 +373,4 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     </>
   );
 }
+
