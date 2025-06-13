@@ -36,25 +36,24 @@ export function ClubDetailsContent({ club }: { club: Club }) {
   const clubId = club._id;
 
   useEffect(() => {
-    // console.log(`[ClubDetailsContent] useEffect for services triggered. Club ID: ${clubId}`);
     const loadServicesForCurrentClub = async () => {
       if (!clubId) {
-        // console.warn("[ClubDetailsContent] Club ID is missing, cannot fetch services.");
         setIsLoadingServices(false);
         setFetchedServices([]);
         setServicesError("Club information is incomplete.");
         return;
       }
-
-      // console.log(`[ClubDetailsContent] Attempting to fetch services for club: ${clubId}`);
       setIsLoadingServices(true);
       setServicesError(null);
       setFetchedServices([]);
-      setSelectedSportFilter("all"); // Reset filter when club changes
+      setSelectedSportFilter("all"); 
+      setSelectedServiceForBooking(null); // Reset selected service when club changes
+      setSelectedBookingDate(undefined); // Reset date
+      setSelectedBookingSlot(null); // Reset slot
+
 
       try {
         const services = await getServicesByClubId(clubId);
-        // console.log(`[ClubDetailsContent] Services fetched for ${clubId}:`, services);
         setFetchedServices(services || []);
       } catch (error) {
         console.error(`[ClubDetailsContent] Failed to fetch services for club ${clubId}:`, error);
@@ -75,8 +74,8 @@ export function ClubDetailsContent({ club }: { club: Club }) {
 
   const handleServiceSelectionForBooking = (service: Service) => {
     setSelectedServiceForBooking(service);
-    setSelectedBookingDate(undefined);
-    setSelectedBookingSlot(null);
+    setSelectedBookingDate(undefined); // Reset date when service changes
+    setSelectedBookingSlot(null);    // Reset slot when service changes
     toast({
         toastTitle: `Service Selected: ${service.name}`,
         toastDescription: "Please pick a date and time slot for this service.",
@@ -125,9 +124,32 @@ export function ClubDetailsContent({ club }: { club: Club }) {
 
     try {
       const bookingResponse = await createBooking(bookingPayload);
+
+      // Calculate duration for the toast
+      let durationHours = 0;
+      try {
+        const startDate = new Date(`1970-01-01T${selectedBookingSlot.startTime}:00`);
+        const endDate = new Date(`1970-01-01T${selectedBookingSlot.endTime}:00`);
+        if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+          const durationMillis = endDate.getTime() - startDate.getTime();
+          durationHours = durationMillis / (1000 * 60 * 60);
+        }
+      } catch (e) {
+        console.error("Error calculating duration for toast:", e);
+      }
+      
+      const toastDescription = `For: ${selectedServiceForBooking.name}
+Date: ${format(selectedBookingDate, 'MMM d, yyyy')}
+Time: ${selectedBookingSlot.startTime} - ${selectedBookingSlot.endTime}
+${durationHours > 0 ? `Duration: ${durationHours.toFixed(1)} hr(s)` : ''}
+Status: ${bookingResponse.message}`;
+
+
       toast({
         toastTitle: "Booking Submitted!",
-        toastDescription: bookingResponse.message,
+        toastDescription: (
+          <div className="whitespace-pre-line">{toastDescription}</div>
+        ),
         variant: bookingResponse.status === 'pending' ? 'default' : 'default',
       });
 
@@ -143,9 +165,14 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         '/dashboard/user'
       );
 
+      // Reset selection after successful booking
       setSelectedBookingDate(undefined);
       setSelectedBookingSlot(null);
-      // setSelectedServiceForBooking(null); // Optionally reset selected service
+      // Optionally reset selectedServiceForBooking if you want users to re-select service each time
+      // setSelectedServiceForBooking(null); 
+      // Manually trigger a re-fetch of slots for the current date/service if needed
+      // This typically involves re-triggering the useEffect in BookingCalendar
+      // For simplicity, current implementation relies on user selecting a new date/service or page reload.
 
     } catch (error) {
       console.error("Booking failed:", error);
@@ -303,7 +330,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         </div>
 
         <div className="space-y-8">
-          <BookingCalendar onSlotSelect={handleCalendarSlotSelect} />
+          <BookingCalendar selectedService={selectedServiceForBooking} onSlotSelect={handleCalendarSlotSelect} />
           <Button
             size="lg"
             className="w-full text-lg py-6"
@@ -373,4 +400,3 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     </>
   );
 }
-

@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import type { Booking, CreateBookingPayload } from '@/lib/types';
-import { mockServices } from '@/lib/mockData';
+import { mockServices, mockUserBookings, baseMockOwnerBookings } from '@/lib/mockData';
 
 // In-memory store for mock bookings (for demonstration purposes)
 let bookingsStore: Booking[] = [];
@@ -87,7 +87,40 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Optional: GET endpoint to view bookings (for debugging)
-export async function GET() {
-  return NextResponse.json(bookingsStore);
+// GET endpoint to view bookings
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const serviceId = searchParams.get('serviceId');
+  const date = searchParams.get('date'); // Expected format YYYY-MM-DD
+
+  let allBookings = [...bookingsStore, ...mockUserBookings, ...baseMockOwnerBookings];
+
+  // Deduplicate bookings by ID, giving preference to bookingsStore (potentially more up-to-date from POSTs)
+  const uniqueBookingsMap = new Map<string, Booking>();
+  allBookings.forEach(booking => {
+    // Prefer bookings from bookingsStore if IDs clash with mockData
+    if (!uniqueBookingsMap.has(booking.id) || bookingsStore.some(b => b.id === booking.id)) {
+      uniqueBookingsMap.set(booking.id, booking);
+    }
+  });
+  allBookings = Array.from(uniqueBookingsMap.values());
+
+  if (serviceId && date) {
+    const filteredBookings = allBookings.filter(
+      (booking) => booking.serviceId === serviceId && booking.date === date
+    );
+    return NextResponse.json(filteredBookings);
+  }
+  
+  // If only serviceId is provided, return all bookings for that service
+  if (serviceId) {
+    const filteredBookings = allBookings.filter(
+      (booking) => booking.serviceId === serviceId
+    );
+    return NextResponse.json(filteredBookings);
+  }
+
+  // If no specific filters (serviceId, date) are provided, return all combined and deduplicated bookings.
+  // This could be a large payload in a real app, consider pagination or requiring filters.
+  return NextResponse.json(allBookings);
 }
