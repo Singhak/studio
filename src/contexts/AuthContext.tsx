@@ -418,14 +418,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (shouldShowReminder) {
         const {id: toastId, dismiss} = toast({
           toastTitle: (
-            <div className="flex items-start">
-              <Bell className="h-5 w-5 text-primary mr-3 mt-0.5 shrink-0" />
-              <div>
-                Stay Updated!
-              </div>
+            <div className="flex items-center">
+              <Bell className="h-5 w-5 text-primary mr-2" />
+              <span>Stay Updated!</span>
             </div>
           ),
-          toastDescription: "Enable push notifications to get timely alerts about your bookings and club updates.",
+          toastDescription: "Enable notifications for timely booking and club updates.",
           duration: 15000, // Keep it visible for a bit longer
           toastAction: (
             <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full">
