@@ -25,7 +25,7 @@ export default function HomePage() {
       try {
         const allClubs = await getAllClubs();
         // Take the first 3 clubs as featured, or fewer if less than 3 are available
-        setFeaturedClubs(allClubs.slice(0, 3)); 
+        setFeaturedClubs(allClubs.slice(0, 3));
       } catch (error) {
         console.error("Failed to fetch featured clubs:", error);
         setFeaturedClubs([]); // Set to empty array on error
@@ -109,7 +109,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-      
+
       <section className="py-16">
         <div className="container px-4 mx-auto">
           <h2 className="text-3xl font-bold text-center text-foreground mb-12">Featured Clubs</h2>
@@ -121,20 +121,20 @@ export default function HomePage() {
           ) : featuredClubs.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               {featuredClubs.map((club) => (
-                <div key={club.id} className="bg-card rounded-lg shadow-lg overflow-hidden transform transition-all hover:scale-105">
-                  <Image 
-                    src={club.images?.[0] || 'https://placehold.co/600x400.png'} 
-                    alt={club.name} 
-                    width={600} 
-                    height={400} 
-                    className="w-full h-48 object-cover" 
-                    data-ai-hint={`${club.sport.toLowerCase()} court`}
+                <div key={club.id || club._id} className="bg-card rounded-lg shadow-lg overflow-hidden transform transition-all hover:scale-105">
+                  <Image
+                    src={club.images?.[0] || 'https://placehold.co/600x400.png'}
+                    alt={club.name}
+                    width={600}
+                    height={400}
+                    className="w-full h-48 object-cover"
+                    data-ai-hint={`${(club.sport || 'sports').toLowerCase()} court`}
                   />
                   <div className="p-6">
                     <h3 className="text-xl font-semibold text-foreground mb-1">{club.name}</h3>
-                    <p className="text-sm text-primary font-medium">{club.sport}</p>
+                    <p className="text-sm text-primary font-medium">{club.sport || 'Sport'}</p>
                     <Button variant="link" asChild className="mt-4 p-0 h-auto">
-                      <Link href={`/clubs/${club.id}`}>View Details &rarr;</Link>
+                      <Link href={`/clubs/${club._id || club.id}`}>View Details &rarr;</Link>
                     </Button>
                   </div>
                 </div>
