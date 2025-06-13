@@ -47,6 +47,10 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       setServicesError(null);
       setFetchedServices([]);
       setSelectedSportFilter("all"); 
+      setSelectedServiceForBooking(null); // Reset selected service when club changes
+      setSelectedBookingDate(undefined); // Reset date
+      setSelectedBookingSlot(null); // Reset slot
+
 
       try {
         const services = await getServicesByClubId(clubId);
@@ -70,8 +74,8 @@ export function ClubDetailsContent({ club }: { club: Club }) {
 
   const handleServiceSelectionForBooking = (service: Service) => {
     setSelectedServiceForBooking(service);
-    setSelectedBookingDate(undefined);
-    setSelectedBookingSlot(null);
+    setSelectedBookingDate(undefined); // Reset date when service changes
+    setSelectedBookingSlot(null);    // Reset slot when service changes
     toast({
         toastTitle: `Service Selected: ${service.name}`,
         toastDescription: "Please pick a date and time slot for this service.",
@@ -161,9 +165,14 @@ Status: ${bookingResponse.message}`;
         '/dashboard/user'
       );
 
+      // Reset selection after successful booking
       setSelectedBookingDate(undefined);
       setSelectedBookingSlot(null);
-      // setSelectedServiceForBooking(null); // Optionally reset selected service
+      // Optionally reset selectedServiceForBooking if you want users to re-select service each time
+      // setSelectedServiceForBooking(null); 
+      // Manually trigger a re-fetch of slots for the current date/service if needed
+      // This typically involves re-triggering the useEffect in BookingCalendar
+      // For simplicity, current implementation relies on user selecting a new date/service or page reload.
 
     } catch (error) {
       console.error("Booking failed:", error);
@@ -321,7 +330,7 @@ Status: ${bookingResponse.message}`;
         </div>
 
         <div className="space-y-8">
-          <BookingCalendar onSlotSelect={handleCalendarSlotSelect} />
+          <BookingCalendar selectedService={selectedServiceForBooking} onSlotSelect={handleCalendarSlotSelect} />
           <Button
             size="lg"
             className="w-full text-lg py-6"
@@ -391,5 +400,3 @@ Status: ${bookingResponse.message}`;
     </>
   );
 }
-
-      

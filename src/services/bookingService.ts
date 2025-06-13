@@ -84,3 +84,26 @@ export async function getBookingStatus(bookingId: string): Promise<{ status: Boo
   }
 }
 
+export async function getBookingsForServiceOnDate(serviceId: string, date: string): Promise<Booking[]> {
+  const apiUrl = `${getApiBaseUrl()}/bookings?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`;
+  try {
+    const authHeaders = await getAuthHeaders();
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: authHeaders, // No Content-Type for GET
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: `Failed to get bookings: ${response.statusText} (${response.status})` }));
+      throw new Error(errorBody.message);
+    }
+    return await response.json() as Booking[];
+  } catch (error) {
+    console.error(`Error fetching bookings for service ${serviceId} on ${date}:`, error);
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error('An unexpected error occurred while fetching bookings.');
+    }
+  }
+}
