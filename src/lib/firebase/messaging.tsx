@@ -17,9 +17,9 @@ export const initializeFirebaseMessaging = async () => {
   try {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && (await isSupported())) {
       const messaging = getMessaging(app);
-      // Note: Service worker registration is typically handled automatically by Firebase SDK
-      // when getToken is called, or can be manually registered if needed.
-      // Ensure 'firebase-messaging-sw.js' is in your /public folder.
+      // CRITICAL: Ensure 'firebase-messaging-sw.js' exists in your /public folder
+      // and is correctly configured with your Firebase project details (hardcoded or injected).
+      // The service worker registration is typically handled automatically by Firebase SDK.
       return messaging;
     }
   } catch (error) {
@@ -30,7 +30,7 @@ export const initializeFirebaseMessaging = async () => {
 
 export const requestNotificationPermission = async () => {
   if (!VAPID_KEY) {
-    console.warn("Firebase Messaging: NEXT_PUBLIC_FIREBASE_VAPID_KEY is not set in your environment variables. Please set it in .env.local (or similar).");
+    console.warn("Firebase Messaging: NEXT_PUBLIC_FIREBASE_VAPID_KEY is not set in your environment variables. Please set it in .env.local (or similar). Push notifications will not work.");
     // Toasting will be handled in AuthContext where this function is called.
     return null;
   }
@@ -54,11 +54,12 @@ export const requestNotificationPermission = async () => {
         return currentToken;
       } else {
         console.log('No registration token available. Request permission to generate one.');
+        // This can happen if the service worker isn't registered/active yet or there's a config issue.
         // Toasting will be handled in AuthContext
         return null;
       }
     } else {
-      console.log('Unable to get permission to notify.');
+      console.log('Unable to get permission to notify. Permission state:', permission);
       // Toasting will be handled in AuthContext
       return null;
     }
