@@ -5,7 +5,7 @@ import type { Club, Service, TimeSlot, CreateBookingPayload } from '@/lib/types'
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { BookingCalendar } from '@/components/features/booking/BookingCalendar';
-import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle, Clock, Palette, Loader2 } from 'lucide-react';
+import { MapPin, Zap, Phone, Mail, Star, DollarSign, ShieldCheck, Users, CreditCard, CheckCircle, Clock, Palette, Loader2, LogIn } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createBooking } from '@/services/bookingService'; 
 import { useState } from 'react';
 import { format } from 'date-fns';
+import Link from 'next/link';
 
 export function ClubDetailsContent({ club }: { club: Club }) {
   const { toast } = useToast();
@@ -34,30 +35,43 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     setSelectedBookingDate(undefined); 
     setSelectedBookingSlot(null);
     toast({
-        title: `Service Selected: ${service.name}`,
-        description: "Please pick a date and time slot for this service.",
+        toastTitle: `Service Selected: ${service.name}`,
+        toastDescription: "Please pick a date and time slot for this service.",
     });
   };
 
 
   const handleBookSlot = async () => {
-    if (!selectedServiceForBooking) {
-      toast({ variant: "destructive", title: "No Service Selected", description: "Please select a service before booking." });
-      return;
-    }
-    if (!selectedBookingDate || !selectedBookingSlot) {
-      toast({ variant: "destructive", title: "Date/Time Not Selected", description: "Please select a date and an available time slot." });
-      return;
-    }
     if (!currentUser) {
-      toast({ variant: "destructive", title: "Not Logged In", description: "Please log in to make a booking." });
+      toast({
+        variant: "default", // Changed from destructive to default or a custom variant for info
+        toastTitle: "Login Required",
+        toastDescription: "Please log in or register to book a service.",
+        toastAction: (
+          <div className="flex flex-col gap-2 mt-2">
+            <Button asChild size="sm"><Link href="/login">Login</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link href="/register">Register</Link></Button>
+          </div>
+        ),
+        duration: 8000, // Keep toast longer
+      });
       return;
     }
 
+    if (!selectedServiceForBooking) {
+      toast({ variant: "destructive", toastTitle: "No Service Selected", toastDescription: "Please select a service before booking." });
+      return;
+    }
+    if (!selectedBookingDate || !selectedBookingSlot) {
+      toast({ variant: "destructive", toastTitle: "Date/Time Not Selected", toastDescription: "Please select a date and an available time slot." });
+      return;
+    }
+    
+
     setIsBooking(true);
     toast({
-        title: "Submitting Booking Request...",
-        description: `For ${selectedServiceForBooking.name} on ${format(selectedBookingDate, 'MMM d, yyyy')} at ${selectedBookingSlot.startTime}.`,
+        toastTitle: "Submitting Booking Request...",
+        toastDescription: `For ${selectedServiceForBooking.name} on ${format(selectedBookingDate, 'MMM d, yyyy')} at ${selectedBookingSlot.startTime}.`,
     });
 
     const bookingPayload: CreateBookingPayload = {
@@ -70,8 +84,8 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     try {
       const bookingResponse = await createBooking(bookingPayload);
       toast({
-        title: "Booking Submitted!",
-        description: bookingResponse.message,
+        toastTitle: "Booking Submitted!",
+        toastDescription: bookingResponse.message,
         variant: bookingResponse.status === 'pending' ? 'default' : 'default', 
       });
 
@@ -267,3 +281,4 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     </>
   );
 }
+
