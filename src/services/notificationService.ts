@@ -1,36 +1,6 @@
 
 import type { ApiNotification } from '@/lib/types';
-
-const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
-
-function getApiBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    // Client-side: use relative path, correctly targets internal Next.js API routes
-    return '/api';
-  }
-  // Server-side: use absolute path.
-  // NEXT_PUBLIC_APP_URL should be set to the application's root URL (e.g., http://localhost:9002 or https://yourdomain.com)
-  let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'; // Default to 9002 for dev server
-  // Remove trailing slash from baseUrl if present to prevent double slashes
-  if (baseUrl.endsWith('/')) {
-    baseUrl = baseUrl.slice(0, -1);
-  }
-  return `${baseUrl}/api`;
-}
-
-async function getAuthHeaders(isPostOrPut: boolean = false): Promise<HeadersInit> {
-  const headers: HeadersInit = {};
-  if (isPostOrPut) {
-    headers['Content-Type'] = 'application/json';
-  }
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY);
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
-  return headers;
-}
+import { getApiBaseUrl, getApiAuthHeaders } from '@/lib/apiUtils';
 
 /**
  * Marks a list of notifications as read via the API.
@@ -45,7 +15,7 @@ export async function markNotificationsAsReadApi(notificationIds: string[]): Pro
   }
   const apiUrl = `${getApiBaseUrl()}/notifications/mark-read`;
   try {
-    const authHeaders = await getAuthHeaders(true);
+    const authHeaders = await getApiAuthHeaders(true); // true for POST
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: authHeaders,
@@ -80,7 +50,7 @@ export async function markNotificationsAsReadApi(notificationIds: string[]): Pro
 export async function getWeeklyNotificationsApi(): Promise<ApiNotification[]> {
   const apiUrl = `${getApiBaseUrl()}/notifications/weekly`;
   try {
-    const authHeaders = await getAuthHeaders(false);
+    const authHeaders = await getApiAuthHeaders(false); // false for GET
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: authHeaders,
@@ -100,4 +70,3 @@ export async function getWeeklyNotificationsApi(): Promise<ApiNotification[]> {
     }
   }
 }
-

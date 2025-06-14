@@ -1,41 +1,11 @@
 
 import type { Club, ClubAddress, ClubLocationGeo, Service } from '@/lib/types';
-
-const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
-
-function getApiBaseUrl(): string {
-  // if (typeof window !== 'undefined') {
-  //   // Client-side: use relative path, correctly targets internal Next.js API routes
-  //   return '/api';
-  // }
-  // Server-side: use absolute path.
-  // NEXT_PUBLIC_APP_URL should be set to the application's root URL (e.g., http://localhost:9002 or https://yourdomain.com)
-  let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'; // Default to 9002 for dev server
-  // Remove trailing slash from baseUrl if present to prevent double slashes
-  if (baseUrl.endsWith('/')) {
-    baseUrl = baseUrl.slice(0, -1);
-  }
-  return `${baseUrl}/api`;
-}
-
-async function getAuthHeaders(isPostOrPutOrDelete: boolean = false): Promise<HeadersInit> {
-  const headers: HeadersInit = {};
-  if (isPostOrPutOrDelete) {
-    headers['Content-Type'] = 'application/json';
-  }
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY);
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
-  return headers;
-}
+import { getApiBaseUrl, getApiAuthHeaders } from '@/lib/apiUtils';
 
 export async function getAllClubs(): Promise<Club[]> {
   const apiUrl = `${getApiBaseUrl()}/clubs`;
   try {
-    const authHeaders = await getAuthHeaders(false);
+    const authHeaders = await getApiAuthHeaders(false);
     const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       throw new Error(`Failed to fetch clubs: ${response.statusText} (${response.status}) from ${apiUrl}`);
@@ -50,7 +20,7 @@ export async function getAllClubs(): Promise<Club[]> {
 export async function getClubById(clubId: string): Promise<Club | null> {
   const apiUrl = `${getApiBaseUrl()}/clubs/${clubId}`;
   try {
-    const authHeaders = await getAuthHeaders(false);
+    const authHeaders = await getApiAuthHeaders(false);
     const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       if (response.status === 404) {
@@ -68,7 +38,7 @@ export async function getClubById(clubId: string): Promise<Club | null> {
 export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
   const apiUrl = `${getApiBaseUrl()}/clubs/owner/${ownerId}`;
   try {
-    const authHeaders = await getAuthHeaders(false);
+    const authHeaders = await getApiAuthHeaders(false);
     const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       throw new Error(`Failed to fetch clubs for owner ${ownerId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
@@ -83,7 +53,7 @@ export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
 export async function getLoggedInOwnerClubs(): Promise<Club[]> {
   const apiUrl = `${getApiBaseUrl()}/clubs/my-owned`;
   try {
-    const authHeaders = await getAuthHeaders(false);
+    const authHeaders = await getApiAuthHeaders(false);
     const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       throw new Error(`Failed to fetch logged-in owner's clubs: ${response.statusText} (${response.status}) from ${apiUrl}`);
@@ -109,7 +79,7 @@ interface RegisterClubPayload {
 export async function registerClub(clubData: RegisterClubPayload): Promise<Club> {
   const apiUrl = `${getApiBaseUrl()}/clubs`;
   try {
-    const authHeaders = await getAuthHeaders(true);
+    const authHeaders = await getApiAuthHeaders(true);
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: authHeaders,
@@ -137,7 +107,7 @@ export type AddServicePayload = Omit<Service, '_id' | 'createdAt' | 'updatedAt' 
 export async function addClubService(serviceData: AddServicePayload): Promise<Service> {
   const apiUrl = `${getApiBaseUrl()}/services`;
   try {
-    const authHeaders = await getAuthHeaders(true);
+    const authHeaders = await getApiAuthHeaders(true);
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: authHeaders,
@@ -163,7 +133,7 @@ export async function addClubService(serviceData: AddServicePayload): Promise<Se
 export async function getServicesByClubId(clubId: string): Promise<Service[]> {
   const apiUrl = `${getApiBaseUrl()}/services/club/${clubId}`;
   try {
-    const authHeaders = await getAuthHeaders(false);
+    const authHeaders = await getApiAuthHeaders(false);
     const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       if (response.status === 404) { 
@@ -181,7 +151,7 @@ export async function getServicesByClubId(clubId: string): Promise<Service[]> {
 export async function getServiceById(serviceId: string): Promise<Service | null> {
   const apiUrl = `${getApiBaseUrl()}/services/${serviceId}`;
   try {
-    const authHeaders = await getAuthHeaders(false);
+    const authHeaders = await getApiAuthHeaders(false);
     const response = await fetch(apiUrl, { headers: authHeaders });
     if (!response.ok) {
       if (response.status === 404) {
@@ -195,4 +165,3 @@ export async function getServiceById(serviceId: string): Promise<Service | null>
     throw error;
   }
 }
-
