@@ -18,8 +18,16 @@ interface BookingCalendarProps {
   onSlotSelect?: (date: Date | undefined, slot: TimeSlot | null) => void;
 }
 
+const legendItems = [
+  { label: 'Selected', className: 'bg-primary w-3.5 h-3.5 rounded-sm mr-1.5 shrink-0' },
+  { label: 'Available', className: 'border border-input bg-background w-3.5 h-3.5 rounded-sm mr-1.5 shrink-0' },
+  { label: 'Pending', className: 'bg-secondary w-3.5 h-3.5 rounded-sm opacity-80 mr-1.5 shrink-0' },
+  { label: 'Booked', className: 'bg-muted w-3.5 h-3.5 rounded-sm opacity-70 mr-1.5 shrink-0' },
+];
+
+
 export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalendarProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date()); // Default to today
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [internalSelectedTimeSlot, setInternalSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [clientLoaded, setClientLoaded] = useState(false);
@@ -33,17 +41,18 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     setDisabledDaysConfig({ before: startOfTodayDate });
   }, []);
 
-  // Effect to reset date to today when selectedService changes
   useEffect(() => {
     if (clientLoaded && selectedService) {
       const today = new Date();
+      // Only reset date if it's not already today, or if it's a new service.
+      // This effect is tricky with onSlotSelect, so let's simplify:
+      // When service changes, always reset date to today.
       setSelectedDate(today);
       setInternalSelectedTimeSlot(null);
       if (onSlotSelect) {
         onSlotSelect(today, null);
       }
     } else if (!selectedService) {
-      // If service is deselected, clear date and slots
       setSelectedDate(undefined);
       setTimeSlots([]);
       setInternalSelectedTimeSlot(null);
@@ -53,15 +62,14 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedService, clientLoaded]); // onSlotSelect is a callback, should be stable or wrapped in useCallback if passed from parent
+  }, [selectedService, clientLoaded]);
 
-  // Effect to fetch/generate time slots when date or service changes
   useEffect(() => {
     if (!clientLoaded || !selectedDate || !selectedService) {
-      if (clientLoaded && selectedService && !selectedDate) { // Service selected, but date cleared (e.g. by service change)
-         setTimeSlots([]); // Clear previous slots
-         setSlotError(null); // Clear previous errors specific to a date
-      } else if (clientLoaded && !selectedService) { // No service selected
+      if (clientLoaded && selectedService && !selectedDate) {
+         setTimeSlots([]);
+         setSlotError(null);
+      } else if (clientLoaded && !selectedService) {
         setTimeSlots([]);
         setSlotError(null);
       }
@@ -72,7 +80,7 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     const generateAndSetTimeSlots = async () => {
       setIsLoadingSlots(true);
       setSlotError(null);
-      setTimeSlots([]); // Clear previous slots before fetching new ones
+      setTimeSlots([]); 
 
       const serviceDayIndex = getDay(selectedDate);
       const serviceAvailableDaysMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -135,19 +143,14 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     };
 
     generateAndSetTimeSlots();
-    // Reset selected slot when date or service changes, but before new slots are loaded
-    // The parent is already informed when the service changes (in the other useEffect)
-    // and when the date changes (in handleDateChange)
     if (internalSelectedTimeSlot) {
         setInternalSelectedTimeSlot(null);
         if (onSlotSelect) {
             onSlotSelect(selectedDate, null);
         }
     }
-
-
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, selectedService, clientLoaded]); // onSlotSelect should be stable
+  }, [selectedDate, selectedService, clientLoaded]);
 
   const handleDateChange = (date: Date | undefined) => {
     setSelectedDate(date);
@@ -170,35 +173,38 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     let variant: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive" = "outline";
     let isDisabled = false;
     let buttonClassName = "w-full";
-    let buttonText = slot.startTime;
+    const buttonText = slot.startTime; // Always just the time
 
-    switch (slot.status) {
-      case 'available':
-        variant = internalSelectedTimeSlot?.startTime === slot.startTime ? 'default' : 'outline';
-        isDisabled = false;
-        break;
-      case 'pending':
-        variant = 'secondary';
-        isDisabled = true;
-        buttonClassName += " opacity-80";
-        buttonText = `${slot.startTime} (Pending)`;
-        break;
-      case 'confirmed':
-        variant = 'default';
-        isDisabled = true;
-        buttonClassName += " opacity-60 bg-muted-foreground/30 text-muted-foreground hover:bg-muted-foreground/30";
-        buttonText = `${slot.startTime} (Booked)`;
-        break;
-      case 'in-progress':
-        variant = 'secondary';
-        isDisabled = true;
-        buttonClassName += " opacity-70 animate-pulse";
-        break;
-      case 'unavailable':
-        variant = 'outline';
-        isDisabled = true;
-        buttonClassName += " text-muted-foreground line-through";
-        break;
+    if (internalSelectedTimeSlot?.startTime === slot.startTime && slot.status === 'available') {
+      variant = 'default'; // This is the primary color for selected available slot
+    } else {
+      switch (slot.status) {
+        case 'available':
+          variant = 'outline'; // Standard outline for available, unselected
+          isDisabled = false;
+          break;
+        case 'pending':
+          variant = 'secondary'; // Use secondary for pending
+          isDisabled = true;
+          buttonClassName += " opacity-80";
+          break;
+        case 'confirmed':
+          variant = 'default'; // Base variant, but use specific classes for styling
+          isDisabled = true;
+          // More specific styling for "booked" to make it look clearly unavailable but not error-like
+          buttonClassName += " bg-muted text-muted-foreground hover:bg-muted/90 focus:bg-muted/90 opacity-70 cursor-not-allowed !ring-0 !ring-offset-0";
+          break;
+        case 'in-progress': // Should not typically occur with current logic
+          variant = 'secondary';
+          isDisabled = true;
+          buttonClassName += " opacity-70 animate-pulse";
+          break;
+        case 'unavailable': // For slots explicitly marked, or outside hours by logic
+          variant = 'outline';
+          isDisabled = true;
+          buttonClassName += " text-muted-foreground line-through";
+          break;
+      }
     }
     return { variant, isDisabled, buttonClassName, buttonText };
   };
@@ -243,9 +249,22 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
                 />
               </div>
               <div>
-                <h3 className="text-lg font-semibold mb-3 text-foreground">
+                <h3 className="text-lg font-semibold mb-1 text-foreground">
                   {selectedDate ? `Slots for ${formatDateFns(selectedDate, 'MMM d, yyyy')}` : 'Select a date'}
                 </h3>
+
+                {selectedDate && (timeSlots.length > 0 || isLoadingSlots || slotError) && (
+                    <div className="mb-3 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground mr-1">Legend:</span>
+                      {legendItems.map(item => (
+                        <div key={item.label} className="flex items-center">
+                          <div className={item.className} />
+                          <span>{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                )}
+
                 {isLoadingSlots ? (
                   <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /> <span className="ml-2">Loading slots...</span></div>
                 ) : slotError ? (
@@ -270,7 +289,7 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
                       return (
                         <Tooltip key={`${slot.startTime}-${index}`}>
                           <TooltipTrigger asChild>
-                            {isDisabled ? (
+                            {isDisabled && slot.status !== 'available' ? ( // Ensure only non-available disabled slots use span wrapper for tooltip
                               <span className="inline-block w-full" tabIndex={0}>
                                 {actualButton}
                               </span>
@@ -298,3 +317,4 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     </TooltipProvider>
   );
 }
+
