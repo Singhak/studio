@@ -41,24 +41,41 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         setIsLoadingServices(false);
         setFetchedServices([]);
         setServicesError("Club information is incomplete.");
+        setSelectedServiceForBooking(null);
+        setSelectedBookingDate(undefined);
+        setSelectedBookingSlot(null);
         return;
       }
       setIsLoadingServices(true);
       setServicesError(null);
-      setFetchedServices([]);
-      setSelectedSportFilter("all"); 
-      setSelectedServiceForBooking(null); // Reset selected service when club changes
-      setSelectedBookingDate(undefined); // Reset date
-      setSelectedBookingSlot(null); // Reset slot
-
+      setFetchedServices(null); // Clear previous services before fetching new ones
+      setSelectedSportFilter("all");
+      // Reset selections when clubId changes
+      setSelectedServiceForBooking(null);
+      setSelectedBookingDate(undefined);
+      setSelectedBookingSlot(null);
 
       try {
         const services = await getServicesByClubId(clubId);
         setFetchedServices(services || []);
+        if (services && services.length > 0) {
+          // Auto-select the first service and set default date
+          setSelectedServiceForBooking(services[0]);
+          setSelectedBookingDate(new Date()); // Default to today
+          setSelectedBookingSlot(null); // Clear any previous slot selection
+        } else {
+          // No services, ensure everything is cleared
+          setSelectedServiceForBooking(null);
+          setSelectedBookingDate(undefined);
+          setSelectedBookingSlot(null);
+        }
       } catch (error) {
         console.error(`[ClubDetailsContent] Failed to fetch services for club ${clubId}:`, error);
         setServicesError(error instanceof Error ? error.message : "Could not load services for this club.");
         setFetchedServices([]);
+        setSelectedServiceForBooking(null);
+        setSelectedBookingDate(undefined);
+        setSelectedBookingSlot(null);
       } finally {
         setIsLoadingServices(false);
       }
@@ -74,8 +91,11 @@ export function ClubDetailsContent({ club }: { club: Club }) {
 
   const handleServiceSelectionForBooking = (service: Service) => {
     setSelectedServiceForBooking(service);
-    setSelectedBookingDate(undefined); // Reset date when service changes
-    setSelectedBookingSlot(null);    // Reset slot when service changes
+    // When a service is manually selected, BookingCalendar's useEffect will reset its date to today
+    // and inform us via onSlotSelect, which handleCalendarSlotSelect will catch.
+    // So, we don't need to explicitly set selectedBookingDate here to new Date().
+    // We do need to clear the slot.
+    setSelectedBookingSlot(null);
     toast({
         toastTitle: `Service Selected: ${service.name}`,
         toastDescription: "Please pick a date and time slot for this service.",
@@ -125,7 +145,6 @@ export function ClubDetailsContent({ club }: { club: Club }) {
     try {
       const bookingResponse = await createBooking(bookingPayload);
 
-      // Calculate duration for the toast
       let durationHours = 0;
       try {
         const startDate = new Date(`1970-01-01T${selectedBookingSlot.startTime}:00`);
@@ -137,18 +156,21 @@ export function ClubDetailsContent({ club }: { club: Club }) {
       } catch (e) {
         console.error("Error calculating duration for toast:", e);
       }
-      
-      const toastDescription = `For: ${selectedServiceForBooking.name}
-Date: ${format(selectedBookingDate, 'MMM d, yyyy')}
-Time: ${selectedBookingSlot.startTime} - ${selectedBookingSlot.endTime}
-${durationHours > 0 ? `Duration: ${durationHours.toFixed(1)} hr(s)` : ''}
-Status: ${bookingResponse.message}`;
+
+      const toastDescriptionParts = [
+        `For: ${selectedServiceForBooking.name}`,
+        `Date: ${format(selectedBookingDate, 'MMM d, yyyy')}`,
+        `Time: ${selectedBookingSlot.startTime} - ${selectedBookingSlot.endTime}`,
+        durationHours > 0 ? `Duration: ${durationHours.toFixed(1)} hr(s)` : '',
+        `Status: ${bookingResponse.message}`,
+      ];
+      const finalToastDescription = toastDescriptionParts.filter(part => part).join('\n');
 
 
       toast({
         toastTitle: "Booking Submitted!",
         toastDescription: (
-          <div className="whitespace-pre-line">{toastDescription}</div>
+          <div className="whitespace-pre-line">{finalToastDescription}</div>
         ),
         variant: bookingResponse.status === 'pending' ? 'default' : 'default',
       });
@@ -166,13 +188,15 @@ Status: ${bookingResponse.message}`;
       );
 
       // Reset selection after successful booking
-      setSelectedBookingDate(undefined);
+      // The BookingCalendar will re-fetch slots for the current date due to service or date change.
+      // If we want the calendar to stick to the booked date, we might not reset selectedBookingDate.
+      // For now, let's clear the slot. The date will be today due to BookingCalendar's internal reset or user selection.
       setSelectedBookingSlot(null);
-      // Optionally reset selectedServiceForBooking if you want users to re-select service each time
-      // setSelectedServiceForBooking(null); 
-      // Manually trigger a re-fetch of slots for the current date/service if needed
-      // This typically involves re-triggering the useEffect in BookingCalendar
-      // For simplicity, current implementation relies on user selecting a new date/service or page reload.
+      // To ensure the calendar visually updates and potentially re-fetches slots:
+      // Force a re-render or ensure BookingCalendar's useEffect for fetching slots re-runs.
+      // This is generally handled by selectedService or selectedDate changing.
+      // After booking, we might want to manually trigger a refresh of slots if the date remains the same.
+      // For simplicity, we are currently relying on the user to pick a new date/slot or service changing.
 
     } catch (error) {
       console.error("Booking failed:", error);
@@ -185,7 +209,7 @@ Status: ${bookingResponse.message}`;
       setIsBooking(false);
     }
   };
-  
+
   const availableSportTypes = useMemo(() => {
     if (!fetchedServices) return [];
     const types = new Set<SportType>();
@@ -269,7 +293,7 @@ Status: ${bookingResponse.message}`;
               )}
             </CardHeader>
             <CardContent>
-              {isLoadingServices ? (
+              {isLoadingServices && !fetchedServices ? ( // Show loader only on initial load or full club change
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
                   <span>Loading services...</span>
@@ -315,11 +339,11 @@ Status: ${bookingResponse.message}`;
             </CardContent>
           </Card>
 
-          {club.images && club.images.length > 1 && ( // Show gallery if more than one image
+          {club.images && club.images.length > 1 && (
             <Card>
               <CardHeader><CardTitle className="text-2xl">Gallery</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {club.images.slice(0,6).map((img, index) => ( // Show up to 6 images
+                {club.images.slice(0,6).map((img, index) => (
                   <div key={index} className="aspect-square rounded-md overflow-hidden shadow-md">
                     <Image src={img} alt={`${club.name} gallery image ${index + 1}`} width={300} height={300} className="object-cover w-full h-full" data-ai-hint="sports facility" />
                   </div>
@@ -330,7 +354,10 @@ Status: ${bookingResponse.message}`;
         </div>
 
         <div className="space-y-8">
-          <BookingCalendar selectedService={selectedServiceForBooking} onSlotSelect={handleCalendarSlotSelect} />
+          <BookingCalendar
+            selectedService={selectedServiceForBooking}
+            onSlotSelect={handleCalendarSlotSelect}
+          />
           <Button
             size="lg"
             className="w-full text-lg py-6"

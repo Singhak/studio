@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/comp
 import { Clock, Loader2, AlertTriangle } from 'lucide-react';
 import type { TimeSlot, TimeSlotStatus, Service, DayOfWeek, Booking } from '@/lib/types';
 import { getBookingsForServiceOnDate } from '@/services/bookingService';
-import { format as formatDateFns, parse, addMinutes, isBefore, isEqual, getDay } from 'date-fns';
+import { format as formatDateFns, parse, addMinutes, isBefore, isEqual, getDay, startOfToday as getStartOfToday } from 'date-fns';
 import type { Matcher } from 'react-day-picker';
 
 
@@ -19,7 +19,7 @@ interface BookingCalendarProps {
 }
 
 export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalendarProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date()); // Default to today
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [internalSelectedTimeSlot, setInternalSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [clientLoaded, setClientLoaded] = useState(false);
@@ -29,28 +29,50 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
 
   useEffect(() => {
     setClientLoaded(true);
-    const today = new Date();
-    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    setDisabledDaysConfig({ before: startOfToday });
+    const startOfTodayDate = getStartOfToday();
+    setDisabledDaysConfig({ before: startOfTodayDate });
   }, []);
 
+  // Effect to reset date to today when selectedService changes
   useEffect(() => {
-    if (!clientLoaded || !selectedDate || !selectedService) {
+    if (clientLoaded && selectedService) {
+      const today = new Date();
+      setSelectedDate(today);
+      setInternalSelectedTimeSlot(null);
+      if (onSlotSelect) {
+        onSlotSelect(today, null);
+      }
+    } else if (!selectedService) {
+      // If service is deselected, clear date and slots
+      setSelectedDate(undefined);
       setTimeSlots([]);
       setInternalSelectedTimeSlot(null);
-      setIsLoadingSlots(false);
-      if (clientLoaded && selectedService && !selectedDate) { // Service selected, but no date yet
-        setSlotError(null); // Clear any previous errors specific to a date
+      setSlotError(null);
+      if (onSlotSelect) {
+        onSlotSelect(undefined, null);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedService, clientLoaded]); // onSlotSelect is a callback, should be stable or wrapped in useCallback if passed from parent
+
+  // Effect to fetch/generate time slots when date or service changes
+  useEffect(() => {
+    if (!clientLoaded || !selectedDate || !selectedService) {
+      if (clientLoaded && selectedService && !selectedDate) { // Service selected, but date cleared (e.g. by service change)
+         setTimeSlots([]); // Clear previous slots
+         setSlotError(null); // Clear previous errors specific to a date
       } else if (clientLoaded && !selectedService) { // No service selected
+        setTimeSlots([]);
         setSlotError(null);
       }
+      setIsLoadingSlots(false);
       return;
     }
 
     const generateAndSetTimeSlots = async () => {
       setIsLoadingSlots(true);
       setSlotError(null);
-      setTimeSlots([]);
+      setTimeSlots([]); // Clear previous slots before fetching new ones
 
       const serviceDayIndex = getDay(selectedDate);
       const serviceAvailableDaysMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -72,7 +94,6 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
         const slotDuration = selectedService.slotDurationMinutes || 60;
 
         const generatedSlots: TimeSlot[] = [];
-        // Ensure dates are parsed relative to selectedDate to handle day crossing correctly
         let currentTime = parse(openingTimeStr, 'HH:mm', selectedDate);
         const closingTime = parse(closingTimeStr, 'HH:mm', selectedDate);
 
@@ -91,16 +112,19 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
             });
 
             if (conflictingBooking) {
-              status = conflictingBooking.status; 
+              status = conflictingBooking.status;
             }
             generatedSlots.push({ startTime: startTimeFormatted, endTime: endTimeFormatted, status });
           }
           currentTime = addMinutes(currentTime, slotDuration);
         }
         setTimeSlots(generatedSlots);
-        if(generatedSlots.length === 0) {
+        if(generatedSlots.length === 0 && isBefore(parse(openingTimeStr, 'HH:mm', selectedDate), parse(closingTimeStr, 'HH:mm', selectedDate))) {
             setSlotError(`No time slots could be generated for ${selectedService.name} between ${openingTimeStr} and ${closingTimeStr} on this day.`);
+        } else if (generatedSlots.length === 0) {
+             setSlotError(`${selectedService.name} may not have operating hours defined that allow for slot generation on this day.`);
         }
+
       } catch (error) {
         console.error("Error fetching or generating time slots:", error);
         setSlotError(error instanceof Error ? error.message : "Failed to load time slots.");
@@ -111,12 +135,19 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     };
 
     generateAndSetTimeSlots();
-    setInternalSelectedTimeSlot(null); 
-    if (onSlotSelect) {
-      onSlotSelect(selectedDate, null);
+    // Reset selected slot when date or service changes, but before new slots are loaded
+    // The parent is already informed when the service changes (in the other useEffect)
+    // and when the date changes (in handleDateChange)
+    if (internalSelectedTimeSlot) {
+        setInternalSelectedTimeSlot(null);
+        if (onSlotSelect) {
+            onSlotSelect(selectedDate, null);
+        }
     }
 
-  }, [selectedDate, selectedService, clientLoaded, onSlotSelect]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, selectedService, clientLoaded]); // onSlotSelect should be stable
 
   const handleDateChange = (date: Date | undefined) => {
     setSelectedDate(date);
@@ -134,7 +165,7 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
       }
     }
   };
-  
+
   const getSlotButtonProps = (slot: TimeSlot) => {
     let variant: "default" | "secondary" | "outline" | "ghost" | "link" | "destructive" = "outline";
     let isDisabled = false;
@@ -158,12 +189,12 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
         buttonClassName += " opacity-60 bg-muted-foreground/30 text-muted-foreground hover:bg-muted-foreground/30";
         buttonText = `${slot.startTime} (Booked)`;
         break;
-      case 'in-progress': // This status might not be set by our current logic from bookings
+      case 'in-progress':
         variant = 'secondary';
         isDisabled = true;
         buttonClassName += " opacity-70 animate-pulse";
         break;
-      case 'unavailable': // This status might not be set by our current logic if service is available on day
+      case 'unavailable':
         variant = 'outline';
         isDisabled = true;
         buttonClassName += " text-muted-foreground line-through";
