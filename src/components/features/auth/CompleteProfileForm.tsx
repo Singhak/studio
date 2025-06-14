@@ -25,18 +25,14 @@ import { UserCheck, Loader2 } from "lucide-react";
 const formSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   userType: z.enum(["user", "owner"], { required_error: "Please select your account type." }),
-  // Add other fields like address if needed later
-  // address: z.string().optional(),
 });
 
 export function CompleteProfileForm() {
-  const { currentUser, setProfileCompletionPending, loading: authLoading } = useAuth();
+  const { currentUser, setProfileCompletionPending, updateCourtlyUserRole, loading: authLoading } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // If no user is logged in, or auth is still loading, redirect to login.
-    // This page should only be accessible if a user just signed up/in.
     if (!authLoading && !currentUser) {
       router.push('/login');
     }
@@ -50,7 +46,6 @@ export function CompleteProfileForm() {
     },
   });
 
-  // Pre-fill name if available from Google auth
   useEffect(() => {
     if (currentUser?.displayName && !form.getValues("fullName")) {
       form.setValue("fullName", currentUser.displayName);
@@ -67,21 +62,29 @@ export function CompleteProfileForm() {
       return;
     }
 
-    console.log("Profile details to save:", {
+    console.log("Profile details to save (simulated):", {
       uid: currentUser.uid,
       email: currentUser.email,
       phone: currentUser.phoneNumber,
-      ...values,
+      fullName: values.fullName,
+      role: values.userType, // This will be the role
     });
     // In a real app, you'd save this data to Firestore or your backend here.
-    // Example: await updateUserProfile(currentUser.uid, values);
+    // Example: await saveUserProfileToBackend(currentUser.uid, { fullName: values.fullName, role: values.userType });
 
-    // For prototype, we just log and set completion pending to false
+    // Update the role in AuthContext
+    updateCourtlyUserRole(values.userType);
+    
+    // Persist this role choice locally for mockFetchCustomProfile to pick up (simulation)
+    localStorage.setItem(`courtly_user_role_${currentUser.uid}`, values.userType);
+
+
     setProfileCompletionPending(false); 
+    localStorage.removeItem(`profileCompletionPending_${currentUser.uid}`); // Clear the pending flag
     setIsSubmitting(false);
 
     if (values.userType === "owner") {
-      router.push('/dashboard/owner/register-club'); // Or /dashboard/owner if club already registered
+      router.push('/dashboard/owner/register-club'); 
     } else {
       router.push('/dashboard/user');
     }
@@ -157,23 +160,6 @@ export function CompleteProfileForm() {
               )}
             />
             
-            {/* Placeholder for address or other fields */}
-            {/* 
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Address (Optional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="123 Main St, Cityville" {...field} disabled={isSubmitting}/>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            /> 
-            */}
-
             <Button type="submit" className="w-full text-base" disabled={isSubmitting || authLoading}>
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCheck className="mr-2 h-4 w-4" />}
               Save and Continue
