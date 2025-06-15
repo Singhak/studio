@@ -21,7 +21,7 @@ import {
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging.tsx';
+import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging';
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
 import type { AppNotification, ApiNotification } from '@/lib/types';
 import { Bell, Settings, CheckCheck, Trash2, Mailbox } from 'lucide-react';
@@ -32,10 +32,10 @@ import { initializeAuthHelpers } from '@/lib/apiUtils';
 
 // Define CourtlyUser interface
 export interface CourtlyUser extends FirebaseUser { // Extends FirebaseUser (aliased User)
-  displayName: string | null; // Explicitly declare to match FirebaseUser's UserInfo
-  email: string | null; // Explicitly declare
-  phoneNumber: string | null; // Explicitly declare
-  photoURL: string | null; // Explicitly declare
+  displayName: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  photoURL: string | null;
   role?: 'user' | 'owner';
   customDataLoaded?: boolean;
   // Add other custom fields from your backend if needed
@@ -96,7 +96,7 @@ const mockFetchCustomProfile = async (uid: string): Promise<Partial<CourtlyUser>
   await new Promise(resolve => setTimeout(resolve, 300));
   const storedRole = localStorage.getItem(`courtly_user_role_${uid}`) as 'user' | 'owner' | null;
   const profile: Partial<CourtlyUser> = {
-    role: storedRole || undefined, 
+    role: storedRole || undefined,
   };
   console.log(`mockFetchCustomProfile for UID: ${uid} returning:`, profile);
   return profile;
@@ -119,7 +119,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const getNotificationStorageKey = useCallback((uid: string | null | undefined) => {
     return uid ? `courtly-app-notifications-${uid}` : null;
   }, []);
-  
+
   const setAndStoreAccessToken = useCallback((token: string | null) => {
     setAccessTokenState(token);
     if (token) {
@@ -293,13 +293,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loadAndMergeCustomUserData = useCallback(async (firebaseUser: FirebaseUser): Promise<CourtlyUser> => {
     const pendingFlag = localStorage.getItem(`profileCompletionPending_${firebaseUser.uid}`) === 'true';
     let customData: Partial<CourtlyUser> = {};
-  
+
     try {
       customData = await mockFetchCustomProfile(firebaseUser.uid);
     } catch (error) {
       console.error("Error fetching custom profile data:", error);
     }
-    
+
     // Construct the CourtlyUser object carefully
     const mergedUser: CourtlyUser = {
       // Core FirebaseUser properties (methods are implicitly part of FirebaseUser)
@@ -311,15 +311,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       email: customData.email ?? firebaseUser.email,
       phoneNumber: customData.phoneNumber ?? firebaseUser.phoneNumber,
       photoURL: customData.photoURL ?? firebaseUser.photoURL,
-      
+
       // Custom properties
       role: customData.role || undefined,
       customDataLoaded: true,
     };
-  
+
     setCurrentUser(mergedUser);
-    setProfileCompletionPending(pendingFlag || !mergedUser.role); 
-    
+    setProfileCompletionPending(pendingFlag || !mergedUser.role);
+
     return mergedUser;
   }, []);
 
@@ -343,7 +343,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const customTokenData = await response.json();
       setAndStoreAccessToken(customTokenData.accessToken);
       setAndStoreRefreshToken(customTokenData.refreshToken);
-      
+
       const courtlyUser = await loadAndMergeCustomUserData(firebaseUser);
       return courtlyUser;
 
@@ -375,7 +375,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("AUTH_CONTEXT: Token refresh failed.", errorData.message);
         if (response.status === 401 || response.status === 403) {
           toast({ variant: "destructive", toastTitle: "Session Expired", toastDescription: "Please log in again."});
-          await logoutUser(); 
+          await logoutUser();
         } else {
            toast({ variant: "destructive", toastTitle: "Refresh Error", toastDescription: errorData.message });
         }
@@ -403,7 +403,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     initializeAuthHelpers({
-      getAccessToken: () => accessToken, 
+      getAccessToken: () => accessToken,
       attemptTokenRefresh,
       logoutUser,
     });
@@ -520,7 +520,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else { // Firebase user exists, but no custom tokens (or profile complete but tokens missing)
         if (isProtectedPath) {
           console.warn("User on protected path without custom tokens. Logging out.");
-          logoutUser(); 
+          logoutUser();
         }
         // If on non-protected path but tokens are missing, they can stay but API calls will fail/refresh
       }
@@ -533,7 +533,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (loading) return;
-    
+
     if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
       const lastReminderTimestampStr = localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY);
       const now = Date.now();
@@ -555,14 +555,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             </div>
           ),
           toastDescription: "Enable notifications for timely booking and club updates.",
-          duration: 15000, 
+          duration: 15000,
           toastAction: (
             <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full">
               <Button
                 size="sm"
                 onClick={async () => {
-                  dismiss(); 
-                  await requestNotificationPermission(); 
+                  dismiss();
+                  await requestNotificationPermission();
                   localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
                 }}
                 className="w-full sm:w-auto"
@@ -604,10 +604,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure during signup:", e));
         return null;
       }
-      
+
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
       setProfileCompletionPending(true);
-      
+
       // Update currentUser state with the newly signed-up user's details
       // loadAndMergeCustomUserData will be called eventually by onAuthStateChanged or handleCustomApiLogin,
       // but we can optimistically update some parts here.
@@ -631,7 +631,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
-      
+
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null; // Custom login failed, already handled inside
 
@@ -655,7 +655,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
-      
+
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
 
@@ -692,12 +692,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const userCredential = await confirmationResult.confirm(code);
       const firebaseUser = userCredential.user;
-      
+
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
-      
+
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
-      setProfileCompletionPending(true); 
+      setProfileCompletionPending(true);
 
       toast({ toastTitle: "Phone Sign-In Successful!", toastDescription: "Please complete your profile." });
       return courtlyUser;
@@ -707,7 +707,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return null;
     }
   };
-  
+
   const updateCourtlyUserRole = (role: 'user' | 'owner') => {
     if (currentUser) {
       // Create a new object for the state update
@@ -720,7 +720,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem(`courtly_user_role_${currentUser.uid}`, role);
     }
   };
-  
+
   const value = {
     currentUser,
     loading,
