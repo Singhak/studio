@@ -82,7 +82,7 @@ export interface TimeSlot {
 
 export interface Booking {
   id: string;
-  userId: string;
+  customer: string;
   clubId: string;
   serviceId: string; // Should map to Service._id
   date: string;
@@ -94,7 +94,7 @@ export interface Booking {
   createdAt: string;
 }
 
-export interface User {
+export interface AppUser {
   id: string;
   email: string;
   name?: string;
