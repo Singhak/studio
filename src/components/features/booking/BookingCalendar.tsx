@@ -31,7 +31,7 @@ const legendItems = [
 
 
 export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalendarProps) {
-  const { currentUser } = useAuth();
+  const { aboutMe: currentUser } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [timeSlots, setTimeSlots] = useState<DisplayTimeSlot[]>([]);
   const [internalSelectedTimeSlot, setInternalSelectedTimeSlot] = useState<DisplayTimeSlot | null>(null);
@@ -123,7 +123,7 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
 
             if (conflictingBooking) {
               if (conflictingBooking.status === 'pending') {
-                if (currentUser && conflictingBooking.userId === currentUser.uid) {
+                if (currentUser && conflictingBooking.customer === currentUser.id) {
                   displayStatus = 'pending'; 
                   isCurrentUsersPendingBooking = true;
                 } else {
