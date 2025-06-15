@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
-  User,
+  User as FirebaseUser, // Renamed for clarity
   onAuthStateChanged,
   signOut,
   createUserWithEmailAndPassword,
@@ -15,6 +15,8 @@ import {
   signInWithPhoneNumber as firebaseSignInWithPhoneNumber,
   type ConfirmationResult,
   updateProfile,
+  type UserMetadata, // Import UserMetadata
+  type UserInfo,      // Import UserInfo
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
@@ -25,12 +27,15 @@ import type { AppNotification, ApiNotification } from '@/lib/types';
 import { Bell, Settings, CheckCheck, Trash2, Mailbox } from 'lucide-react';
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
 import { Button } from '@/components/ui/button';
-// import { getApiAuthHeaders, getApiBaseUrl } from '@/lib/apiUtils'; // getApiBaseUrl not needed here now
-import { initializeAuthHelpers } from '@/lib/apiUtils'; // Import the initializer
+import { initializeAuthHelpers } from '@/lib/apiUtils';
 
 
 // Define CourtlyUser interface
-export interface CourtlyUser extends User {
+export interface CourtlyUser extends FirebaseUser { // Extends FirebaseUser (aliased User)
+  displayName: string | null; // Explicitly declare to match FirebaseUser's UserInfo
+  email: string | null; // Explicitly declare
+  phoneNumber: string | null; // Explicitly declare
+  photoURL: string | null; // Explicitly declare
   role?: 'user' | 'owner';
   customDataLoaded?: boolean;
   // Add other custom fields from your backend if needed
@@ -91,7 +96,7 @@ const mockFetchCustomProfile = async (uid: string): Promise<Partial<CourtlyUser>
   await new Promise(resolve => setTimeout(resolve, 300));
   const storedRole = localStorage.getItem(`courtly_user_role_${uid}`) as 'user' | 'owner' | null;
   const profile: Partial<CourtlyUser> = {
-    role: storedRole || undefined, // Return undefined if not set, so completion pending is true
+    role: storedRole || undefined, 
   };
   console.log(`mockFetchCustomProfile for UID: ${uid} returning:`, profile);
   return profile;
@@ -285,35 +290,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser, getNotificationStorageKey, toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
 
-  const loadAndMergeCustomUserData = useCallback(async (firebaseUser: User): Promise<CourtlyUser> => {
+  const loadAndMergeCustomUserData = useCallback(async (firebaseUser: FirebaseUser): Promise<CourtlyUser> => {
     const pendingFlag = localStorage.getItem(`profileCompletionPending_${firebaseUser.uid}`) === 'true';
     let customData: Partial<CourtlyUser> = {};
-    let mergedUser: CourtlyUser;
-
+  
     try {
       customData = await mockFetchCustomProfile(firebaseUser.uid);
     } catch (error) {
       console.error("Error fetching custom profile data:", error);
     }
     
-    mergedUser = {
-      ...firebaseUser,
-      ...customData,
-      role: customData.role || undefined, // Keep role potentially undefined if not fetched
-      customDataLoaded: true,
+    // Construct the CourtlyUser object carefully
+    const mergedUser: CourtlyUser = {
+      // Core FirebaseUser properties (methods are implicitly part of FirebaseUser)
+      ...firebaseUser, // Spread the original firebaseUser to retain all its methods and properties
+
+      // Explicitly set potentially overridden or custom properties
+      // Ensure types match CourtlyUser which extends FirebaseUser
       displayName: customData.displayName ?? firebaseUser.displayName,
       email: customData.email ?? firebaseUser.email,
-      emailVerified: customData.emailVerified ?? firebaseUser.emailVerified,
-      isAnonymous: customData.isAnonymous ?? firebaseUser.isAnonymous,
-      metadata: customData.metadata ?? firebaseUser.metadata,
       phoneNumber: customData.phoneNumber ?? firebaseUser.phoneNumber,
       photoURL: customData.photoURL ?? firebaseUser.photoURL,
-      providerData: customData.providerData ?? firebaseUser.providerData,
-      providerId: customData.providerId ?? firebaseUser.providerId,
-      tenantId: customData.tenantId ?? firebaseUser.tenantId,
-      uid: firebaseUser.uid,
+      
+      // Custom properties
+      role: customData.role || undefined,
+      customDataLoaded: true,
     };
-
+  
     setCurrentUser(mergedUser);
     setProfileCompletionPending(pendingFlag || !mergedUser.role); 
     
@@ -321,7 +324,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
 
-  const handleCustomApiLogin = useCallback(async (firebaseUser: User): Promise<CourtlyUser | null> => {
+  const handleCustomApiLogin = useCallback(async (firebaseUser: FirebaseUser): Promise<CourtlyUser | null> => {
     try {
       const firebaseIdToken = await firebaseUser.getIdToken();
       const response = await fetch('/api/auth/login', {
@@ -353,11 +356,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken, loadAndMergeCustomUserData]);
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
-    const currentRefreshToken = localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY); // Get latest from LS
+    const currentRefreshToken = refreshToken || localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY);
     if (!currentRefreshToken) {
       console.log("AUTH_CONTEXT: No refresh token available for refresh attempt.");
-      // Do not logoutUser here directly, as this might be called speculatively.
-      // The caller (authedFetch) will handle the ultimate logout if needed.
       return false;
     }
 
@@ -374,7 +375,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("AUTH_CONTEXT: Token refresh failed.", errorData.message);
         if (response.status === 401 || response.status === 403) {
           toast({ variant: "destructive", toastTitle: "Session Expired", toastDescription: "Please log in again."});
-          await logoutUser(); // This is a definitive session end
+          await logoutUser(); 
         } else {
            toast({ variant: "destructive", toastTitle: "Refresh Error", toastDescription: errorData.message });
         }
@@ -386,20 +387,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (newTokens.refreshToken) {
         setAndStoreRefreshToken(newTokens.refreshToken);
       }
+      if (!newTokens.accessToken) {
+        console.error("AUTH_CONTEXT: Token refresh successful but no new access token received.");
+        await logoutUser();
+        return false;
+      }
       console.log("AUTH_CONTEXT: Tokens refreshed successfully.");
-      // Don't toast here, as it might be too noisy if refresh happens often
       return true;
     } catch (error) {
       console.error("AUTH_CONTEXT: Error during token refresh:", error);
       toast({ variant: "destructive", toastTitle: "Network Error", toastDescription: "Could not refresh session. Please check connection." });
       return false;
     }
-  }, [setAndStoreAccessToken, setAndStoreRefreshToken, logoutUser, toast]);
+  }, [setAndStoreAccessToken, setAndStoreRefreshToken, logoutUser, toast, refreshToken]);
 
-  // Initialize API utilities with AuthContext methods
   useEffect(() => {
     initializeAuthHelpers({
-      getAccessToken: () => accessToken, // Use the state variable 'accessToken'
+      getAccessToken: () => accessToken, 
       attemptTokenRefresh,
       logoutUser,
     });
@@ -422,7 +426,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (fcmUser) {
         const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
         if (!VAPID_KEY) {
-          // Warning handled in messaging.tsx
         }
         const messaging = await initializeFirebaseMessaging();
         if (messaging) {
@@ -455,27 +458,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const existingLSRefreshToken = localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY);
 
         if (existingLSAccessToken && existingLSRefreshToken) {
-          setAccessTokenState(existingLSAccessToken);
-          setRefreshTokenState(existingLSRefreshToken);
+          setAccessTokenState(existingLSAccessToken); // Set state from LS
+          setRefreshTokenState(existingLSRefreshToken); // Set state from LS
           const courtlyUser = await loadAndMergeCustomUserData(firebaseUser);
-          setCurrentUser(courtlyUser); // Already sets profileCompletionPending
+          // setCurrentUser is called within loadAndMergeCustomUserData
           await setupFcm(courtlyUser);
         } else {
-           // This case means Firebase user exists, but no custom tokens.
-           // Potentially first time login, or tokens were cleared, or custom login failed previously.
-           // We should try to perform the custom API login.
            console.log("Firebase user exists, but no custom tokens in localStorage. Attempting custom API login.");
            const courtlyUserAfterCustomLogin = await handleCustomApiLogin(firebaseUser);
            if (courtlyUserAfterCustomLogin) {
                 await setupFcm(courtlyUserAfterCustomLogin);
            } else {
-                // Custom login failed. Firebase user exists but can't auth with custom backend.
-                // loadAndMergeCustomUserData will set currentUser with defaults & profileCompletionPending.
-                // User will likely be stuck or redirected if profile is incomplete or path is protected
-                // without custom tokens. This is okay, as they need custom tokens for protected actions.
                 console.warn("Custom API login failed for existing Firebase user. User may need to re-authenticate fully.");
-                await loadAndMergeCustomUserData(firebaseUser); // Load with defaults
-                await setupFcm(currentUser); // Setup FCM with the default-loaded user
+                const defaultLoadedUser = await loadAndMergeCustomUserData(firebaseUser); // Load with defaults
+                await setupFcm(defaultLoadedUser);
            }
         }
       } else {
@@ -517,17 +513,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!isCompleteProfilePage) {
           router.push('/auth/complete-profile');
         }
-      } else if (accessToken && refreshToken) {
+      } else if (accessToken && refreshToken) { // Check for custom tokens
         if (isAuthPage || isCompleteProfilePage) {
           router.push(currentUser.role === 'owner' ? '/dashboard/owner' : '/dashboard/user');
         }
-      } else { 
+      } else { // Firebase user exists, but no custom tokens (or profile complete but tokens missing)
         if (isProtectedPath) {
           console.warn("User on protected path without custom tokens. Logging out.");
           logoutUser(); 
         }
+        // If on non-protected path but tokens are missing, they can stay but API calls will fail/refresh
       }
-    } else { 
+    } else { // No Firebase user
       if (isProtectedPath || isCompleteProfilePage) {
         router.push('/login');
       }
@@ -611,15 +608,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
       setProfileCompletionPending(true);
       
-      setCurrentUser(prev => ({
-          ...(prev || firebaseUser), // Use firebaseUser as base if prev is null
-          displayName: name, 
-          role: prev?.role, // Keep existing role if any from custom login
-          customDataLoaded: true 
-      } as CourtlyUser));
+      // Update currentUser state with the newly signed-up user's details
+      // loadAndMergeCustomUserData will be called eventually by onAuthStateChanged or handleCustomApiLogin,
+      // but we can optimistically update some parts here.
+      // The user returned from handleCustomApiLogin is already the merged CourtlyUser.
+      // setCurrentUser is called within loadAndMergeCustomUserData which is called by handleCustomApiLogin
 
       toast({ toastTitle: "Registration Successful!", toastDescription: "Please complete your profile." });
-      return courtlyUser;
+      return courtlyUser; // Return the CourtlyUser from the custom login flow
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
         toast({ variant: "destructive", toastTitle: "Registration Failed", toastDescription: "This email address is already in use. Please try logging in or use a different email address." });
@@ -637,7 +633,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const firebaseUser = userCredential.user;
       
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
-      if (!courtlyUser) return null;
+      if (!courtlyUser) return null; // Custom login failed, already handled inside
 
       toast({ toastTitle: "Login Successful!", toastDescription: "Welcome back!" });
       return courtlyUser;
@@ -648,7 +644,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("Error signing in:", error);
         toast({ variant: "destructive", toastTitle: "Login Failed", toastDescription: error.message || "An unexpected error occurred." });
       }
-      setAndStoreAccessToken(null);
+      setAndStoreAccessToken(null); // Ensure custom tokens are cleared on Firebase-level login failure too
       setAndStoreRefreshToken(null);
       return null;
     }
@@ -701,7 +697,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!courtlyUser) return null;
       
       localStorage.setItem(`profileCompletionPending_${firebaseUser.uid}`, 'true');
-      setProfileCompletionPending(true); // Ensure this happens for phone auth
+      setProfileCompletionPending(true); 
 
       toast({ toastTitle: "Phone Sign-In Successful!", toastDescription: "Please complete your profile." });
       return courtlyUser;
@@ -714,7 +710,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const updateCourtlyUserRole = (role: 'user' | 'owner') => {
     if (currentUser) {
-      const updatedUser = { ...currentUser, role, customDataLoaded: true };
+      // Create a new object for the state update
+      const updatedUser: CourtlyUser = {
+        ...currentUser, // Spread existing properties
+        role: role,     // Update role
+        customDataLoaded: true, // Assuming role update means custom data is now more complete
+      };
       setCurrentUser(updatedUser);
       localStorage.setItem(`courtly_user_role_${currentUser.uid}`, role);
     }
@@ -753,3 +754,4 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
