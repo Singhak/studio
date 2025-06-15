@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
-  User as FirebaseUser,
+  User as FirebaseUser, // Aliased for clarity
   onAuthStateChanged,
   signOut,
   createUserWithEmailAndPassword,
@@ -21,7 +21,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging';
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
-import type { AppNotification, ApiNotification } from '@/lib/types';
+import type { AppNotification, ApiNotification, UserRole } from '@/lib/types'; // Added UserRole
 import { Bell, Settings, CheckCheck, Trash2, Mailbox } from 'lucide-react';
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,8 @@ export interface CourtlyUser extends FirebaseUser {
   email: string | null;
   phoneNumber: string | null;
   photoURL: string | null;
-  role?: 'user' | 'owner';
+  uid: string;
+  roles: UserRole[]; // Changed from single role to array of roles
 }
 
 interface AuthContextType {
@@ -48,7 +49,7 @@ interface AuthContextType {
   signInWithPhoneNumberFlow: (phoneNumber: string, appVerifier: RecaptchaVerifier) => Promise<ConfirmationResult | null>;
   confirmPhoneNumberCode: (confirmationResult: ConfirmationResult, code: string) => Promise<CourtlyUser | null>;
   logoutUser: () => Promise<void>;
-  updateCourtlyUserRole: (role: 'user' | 'owner') => void;
+  updateCourtlyUserRoles: (roles: UserRole[]) => void; // Renamed and updated
   attemptTokenRefresh: () => Promise<boolean>;
   notifications: AppNotification[];
   unreadCount: number;
@@ -63,7 +64,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 const CUSTOM_REFRESH_TOKEN_KEY = 'courtlyCustomRefreshToken';
 const LAST_NOTIFICATION_REMINDER_KEY = 'courtly-last-notification-reminder-shown';
-const COURTLY_USER_ROLE_PREFIX = 'courtly_user_role_';
+const COURTLY_USER_ROLES_PREFIX = 'courtly_user_roles_'; // Updated prefix
 
 
 const transformApiNotificationToApp = (apiNotif: ApiNotification): AppNotification => {
@@ -177,13 +178,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     setNotifications(prev => {
       const updated = [newAppNotification, ...prev.slice(0, 19)];
-      if (currentUser?.uid) { // Use currentUser from state for addNotification
+      if (currentUser?.uid) { 
         saveNotificationsToStorage(updated, currentUser.uid);
       }
       return updated;
     });
     setUnreadCount(prev => prev + 1);
-  }, [saveNotificationsToStorage, currentUser]); // Added currentUser to dependency
+  }, [saveNotificationsToStorage, currentUser]); 
 
   const markNotificationAsRead = useCallback(async (notificationId: string) => {
     try {
@@ -262,7 +263,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (uidBeforeLogout) {
         const notificationKey = getNotificationStorageKey(uidBeforeLogout);
         if (notificationKey) localStorage.removeItem(notificationKey);
-        localStorage.removeItem(`${COURTLY_USER_ROLE_PREFIX}${uidBeforeLogout}`);
+        localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidBeforeLogout}`);
       }
       setAndStoreAccessToken(null);
       setAndStoreRefreshToken(null);
@@ -293,20 +294,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAndStoreAccessToken(customTokenData.accessToken);
       setAndStoreRefreshToken(customTokenData.refreshToken);
       
-      let storedRole = localStorage.getItem(`${COURTLY_USER_ROLE_PREFIX}${firebaseUser.uid}`) as 'user' | 'owner' | null;
-      if (!storedRole) {
-        storedRole = 'user'; // Default to 'user' if no role is stored
-        localStorage.setItem(`${COURTLY_USER_ROLE_PREFIX}${firebaseUser.uid}`, storedRole);
+      let storedRoles: UserRole[] = ['user']; // Default to ['user']
+      const storedRolesString = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`);
+      if (storedRolesString) {
+        try {
+          const parsedRoles = JSON.parse(storedRolesString) as UserRole[];
+          if (Array.isArray(parsedRoles) && parsedRoles.length > 0) {
+            storedRoles = parsedRoles;
+          }
+        } catch (e) {
+          console.error("Error parsing stored roles, defaulting to ['user']:", e);
+        }
+      } else {
+         localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(storedRoles));
       }
 
       const courtlyUser: CourtlyUser = {
-        ...(firebaseUser as any), // Spread to retain all FirebaseUser properties and methods
+        ...(firebaseUser as any),
         displayName: firebaseUser.displayName,
         email: firebaseUser.email,
         phoneNumber: firebaseUser.phoneNumber,
         photoURL: firebaseUser.photoURL,
-        uid: firebaseUser.uid, // ensure uid is explicitly passed
-        role: storedRole,
+        uid: firebaseUser.uid,
+        roles: storedRoles,
       };
       setCurrentUser(courtlyUser);
       return courtlyUser;
@@ -430,20 +440,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setAccessTokenState(existingLSAccessToken);
           setRefreshTokenState(existingLSRefreshToken);
           
-          let storedRole = localStorage.getItem(`${COURTLY_USER_ROLE_PREFIX}${firebaseUser.uid}`) as 'user' | 'owner' | null;
-          if (!storedRole) {
-            storedRole = 'user'; // Default to 'user'
-            localStorage.setItem(`${COURTLY_USER_ROLE_PREFIX}${firebaseUser.uid}`, storedRole);
+          let storedRoles: UserRole[] = ['user'];
+          const storedRolesString = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`);
+          if (storedRolesString) {
+            try {
+              const parsedRoles = JSON.parse(storedRolesString) as UserRole[];
+              if (Array.isArray(parsedRoles) && parsedRoles.length > 0) {
+                storedRoles = parsedRoles;
+              }
+            } catch (e) {
+              console.error("Error parsing stored roles, defaulting to ['user']:", e);
+            }
+          } else {
+            localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(storedRoles));
           }
           
           const courtlyUser: CourtlyUser = {
-            ...(firebaseUser as any), // Spread to retain all FirebaseUser properties and methods
+            ...(firebaseUser as any),
             displayName: firebaseUser.displayName,
             email: firebaseUser.email,
             phoneNumber: firebaseUser.phoneNumber,
             photoURL: firebaseUser.photoURL,
             uid: firebaseUser.uid,
-            role: storedRole,
+            roles: storedRoles,
           };
           setCurrentUser(courtlyUser);
           courtlyUserForFcmSetup = courtlyUser;
@@ -455,15 +474,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                courtlyUserForFcmSetup = courtlyUserAfterCustomLogin;
            } else {
                 console.warn("Custom API login failed for existing Firebase user. User may need to re-authenticate fully.");
-                let storedRole = localStorage.getItem(`${COURTLY_USER_ROLE_PREFIX}${firebaseUser.uid}`) as 'user' | 'owner' | null;
-                if (!storedRole) {
-                    storedRole = 'user'; // Default to 'user'
-                    localStorage.setItem(`${COURTLY_USER_ROLE_PREFIX}${firebaseUser.uid}`, storedRole);
+                let storedRoles: UserRole[] = ['user'];
+                const storedRolesString = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`);
+                if (storedRolesString) {
+                    try {
+                        const parsedRoles = JSON.parse(storedRolesString) as UserRole[];
+                         if (Array.isArray(parsedRoles) && parsedRoles.length > 0) {
+                            storedRoles = parsedRoles;
+                        }
+                    } catch (e) {
+                        console.error("Error parsing stored roles, defaulting to ['user']:", e);
+                    }
+                } else {
+                     localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(storedRoles));
                 }
                 const basicUser: CourtlyUser = { 
                     ...(firebaseUser as any), 
                     displayName: firebaseUser.displayName, email: firebaseUser.email, phoneNumber: firebaseUser.phoneNumber, photoURL: firebaseUser.photoURL, uid: firebaseUser.uid, 
-                    role: storedRole 
+                    roles: storedRoles 
                 };
                 setCurrentUser(basicUser);
                 courtlyUserForFcmSetup = basicUser;
@@ -500,22 +528,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (loading) return;
 
-    const authPages = ['/login', '/register', '/auth/complete-profile']; // Complete profile page is now just like any other auth page
+    const authPages = ['/login', '/register', '/auth/complete-profile'];
     const isAuthPage = authPages.includes(pathname);
     const isProtectedPath = pathname.startsWith('/dashboard');
 
     if (currentUser) {
-      if (accessToken && refreshToken) { // User is fully logged in with custom tokens
+      if (accessToken && refreshToken) { 
         if (isAuthPage) {
-          router.push(currentUser.role === 'owner' ? '/dashboard/owner' : '/dashboard/user');
+          if (currentUser.roles.includes('owner')) {
+            router.push('/dashboard/owner');
+          } else {
+            router.push('/dashboard/user');
+          }
         }
-      } else { // Firebase user exists, but custom tokens might be missing or invalid
+      } else { 
         if (isProtectedPath) {
           console.warn("User on protected path without custom tokens. Logging out.");
           logoutUser(); 
         }
       }
-    } else { // No currentUser
+    } else { 
       if (isProtectedPath) {
         router.push('/login');
       }
@@ -590,7 +622,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const firebaseUser = userCredential.user;
       await updateProfile(firebaseUser, { displayName: name });
 
-      const courtlyUser = await handleCustomApiLogin(firebaseUser); // This now sets default role
+      const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) {
         await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure during signup:", e));
         return null;
@@ -614,7 +646,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
-      const courtlyUser = await handleCustomApiLogin(firebaseUser); // This now sets/retrieves role
+      const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
 
       toast({ toastTitle: "Login Successful!", toastDescription: "Welcome back!" });
@@ -638,7 +670,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
 
-      const courtlyUser = await handleCustomApiLogin(firebaseUser); // This now sets/retrieves role
+      const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
 
       toast({ toastTitle: "Google Sign-In Successful!", toastDescription: "Welcome!" });
@@ -675,7 +707,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userCredential = await confirmationResult.confirm(code);
       const firebaseUser = userCredential.user;
 
-      const courtlyUser = await handleCustomApiLogin(firebaseUser); // This now sets/retrieves role
+      const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
 
       toast({ toastTitle: "Phone Sign-In Successful!", toastDescription: "Welcome!" });
@@ -687,16 +719,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateCourtlyUserRole = (role: 'user' | 'owner') => {
+  const updateCourtlyUserRoles = (newRoles: UserRole[]) => {
     if (currentUser) {
+      // Ensure 'user' role is always present if any other role is added, and filter duplicates
+      const rolesToSet = Array.from(new Set(newRoles.length > 0 ? (newRoles.includes('user') ? newRoles : ['user', ...newRoles]) : ['user']));
+      
       const updatedUser: CourtlyUser = {
         ...currentUser,
-        role: role,
+        roles: rolesToSet,
       };
       setCurrentUser(updatedUser);
-      localStorage.setItem(`${COURTLY_USER_ROLE_PREFIX}${currentUser.uid}`, role);
+      localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(rolesToSet));
     }
   };
+
 
   const value = {
     currentUser,
@@ -709,7 +745,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signInWithPhoneNumberFlow,
     confirmPhoneNumberCode,
     logoutUser,
-    updateCourtlyUserRole,
+    updateCourtlyUserRoles, // Updated function name
     attemptTokenRefresh,
     notifications,
     unreadCount,
@@ -729,5 +765,3 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
-
-

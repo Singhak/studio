@@ -11,6 +11,17 @@ export interface ClubLocationGeo {
   coordinates: [number, number]; // [longitude, latitude]
 }
 
+export type UserRole = 'user' | 'owner' | 'admin' | 'editor';
+
+export interface CourtlyUserBase { // Renamed from AppUser to avoid conflict, and made more generic
+  id: string; // Firebase UID
+  email: string | null;
+  name?: string | null; // displayName from Firebase
+  roles: UserRole[];
+  avatarUrl?: string | null; // photoURL from Firebase
+}
+
+
 export interface Club {
   _id: string;
   owner?: string;
@@ -82,7 +93,7 @@ export interface TimeSlot {
 
 export interface Booking {
   id: string;
-  customer: string;
+  userId: string; // Changed from 'customer' to 'userId' for consistency
   clubId: string;
   serviceId: string; // Should map to Service._id
   date: string;
@@ -94,13 +105,6 @@ export interface Booking {
   createdAt: string;
 }
 
-export interface AppUser {
-  id: string;
-  email: string;
-  name?: string;
-  role: 'user' | 'owner';
-  avatarUrl?: string;
-}
 
 // AppNotification: Used internally by AuthContext and Header for display
 export interface AppNotification {

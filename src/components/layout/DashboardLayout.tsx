@@ -39,13 +39,10 @@ interface DashboardLayoutProps {
 
 const userNavItems = [
   { href: '/dashboard/user', label: 'My Bookings', icon: CalendarDays },
-  // { href: '/dashboard/user/profile', label: 'Profile', icon: UserCircle }, // Example, can be added if page exists
-  // { href: '/dashboard/user/payment', label: 'Payment Methods', icon: CreditCard }, // Example
 ];
 
 const ownerNavItems = [
   { href: '/dashboard/owner', label: 'Club Overview', icon: LayoutDashboard },
-  // { href: '/dashboard/owner/bookings', label: 'Manage Bookings', icon: CalendarDays }, // Example
   { href: '/dashboard/owner/services', label: 'Services & Pricing', icon: CreditCard },
   { href: '/dashboard/owner/availability', label: 'Availability', icon: ShieldCheck },
   { href: '/dashboard/owner/settings', label: 'Club Settings', icon: Settings },
@@ -53,7 +50,6 @@ const ownerNavItems = [
 ];
 
 const commonBottomNavItems = [
-    // { href: '/settings', label: 'Account Settings', icon: Settings }, // Example
 ];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -65,70 +61,63 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [ownedClubs, setOwnedClubs] = useState<ClubType[]>([]);
   const [isLoadingOwnedClubs, setIsLoadingOwnedClubs] = useState(true);
 
+  const userHasOwnerRole = currentUser?.roles.includes('owner') ?? false;
+
   useEffect(() => {
-    if (authLoading) return; // Wait for auth to settle
+    if (authLoading) return;
 
     if (!currentUser) {
       setIsLoadingOwnedClubs(false);
       setOwnedClubs([]);
       setCurrentView('user');
-      if (pathname.startsWith('/dashboard')) router.push('/login'); // Redirect if not logged in but on dashboard path
+      if (pathname.startsWith('/dashboard')) router.push('/login');
       return;
     }
 
     const fetchClubsAndSetView = async () => {
       setIsLoadingOwnedClubs(true);
-      try {
-        const clubs = await getLoggedInOwnerClubs();
-        setOwnedClubs(clubs);
-        if (clubs.length > 0) {
-          // User owns clubs
-          if (pathname.startsWith('/dashboard/owner')) {
-            setCurrentView('owner');
-          } else {
-            // If they own clubs but are on a user path, default to user view.
-            // They can switch to owner view via dropdown.
-            setCurrentView('user');
-          }
-        } else {
-          // User owns no clubs
-          if (pathname.startsWith('/dashboard/owner') && pathname !== '/dashboard/owner/register-club') {
-            // Attempting to access owner dashboard but owns no clubs (and not trying to register).
-            // The OwnerDashboardPage will show "register club" prompt.
-            setCurrentView('owner'); 
-          } else {
-            setCurrentView('user'); // Default to user view for all other cases
-          }
+      if (userHasOwnerRole) {
+        try {
+          const clubs = await getLoggedInOwnerClubs();
+          setOwnedClubs(clubs);
+        } catch (error) {
+          console.error("Failed to fetch owner's clubs for dashboard layout:", error);
+          setOwnedClubs([]);
         }
-      } catch (error) {
-        console.error("Failed to fetch owner's clubs for dashboard layout:", error);
+      } else {
         setOwnedClubs([]);
-        setCurrentView('user'); // Fallback to user view on error
-      } finally {
-        setIsLoadingOwnedClubs(false);
+      }
+      setIsLoadingOwnedClubs(false);
+      
+      // Determine current view based on path and roles
+      if (userHasOwnerRole && pathname.startsWith('/dashboard/owner')) {
+        setCurrentView('owner');
+      } else {
+        setCurrentView('user'); // Default to user view or if on user path
       }
     };
     fetchClubsAndSetView();
-  }, [currentUser, pathname, router, authLoading]);
+  }, [currentUser, pathname, router, authLoading, userHasOwnerRole]);
 
 
   const handleViewChange = useCallback((newView: 'user' | 'owner') => {
     if (newView === 'owner') {
-      if (ownedClubs.length > 0) {
+      if (userHasOwnerRole && ownedClubs.length > 0) {
         router.push('/dashboard/owner');
-      } else {
-        // If trying to switch to owner but has no clubs, send to register page
+      } else if (userHasOwnerRole) {
         router.push('/dashboard/owner/register-club');
+      } else {
+        // Non-owner trying to switch to owner view - redirect or show error.
+        // For now, this option shouldn't be available to them.
+        router.push('/dashboard/user');
       }
     } else {
       router.push('/dashboard/user');
     }
-    // setCurrentView will be updated by the useEffect reacting to pathname change
-  }, [router, ownedClubs.length]);
+  }, [router, ownedClubs.length, userHasOwnerRole]);
 
   const handleLogout = async () => {
     await logoutUser();
-    // AuthContext's useEffect will handle navigation away from protected routes
   };
 
   if (authLoading || (!currentUser && pathname.startsWith('/dashboard'))) {
@@ -139,8 +128,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
   
-  // If auth is done, no user, and on dashboard, AuthContext should have redirected.
-  // This is an extra guard.
   if (!currentUser && pathname.startsWith('/dashboard')) {
     return (
         <div className="flex h-screen items-center justify-center bg-background">
@@ -148,6 +135,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
     );
   }
+
+  const displayNavItems = (currentView === 'owner' && userHasOwnerRole) ? ownerNavItems : userNavItems;
 
   return (
     <SidebarProvider defaultOpen>
@@ -157,7 +146,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <Logo className="text-lg" />
             <SidebarTrigger />
           </div>
-          {!isLoadingOwnedClubs && ownedClubs.length > 0 && (
+          {!isLoadingOwnedClubs && userHasOwnerRole && ( // Show dropdown only if user has owner role
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="sidebarOutline" className="w-full justify-between text-xs sm:text-sm">
@@ -172,10 +161,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   <UserCircle className="mr-2 h-4 w-4" />
                   <span>User View</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleViewChange('owner')} disabled={currentView === 'owner'}>
-                  <Building className="mr-2 h-4 w-4" />
-                  <span>Owner View</span>
-                </DropdownMenuItem>
+                {userHasOwnerRole && (
+                  <DropdownMenuItem onClick={() => handleViewChange('owner')} disabled={currentView === 'owner'}>
+                    <Building className="mr-2 h-4 w-4" />
+                    <span>Owner View</span>
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -183,7 +174,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <ScrollArea className="h-[calc(100vh-12rem-4rem)]"> {/* Adjust height if header/footer changes */}
           <SidebarContent className="p-2">
             <SidebarMenu>
-              {(currentView === 'owner' && ownedClubs.length > 0 ? ownerNavItems : userNavItems).map((item) => (
+              {displayNavItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
@@ -198,7 +189,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
-            {!isLoadingOwnedClubs && ownedClubs.length === 0 && (
+            {!isLoadingOwnedClubs && userHasOwnerRole && ownedClubs.length === 0 && (
               <SidebarMenu className="mt-4 pt-2 border-t border-sidebar-border">
                 <SidebarMenuItem>
                     <SidebarMenuButton

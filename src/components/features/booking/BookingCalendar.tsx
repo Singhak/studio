@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Clock, Loader2, AlertTriangle } from 'lucide-react';
-import type { TimeSlot, TimeSlotStatus, Service, DayOfWeek, Booking } from '@/lib/types';
+import type { TimeSlot, TimeSlotStatus, Service, DayOfWeek, Booking, UserRole } from '@/lib/types'; // Added UserRole
 import { getBookingsForServiceOnDate } from '@/services/bookingService';
 import { format as formatDateFns, parse, addMinutes, isBefore, isEqual, getDay, startOfToday as getStartOfToday } from 'date-fns';
 import type { Matcher } from 'react-day-picker';
@@ -26,12 +26,12 @@ const legendItems = [
   { label: 'Selected', className: 'bg-primary w-3.5 h-3.5 rounded-sm mr-1.5 shrink-0' },
   { label: 'Available', className: 'border border-input bg-background w-3.5 h-3.5 rounded-sm mr-1.5 shrink-0' },
   { label: 'Your Pending', className: 'bg-yellow-100 border border-yellow-400 w-3.5 h-3.5 rounded-sm mr-1.5 shrink-0' },
-  { label: 'Unavailable', className: 'bg-secondary w-3.5 h-3.5 rounded-sm opacity-80 mr-1.5 shrink-0' },
+  { label: 'Unavailable', className: 'bg-secondary opacity-70 w-3.5 h-3.5 rounded-sm mr-1.5 shrink-0' },
 ];
 
 
 export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalendarProps) {
-  const { aboutMe: currentUser } = useAuth();
+  const { currentUser } = useAuth(); // Destructure currentUser from useAuth
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [timeSlots, setTimeSlots] = useState<DisplayTimeSlot[]>([]);
   const [internalSelectedTimeSlot, setInternalSelectedTimeSlot] = useState<DisplayTimeSlot | null>(null);
@@ -48,13 +48,15 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
 
   useEffect(() => {
     if (clientLoaded && selectedService) {
+      // When a new service is selected, default the date to today
       const today = new Date();
       setSelectedDate(today);
-      setInternalSelectedTimeSlot(null);
+      setInternalSelectedTimeSlot(null); // Clear any previous slot selection
       if (onSlotSelect) {
-        onSlotSelect(today, null);
+        onSlotSelect(today, null); // Inform parent about the date change and cleared slot
       }
     } else if (!selectedService && clientLoaded) {
+      // If service is deselected, clear everything
       setSelectedDate(undefined);
       setTimeSlots([]);
       setInternalSelectedTimeSlot(null);
@@ -64,7 +66,7 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedService, clientLoaded]);
+  }, [selectedService, clientLoaded]); // Removed onSlotSelect from deps
 
   useEffect(() => {
     if (!clientLoaded || !selectedDate || !selectedService) {
@@ -123,11 +125,11 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
 
             if (conflictingBooking) {
               if (conflictingBooking.status === 'pending') {
-                if (currentUser && conflictingBooking.customer === currentUser.id) {
+                if (currentUser && conflictingBooking.userId === currentUser.uid) { // Compare with currentUser.uid
                   displayStatus = 'pending'; 
                   isCurrentUsersPendingBooking = true;
                 } else {
-                  displayStatus = 'confirmed'; 
+                  displayStatus = 'confirmed'; // Other user's pending, treat as booked for this user
                 }
               } else if (conflictingBooking.status === 'confirmed') {
                 displayStatus = 'confirmed'; 
@@ -160,6 +162,7 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     };
 
     generateAndSetTimeSlots();
+    // When date or service changes, the selected slot should be cleared
     if (internalSelectedTimeSlot) {
         setInternalSelectedTimeSlot(null);
         if (onSlotSelect) {
@@ -167,11 +170,11 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, selectedService, clientLoaded, currentUser]);
+  }, [selectedDate, selectedService, clientLoaded, currentUser]); // Added currentUser as a dependency
 
   const handleDateChange = (date: Date | undefined) => {
     setSelectedDate(date);
-    setInternalSelectedTimeSlot(null);
+    setInternalSelectedTimeSlot(null); // Clear selected time slot when date changes
     if (onSlotSelect) {
       onSlotSelect(date, null);
     }
@@ -202,10 +205,10 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
       buttonClassName += " bg-yellow-100 border-yellow-400 text-yellow-700 hover:bg-yellow-200 focus:bg-yellow-200 cursor-not-allowed";
       isDisabled = true;
       tooltipText = "Your Pending Booking";
-    } else if (slot.status === 'confirmed') { 
-      variant = 'secondary';
+    } else if (slot.status === 'confirmed') { // This covers other's pending and all confirmed
+      variant = 'secondary'; // Use secondary for booked/unavailable
       isDisabled = true;
-      buttonClassName += " opacity-80 cursor-not-allowed";
+      buttonClassName += " opacity-70 cursor-not-allowed";
       tooltipText = "Unavailable";
     } else if (slot.status === 'available') {
       variant = 'outline';
@@ -215,6 +218,7 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     
     if (internalSelectedTimeSlot?.startTime === slot.startTime && slot.status === 'available') {
       variant = 'default'; 
+      tooltipText = "Selected";
     }
     return { variant, isDisabled, buttonClassName, buttonText, tooltipText };
   };
@@ -327,5 +331,3 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     </TooltipProvider>
   );
 }
-
-    

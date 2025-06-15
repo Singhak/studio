@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserCheck, Loader2 } from "lucide-react";
+import type { UserRole } from "@/lib/types";
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
@@ -28,7 +29,7 @@ const formSchema = z.object({
 });
 
 export function CompleteProfileForm() {
-  const { currentUser, setProfileCompletionPending, updateCourtlyUserRole, loading: authLoading } = useAuth();
+  const { currentUser, updateCourtlyUserRoles, loading: authLoading } = useAuth(); // Updated to use updateCourtlyUserRoles
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -42,13 +43,16 @@ export function CompleteProfileForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: currentUser?.displayName || "",
-      userType: "user",
+      userType: currentUser?.roles?.includes("owner") ? "owner" : "user", // Default based on existing roles
     },
   });
 
   useEffect(() => {
     if (currentUser?.displayName && !form.getValues("fullName")) {
       form.setValue("fullName", currentUser.displayName);
+    }
+    if (currentUser?.roles) {
+        form.setValue("userType", currentUser.roles.includes("owner") ? "owner" : "user");
     }
   }, [currentUser, form]);
 
@@ -62,29 +66,26 @@ export function CompleteProfileForm() {
       return;
     }
 
+    const newRoles: UserRole[] = ['user']; // 'user' role is always present
+    if (values.userType === "owner") {
+      if (!newRoles.includes('owner')) {
+        newRoles.push('owner');
+      }
+    }
+    
     console.log("Profile details to save (simulated):", {
       uid: currentUser.uid,
       email: currentUser.email,
       phone: currentUser.phoneNumber,
       fullName: values.fullName,
-      role: values.userType, // This will be the role
+      roles: newRoles,
     });
-    // In a real app, you'd save this data to Firestore or your backend here.
-    // Example: await saveUserProfileToBackend(currentUser.uid, { fullName: values.fullName, role: values.userType });
 
-    // Update the role in AuthContext
-    updateCourtlyUserRole(values.userType);
-    
-    // Persist this role choice locally for mockFetchCustomProfile to pick up (simulation)
-    localStorage.setItem(`courtly_user_role_${currentUser.uid}`, values.userType);
-
-
-    setProfileCompletionPending(false); 
-    localStorage.removeItem(`profileCompletionPending_${currentUser.uid}`); // Clear the pending flag
+    updateCourtlyUserRoles(newRoles);
     setIsSubmitting(false);
 
-    if (values.userType === "owner") {
-      router.push('/dashboard/owner/register-club'); 
+    if (newRoles.includes("owner")) {
+      router.push('/dashboard/owner'); 
     } else {
       router.push('/dashboard/user');
     }
@@ -104,7 +105,7 @@ export function CompleteProfileForm() {
         <CardTitle className="text-2xl flex items-center justify-center">
           <UserCheck className="mr-2 h-6 w-6 text-primary" /> Complete Your Profile
         </CardTitle>
-        <CardDescription>Just a few more details to get you started on Courtly.</CardDescription>
+        <CardDescription>Update your details and primary role preference.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -128,7 +129,7 @@ export function CompleteProfileForm() {
               name="userType"
               render={({ field }) => (
                 <FormItem className="space-y-3">
-                  <FormLabel>How will you primarily use Courtly?</FormLabel>
+                  <FormLabel>Select your primary account type:</FormLabel>
                   <FormControl>
                     <RadioGroup
                       onValueChange={field.onChange}
@@ -154,7 +155,7 @@ export function CompleteProfileForm() {
                       </FormItem>
                     </RadioGroup>
                   </FormControl>
-                  <FormDescription>You can be both! This helps us tailor your initial experience.</FormDescription>
+                  <FormDescription>This helps us tailor your experience. You can be both!</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
