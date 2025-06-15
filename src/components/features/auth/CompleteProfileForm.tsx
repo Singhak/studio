@@ -29,7 +29,7 @@ const formSchema = z.object({
 });
 
 export function CompleteProfileForm() {
-  const { currentUser, updateCourtlyUserRoles, loading: authLoading } = useAuth(); // Updated to use updateCourtlyUserRoles
+  const { currentUser, updateCourtlyUserRoles, loading: authLoading } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,7 +43,7 @@ export function CompleteProfileForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: currentUser?.displayName || "",
-      userType: currentUser?.roles?.includes("owner") ? "owner" : "user", // Default based on existing roles
+      userType: currentUser?.roles?.includes("owner") ? "owner" : "user",
     },
   });
 
@@ -66,11 +66,11 @@ export function CompleteProfileForm() {
       return;
     }
 
-    const newRoles: UserRole[] = ['user']; // 'user' role is always present
+    let newRolesArray: UserRole[]; // Explicitly typed as UserRole[]
     if (values.userType === "owner") {
-      if (!newRoles.includes('owner')) {
-        newRoles.push('owner');
-      }
+      newRolesArray = ['user', 'owner']; // TypeScript will check if 'user' and 'owner' are valid UserRole literals
+    } else {
+      newRolesArray = ['user']; // TypeScript will check if 'user' is a valid UserRole literal
     }
     
     console.log("Profile details to save (simulated):", {
@@ -78,13 +78,13 @@ export function CompleteProfileForm() {
       email: currentUser.email,
       phone: currentUser.phoneNumber,
       fullName: values.fullName,
-      roles: newRoles,
+      roles: newRolesArray,
     });
 
-    updateCourtlyUserRoles(newRoles);
+    updateCourtlyUserRoles(newRolesArray); // Pass the correctly typed array, no 'as UserRole[]' cast needed
     setIsSubmitting(false);
 
-    if (newRoles.includes("owner")) {
+    if (newRolesArray.includes("owner")) {
       router.push('/dashboard/owner'); 
     } else {
       router.push('/dashboard/user');
@@ -155,7 +155,7 @@ export function CompleteProfileForm() {
                       </FormItem>
                     </RadioGroup>
                   </FormControl>
-                  <FormDescription>This helps us tailor your experience. You can be both!</FormDescription>
+                  <FormDescription>This helps us tailor your experience. You can have multiple roles!</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

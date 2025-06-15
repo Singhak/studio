@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
-  User as FirebaseUser, // Aliased for clarity
+  User as FirebaseUser,
   onAuthStateChanged,
   signOut,
   createUserWithEmailAndPassword,
@@ -19,23 +19,22 @@ import {
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging';
+import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging'; // Corrected import
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
-import type { AppNotification, ApiNotification, UserRole } from '@/lib/types'; // Added UserRole
-import { Bell, Settings, CheckCheck, Trash2, Mailbox } from 'lucide-react';
+import type { AppNotification, ApiNotification, UserRole } from '@/lib/types';
+import { Bell, CheckCheck, Trash2, Mailbox } from 'lucide-react'; // Removed Settings as it's not used here
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
 import { Button } from '@/components/ui/button';
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 
-
 // Define CourtlyUser interface
 export interface CourtlyUser extends FirebaseUser {
-  displayName: string | null;
-  email: string | null;
-  phoneNumber: string | null;
-  photoURL: string | null;
+  displayName: string | null; // Explicitly string | null
+  email: string | null;       // Explicitly string | null
+  phoneNumber: string | null; // Explicitly string | null
+  photoURL: string | null;    // Explicitly string | null
   uid: string;
-  roles: UserRole[]; // Changed from single role to array of roles
+  roles: UserRole[];
 }
 
 interface AuthContextType {
@@ -49,7 +48,7 @@ interface AuthContextType {
   signInWithPhoneNumberFlow: (phoneNumber: string, appVerifier: RecaptchaVerifier) => Promise<ConfirmationResult | null>;
   confirmPhoneNumberCode: (confirmationResult: ConfirmationResult, code: string) => Promise<CourtlyUser | null>;
   logoutUser: () => Promise<void>;
-  updateCourtlyUserRoles: (roles: UserRole[]) => void; // Renamed and updated
+  updateCourtlyUserRoles: (roles: UserRole[]) => void;
   attemptTokenRefresh: () => Promise<boolean>;
   notifications: AppNotification[];
   unreadCount: number;
@@ -64,7 +63,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 const CUSTOM_REFRESH_TOKEN_KEY = 'courtlyCustomRefreshToken';
 const LAST_NOTIFICATION_REMINDER_KEY = 'courtly-last-notification-reminder-shown';
-const COURTLY_USER_ROLES_PREFIX = 'courtly_user_roles_'; // Updated prefix
+const COURTLY_USER_ROLES_PREFIX = 'courtly_user_roles_';
+
+// Helper type guard for UserRole
+const ALL_USER_ROLES_VALUES: ReadonlyArray<UserRole> = ['user', 'owner', 'admin', 'editor'];
+const isValidUserRole = (role: any): role is UserRole => {
+  return ALL_USER_ROLES_VALUES.includes(role);
+};
 
 
 const transformApiNotificationToApp = (apiNotif: ApiNotification): AppNotification => {
@@ -167,7 +172,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [getNotificationStorageKey, saveNotificationsToStorage]);
 
 
-  const addNotification = useCallback((title: string, body?: string, href?: string, id?: string) => {
+  const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
     const newAppNotification: AppNotification = {
       id: id || `client_${Date.now().toString()}`,
       title,
@@ -178,13 +183,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     setNotifications(prev => {
       const updated = [newAppNotification, ...prev.slice(0, 19)];
-      if (currentUser?.uid) { 
-        saveNotificationsToStorage(updated, currentUser.uid);
+      // Use a local variable for currentUser in case the state hasn't updated yet in this closure
+      const currentUid = auth.currentUser?.uid; 
+      if (currentUid) { 
+        saveNotificationsToStorage(updated, currentUid);
       }
       return updated;
     });
     setUnreadCount(prev => prev + 1);
-  }, [saveNotificationsToStorage, currentUser]); 
+  }, [saveNotificationsToStorage]); 
 
   const markNotificationAsRead = useCallback(async (notificationId: string) => {
     try {
@@ -201,8 +208,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (unreadChanged) {
           setUnreadCount(currentUnread => Math.max(0, currentUnread - 1));
         }
-        if (currentUser?.uid) {
-          saveNotificationsToStorage(updated, currentUser.uid);
+        const currentUid = auth.currentUser?.uid;
+        if (currentUid) {
+          saveNotificationsToStorage(updated, currentUid);
         }
         return updated;
       });
@@ -214,7 +222,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toastDescription: "Could not mark notification as read.",
       });
     }
-  }, [saveNotificationsToStorage, toast, currentUser]);
+  }, [saveNotificationsToStorage, toast]);
 
   const markAllNotificationsAsRead = useCallback(async () => {
     const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
@@ -224,8 +232,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await markNotificationsAsReadApi(unreadIds);
       setNotifications(prev => {
         const updated = prev.map(n => ({ ...n, read: true }));
-        if (currentUser?.uid) {
-          saveNotificationsToStorage(updated, currentUser.uid);
+        const currentUid = auth.currentUser?.uid;
+        if (currentUid) {
+          saveNotificationsToStorage(updated, currentUid);
         }
         return updated;
       });
@@ -238,21 +247,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toastDescription: "Could not mark all notifications as read.",
       });
     }
-  }, [notifications, saveNotificationsToStorage, toast, currentUser]);
+  }, [notifications, saveNotificationsToStorage, toast]);
 
 
   const clearAllNotifications = useCallback(async () => {
     console.log("Simulating: Would call API to clear/delete all notifications for user if endpoint existed.");
     setNotifications([]);
     setUnreadCount(0);
-    if (currentUser?.uid) {
-      saveNotificationsToStorage([], currentUser.uid);
+    const currentUid = auth.currentUser?.uid;
+    if (currentUid) {
+      saveNotificationsToStorage([], currentUid);
     }
     toast({ toastTitle: "Notifications Cleared" });
-  }, [saveNotificationsToStorage, toast, currentUser]);
+  }, [saveNotificationsToStorage, toast]);
 
-  const logoutUser = useCallback(async () => {
-    const uidBeforeLogout = currentUser?.uid;
+  const logoutUserCb = useCallback(async () => {
+    const uidBeforeLogout = auth.currentUser?.uid;
     try {
       await signOut(auth);
       toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
@@ -271,7 +281,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setNotifications([]);
       setUnreadCount(0);
     }
-  }, [currentUser, getNotificationStorageKey, toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
+  }, [getNotificationStorageKey, toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
+
+  const getStoredRoles = (uid: string): UserRole[] => {
+    const defaultRoles: UserRole[] = ['user'];
+    const storedRolesString = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${uid}`);
+    let finalRoles: UserRole[] = defaultRoles;
+
+    if (storedRolesString) {
+      try {
+        const parsedJson = JSON.parse(storedRolesString); // Returns any
+        if (Array.isArray(parsedJson)) {
+          const validatedRoles = parsedJson.filter(isValidUserRole); // Correctly produces UserRole[]
+          
+          if (validatedRoles.length > 0) {
+            const baseRoles = new Set<UserRole>(validatedRoles);
+            // Ensure 'user' role is always present if other significant roles exist or if it's the only role.
+            if (baseRoles.has('owner') || baseRoles.has('admin') || baseRoles.has('editor') || baseRoles.has('user')) {
+              baseRoles.add('user');
+            }
+             // If after filtering, baseRoles is empty (e.g. localStorage had ["invalidrole"]), default to ['user']
+            finalRoles = baseRoles.size > 0 ? Array.from(baseRoles) : defaultRoles;
+          }
+        }
+      } catch (e) {
+        console.error(`Error parsing stored roles for user ${uid}, defaulting to ${JSON.stringify(defaultRoles)}. Error: ${e}. Stored string was: ${storedRolesString.substring(0,100)}`);
+        // finalRoles remains defaultRoles
+      }
+    }
+    // Save back to localStorage if it was missing, malformed, or needed correction
+    const currentStoredStringForCompare = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${uid}`);
+    const newRolesStringToStore = JSON.stringify(finalRoles);
+    if (currentStoredStringForCompare !== newRolesStringToStore) {
+        localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${uid}`, newRolesStringToStore);
+    }
+    return finalRoles;
+  };
 
 
   const handleCustomApiLogin = useCallback(async (firebaseUser: FirebaseUser): Promise<CourtlyUser | null> => {
@@ -294,29 +339,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAndStoreAccessToken(customTokenData.accessToken);
       setAndStoreRefreshToken(customTokenData.refreshToken);
       
-      let storedRoles: UserRole[] = ['user']; // Default to ['user']
-      const storedRolesString = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`);
-      if (storedRolesString) {
-        try {
-          const parsedRoles = JSON.parse(storedRolesString) as UserRole[];
-          if (Array.isArray(parsedRoles) && parsedRoles.length > 0) {
-            storedRoles = parsedRoles;
-          }
-        } catch (e) {
-          console.error("Error parsing stored roles, defaulting to ['user']:", e);
-        }
-      } else {
-         localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(storedRoles));
-      }
+      const userRoles = getStoredRoles(firebaseUser.uid);
 
       const courtlyUser: CourtlyUser = {
-        ...(firebaseUser as any),
-        displayName: firebaseUser.displayName,
+        ...(firebaseUser as any), // Spread FirebaseUser properties
+        displayName: firebaseUser.displayName, // Explicitly set from FirebaseUser
         email: firebaseUser.email,
         phoneNumber: firebaseUser.phoneNumber,
         photoURL: firebaseUser.photoURL,
         uid: firebaseUser.uid,
-        roles: storedRoles,
+        roles: userRoles, // userRoles is guaranteed to be UserRole[] by getStoredRoles
       };
       setCurrentUser(courtlyUser);
       return courtlyUser;
@@ -331,13 +363,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
-    let currentRefreshTokenValue = refreshToken;
+    let currentRefreshTokenValue = refreshToken; // Use state variable first
     if (!currentRefreshTokenValue && typeof window !== 'undefined') {
       currentRefreshTokenValue = localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY);
     }
 
     if (!currentRefreshTokenValue) {
       console.log("AUTH_CONTEXT: No refresh token available for refresh attempt.");
+      // No need to logout here if there's no refresh token, means user is effectively logged out of custom API.
       return false;
     }
 
@@ -354,7 +387,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("AUTH_CONTEXT: Token refresh failed.", errorData.message);
         if (response.status === 401 || response.status === 403) {
           toast({ variant: "destructive", toastTitle: "Session Expired", toastDescription: "Please log in again."});
-          await logoutUser();
+          await logoutUserCb(); // Use the callback version
         } else {
            toast({ variant: "destructive", toastTitle: "Refresh Error", toastDescription: errorData.message });
         }
@@ -364,7 +397,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const newTokens = await response.json();
       if (!newTokens.accessToken) {
         console.error("AUTH_CONTEXT: Token refresh successful but no new access token received.");
-        await logoutUser();
+        await logoutUserCb(); // Use the callback version
         return false;
       }
       setAndStoreAccessToken(newTokens.accessToken);
@@ -378,15 +411,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast({ variant: "destructive", toastTitle: "Network Error", toastDescription: "Could not refresh session. Please check connection." });
       return false;
     }
-  }, [setAndStoreAccessToken, setAndStoreRefreshToken, logoutUser, toast, refreshToken]);
+  }, [setAndStoreAccessToken, setAndStoreRefreshToken, logoutUserCb, toast, refreshToken]);
 
   useEffect(() => {
     initializeAuthHelpers({
-      getAccessToken: () => accessToken,
+      getAccessToken: () => accessToken, // Use state variable which reflects localStorage
       attemptTokenRefresh,
-      logoutUser,
+      logoutUser: logoutUserCb,
     });
-  }, [accessToken, attemptTokenRefresh, logoutUser]);
+  }, [accessToken, attemptTokenRefresh, logoutUserCb]);
 
 
   useEffect(() => {
@@ -410,7 +443,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log('Foreground Message received. ', payload);
             const title = payload.notification?.title || 'New Notification';
             const body = payload.notification?.body;
-            addNotification(title, body, payload.data?.href, payload.messageId);
+            addNotificationCb(title, body, payload.data?.href, payload.messageId);
             toast({
               toastTitle: (<div className="flex items-center">
                              <Bell className="h-5 w-5 text-primary mr-2" />
@@ -434,71 +467,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const existingLSAccessToken = typeof window !== 'undefined' ? localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY) : null;
         const existingLSRefreshToken = typeof window !== 'undefined' ? localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY) : null;
 
-        let courtlyUserForFcmSetup: CourtlyUser | null = null;
+        let courtlyUserForContext: CourtlyUser | null = null;
 
         if (existingLSAccessToken && existingLSRefreshToken) {
           setAccessTokenState(existingLSAccessToken);
           setRefreshTokenState(existingLSRefreshToken);
           
-          let storedRoles: UserRole[] = ['user'];
-          const storedRolesString = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`);
-          if (storedRolesString) {
-            try {
-              const parsedRoles = JSON.parse(storedRolesString) as UserRole[];
-              if (Array.isArray(parsedRoles) && parsedRoles.length > 0) {
-                storedRoles = parsedRoles;
-              }
-            } catch (e) {
-              console.error("Error parsing stored roles, defaulting to ['user']:", e);
-            }
-          } else {
-            localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(storedRoles));
-          }
+          const userRoles = getStoredRoles(firebaseUser.uid); // Ensures roles is UserRole[]
           
-          const courtlyUser: CourtlyUser = {
+          courtlyUserForContext = {
             ...(firebaseUser as any),
             displayName: firebaseUser.displayName,
             email: firebaseUser.email,
             phoneNumber: firebaseUser.phoneNumber,
             photoURL: firebaseUser.photoURL,
             uid: firebaseUser.uid,
-            roles: storedRoles,
+            roles: userRoles, // Assign the validated roles
           };
-          setCurrentUser(courtlyUser);
-          courtlyUserForFcmSetup = courtlyUser;
-
+          setCurrentUser(courtlyUserForContext);
         } else {
            console.log("Firebase user exists, but no custom tokens in localStorage. Attempting custom API login.");
            const courtlyUserAfterCustomLogin = await handleCustomApiLogin(firebaseUser);
-           if (courtlyUserAfterCustomLogin) {
-               courtlyUserForFcmSetup = courtlyUserAfterCustomLogin;
-           } else {
-                console.warn("Custom API login failed for existing Firebase user. User may need to re-authenticate fully.");
-                let storedRoles: UserRole[] = ['user'];
-                const storedRolesString = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`);
-                if (storedRolesString) {
-                    try {
-                        const parsedRoles = JSON.parse(storedRolesString) as UserRole[];
-                         if (Array.isArray(parsedRoles) && parsedRoles.length > 0) {
-                            storedRoles = parsedRoles;
-                        }
-                    } catch (e) {
-                        console.error("Error parsing stored roles, defaulting to ['user']:", e);
-                    }
-                } else {
-                     localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(storedRoles));
-                }
-                const basicUser: CourtlyUser = { 
-                    ...(firebaseUser as any), 
-                    displayName: firebaseUser.displayName, email: firebaseUser.email, phoneNumber: firebaseUser.phoneNumber, photoURL: firebaseUser.photoURL, uid: firebaseUser.uid, 
-                    roles: storedRoles 
-                };
-                setCurrentUser(basicUser);
-                courtlyUserForFcmSetup = basicUser;
-           }
+            courtlyUserForContext = courtlyUserAfterCustomLogin; // This will set currentUser via handleCustomApiLogin
         }
-        if (courtlyUserForFcmSetup) {
-            await setupFcm(courtlyUserForFcmSetup);
+        if (courtlyUserForContext) { // Ensure user object is available before setting up FCM
+            await setupFcm(courtlyUserForContext);
         }
 
       } else { // No Firebase user
@@ -511,7 +504,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           unsubscribeFcmOnMessage();
           unsubscribeFcmOnMessage = null;
         }
-        await setupFcm(null);
+        await setupFcm(null); // Clean up FCM
       }
       setLoading(false);
     });
@@ -522,6 +515,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessage();
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleCustomApiLogin, setAndStoreAccessToken, setAndStoreRefreshToken]);
 
 
@@ -544,7 +538,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else { 
         if (isProtectedPath) {
           console.warn("User on protected path without custom tokens. Logging out.");
-          logoutUser(); 
+          logoutUserCb(); 
         }
       }
     } else { 
@@ -552,7 +546,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         router.push('/login');
       }
     }
-  }, [currentUser, loading, router, pathname, accessToken, refreshToken, logoutUser]);
+  }, [currentUser, loading, router, pathname, accessToken, refreshToken, logoutUserCb]);
 
   useEffect(() => {
     if (loading) return;
@@ -605,7 +599,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               </Button>
             </div>
           ),
-          onDismiss: () => {
+          onDismiss: () => { // Correctly using onDismiss here
             if (!localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || !isSameDay(parseInt(localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || '0', 10), now)) {
               localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
             }
@@ -613,7 +607,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     }
-  }, [loading, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
 
   const signUpWithEmail = async (email: string, password: string, name: string): Promise<CourtlyUser | null> => {
@@ -627,7 +622,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure during signup:", e));
         return null;
       }
-      
+      // Default roles are set by handleCustomApiLogin if not found in localStorage
       toast({ toastTitle: "Registration Successful!", toastDescription: "Welcome!" });
       return courtlyUser;
     } catch (error: any) {
@@ -648,7 +643,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
-
+      // Roles are loaded by handleCustomApiLogin
       toast({ toastTitle: "Login Successful!", toastDescription: "Welcome back!" });
       return courtlyUser;
     } catch (error: any) {
@@ -672,7 +667,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
-
+      // Roles are loaded by handleCustomApiLogin
       toast({ toastTitle: "Google Sign-In Successful!", toastDescription: "Welcome!" });
       return courtlyUser;
     } catch (error: any) {
@@ -709,7 +704,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
-
+      // Roles are loaded by handleCustomApiLogin
       toast({ toastTitle: "Phone Sign-In Successful!", toastDescription: "Welcome!" });
       return courtlyUser;
     } catch (error: any) {
@@ -719,17 +714,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateCourtlyUserRoles = (newRoles: UserRole[]) => {
+  const updateCourtlyUserRoles = (newRolesInput: UserRole[]) => {
     if (currentUser) {
-      // Ensure 'user' role is always present if any other role is added, and filter duplicates
-      const rolesToSet = Array.from(new Set(newRoles.length > 0 ? (newRoles.includes('user') ? newRoles : ['user', ...newRoles]) : ['user']));
+      const rolesToSet = new Set<UserRole>(newRolesInput);
+      // Ensure 'user' role is always present if other roles are, or if the input is empty.
+      if (rolesToSet.size === 0 || (!rolesToSet.has('user') && (rolesToSet.has('owner') || rolesToSet.has('admin') || rolesToSet.has('editor')))) {
+          rolesToSet.add('user');
+      } else if (rolesToSet.size === 0) { 
+          rolesToSet.add('user');
+      }
       
+      const finalRoles = Array.from(rolesToSet);
+
       const updatedUser: CourtlyUser = {
         ...currentUser,
-        roles: rolesToSet,
+        roles: finalRoles,
       };
       setCurrentUser(updatedUser);
-      localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(rolesToSet));
+      localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(finalRoles));
     }
   };
 
@@ -744,12 +746,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signInWithGoogle,
     signInWithPhoneNumberFlow,
     confirmPhoneNumberCode,
-    logoutUser,
-    updateCourtlyUserRoles, // Updated function name
+    logoutUser: logoutUserCb,
+    updateCourtlyUserRoles,
     attemptTokenRefresh,
     notifications,
     unreadCount,
-    addNotification,
+    addNotification: addNotificationCb,
     markNotificationAsRead,
     markAllNotificationsAsRead,
     clearAllNotifications,
