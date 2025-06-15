@@ -1,6 +1,6 @@
 
 import type { ApiNotification } from '@/lib/types';
-import { getApiBaseUrl, getApiAuthHeaders } from '@/lib/apiUtils';
+import { getApiBaseUrl, authedFetch } from '@/lib/apiUtils';
 
 /**
  * Marks a list of notifications as read via the API.
@@ -13,24 +13,28 @@ export async function markNotificationsAsReadApi(notificationIds: string[]): Pro
     console.warn("markNotificationsAsReadApi called with empty or null IDs, skipping API call.");
     return;
   }
-  const apiUrl = `${getApiBaseUrl()}/notifications/mark-read`;
+  const apiUrlPath = `/notifications/mark-read`;
   try {
-    const authHeaders = await getApiAuthHeaders(true); // true for POST
-    const response = await fetch(apiUrl, {
+    const response = await authedFetch(apiUrlPath, {
       method: 'POST',
-      headers: authHeaders,
       body: JSON.stringify({ notificationIds }),
     });
 
-    if (response.status === 204) {
+    if (response.status === 204) { // Successfully marked as read, no content
       return;
     }
     
+    // Handle other non-204 but still ok responses if any, or non-ok responses
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({ message: `Failed to mark notifications as read: ${response.statusText} (${response.status})` }));
       throw new Error(errorBody.message);
     }
-    console.warn(`Mark notifications as read API API returned status ${response.status} instead of 204, but was 'ok'.`);
+    // If response.ok is true but status is not 204 (e.g. 200 with a body),
+    // it's still considered a success for this void function.
+    // Log a warning if the status is unexpected but still 'ok'.
+    if (response.status !== 204) {
+        console.warn(`Mark notifications as read API returned status ${response.status} instead of 204, but was 'ok'.`);
+    }
 
   } catch (error) {
     console.error('Error marking notifications as read via API:', error);
@@ -48,12 +52,10 @@ export async function markNotificationsAsReadApi(notificationIds: string[]): Pro
  * @throws Will throw an error if the API call fails.
  */
 export async function getWeeklyNotificationsApi(): Promise<ApiNotification[]> {
-  const apiUrl = `${getApiBaseUrl()}/notifications/weekly`;
+  const apiUrlPath = `/notifications/weekly`;
   try {
-    const authHeaders = await getApiAuthHeaders(false); // false for GET
-    const response = await fetch(apiUrl, {
+    const response = await authedFetch(apiUrlPath, {
       method: 'GET',
-      headers: authHeaders,
     });
 
     if (!response.ok) {

@@ -1,14 +1,12 @@
 
 import type { CreateBookingPayload, CreateBookingResponse, Booking } from '@/lib/types';
-import { getApiBaseUrl, getApiAuthHeaders } from '@/lib/apiUtils';
+import { getApiBaseUrl, authedFetch } from '@/lib/apiUtils';
 
 export async function createBooking(payload: CreateBookingPayload): Promise<CreateBookingResponse> {
-  const apiUrl = `${getApiBaseUrl()}/bookings`;
+  const apiUrlPath = `/bookings`;
   try {
-    const authHeaders = await getApiAuthHeaders(true); // true for POST
-    const response = await fetch(apiUrl, {
+    const response = await authedFetch(apiUrlPath, {
       method: 'POST',
-      headers: authHeaders,
       body: JSON.stringify(payload),
     });
 
@@ -29,12 +27,10 @@ export async function createBooking(payload: CreateBookingPayload): Promise<Crea
 }
 
 export async function getBookingStatus(bookingId: string): Promise<{ status: Booking['status'] } | null> {
-  const apiUrl = `${getApiBaseUrl()}/bookings/${bookingId}/status`;
+  const apiUrlPath = `/bookings/${bookingId}/status`;
   try {
-    const authHeaders = await getApiAuthHeaders(false); // false for GET
-    const response = await fetch(apiUrl, {
+    const response = await authedFetch(apiUrlPath, {
       method: 'GET',
-      headers: authHeaders,
     });
 
     if (!response.ok) {
@@ -56,12 +52,10 @@ export async function getBookingStatus(bookingId: string): Promise<{ status: Boo
 }
 
 export async function getBookingsForServiceOnDate(serviceId: string, date: string): Promise<Booking[]> {
-  const apiUrl = `${getApiBaseUrl()}/bookings?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`;
+  const apiUrlPath = `/bookings?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`;
   try {
-    const authHeaders = await getApiAuthHeaders(false); // false for GET
-    const response = await fetch(apiUrl, {
+    const response = await authedFetch(apiUrlPath, {
       method: 'GET',
-      headers: authHeaders,
     });
 
     if (!response.ok) {

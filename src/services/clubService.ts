@@ -1,14 +1,13 @@
 
 import type { Club, ClubAddress, ClubLocationGeo, Service } from '@/lib/types';
-import { getApiBaseUrl, getApiAuthHeaders } from '@/lib/apiUtils';
+import { getApiBaseUrl, authedFetch } from '@/lib/apiUtils';
 
 export async function getAllClubs(): Promise<Club[]> {
-  const apiUrl = `${getApiBaseUrl()}/clubs`;
+  const apiUrlPath = `/clubs`;
   try {
-    const authHeaders = await getApiAuthHeaders(false);
-    const response = await fetch(apiUrl, { headers: authHeaders });
+    const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
-      throw new Error(`Failed to fetch clubs: ${response.statusText} (${response.status}) from ${apiUrl}`);
+      throw new Error(`Failed to fetch clubs: ${response.statusText} (${response.status}) from ${getApiBaseUrl()}${apiUrlPath}`);
     }
     return await response.json();
   } catch (error) {
@@ -18,15 +17,14 @@ export async function getAllClubs(): Promise<Club[]> {
 }
 
 export async function getClubById(clubId: string): Promise<Club | null> {
-  const apiUrl = `${getApiBaseUrl()}/clubs/${clubId}`;
+  const apiUrlPath = `/clubs/${clubId}`;
   try {
-    const authHeaders = await getApiAuthHeaders(false);
-    const response = await fetch(apiUrl, { headers: authHeaders });
+    const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
       if (response.status === 404) {
         return null;
       }
-      throw new Error(`Failed to fetch club ${clubId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
+      throw new Error(`Failed to fetch club ${clubId}: ${response.statusText} (${response.status}) from ${getApiBaseUrl()}${apiUrlPath}`);
     }
     return await response.json();
   } catch (error) {
@@ -36,12 +34,11 @@ export async function getClubById(clubId: string): Promise<Club | null> {
 }
 
 export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
-  const apiUrl = `${getApiBaseUrl()}/clubs/owner/${ownerId}`;
+  const apiUrlPath = `/clubs/owner/${ownerId}`;
   try {
-    const authHeaders = await getApiAuthHeaders(false);
-    const response = await fetch(apiUrl, { headers: authHeaders });
+    const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
-      throw new Error(`Failed to fetch clubs for owner ${ownerId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
+      throw new Error(`Failed to fetch clubs for owner ${ownerId}: ${response.statusText} (${response.status}) from ${getApiBaseUrl()}${apiUrlPath}`);
     }
     return await response.json();
   } catch (error) {
@@ -51,12 +48,11 @@ export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
 }
 
 export async function getLoggedInOwnerClubs(): Promise<Club[]> {
-  const apiUrl = `${getApiBaseUrl()}/clubs/my-owned`;
+  const apiUrlPath = `/clubs/my-owned`;
   try {
-    const authHeaders = await getApiAuthHeaders(false);
-    const response = await fetch(apiUrl, { headers: authHeaders });
+    const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
-      throw new Error(`Failed to fetch logged-in owner's clubs: ${response.statusText} (${response.status}) from ${apiUrl}`);
+      throw new Error(`Failed to fetch logged-in owner's clubs: ${response.statusText} (${response.status}) from ${getApiBaseUrl()}${apiUrlPath}`);
     }
     return await response.json();
   } catch (error) {
@@ -77,12 +73,10 @@ interface RegisterClubPayload {
 }
 
 export async function registerClub(clubData: RegisterClubPayload): Promise<Club> {
-  const apiUrl = `${getApiBaseUrl()}/clubs`;
+  const apiUrlPath = `/clubs`;
   try {
-    const authHeaders = await getApiAuthHeaders(true);
-    const response = await fetch(apiUrl, {
+    const response = await authedFetch(apiUrlPath, {
       method: 'POST',
-      headers: authHeaders,
       body: JSON.stringify(clubData),
     });
 
@@ -105,12 +99,10 @@ export async function registerClub(clubData: RegisterClubPayload): Promise<Club>
 export type AddServicePayload = Omit<Service, '_id' | 'createdAt' | 'updatedAt' | '__v'>;
 
 export async function addClubService(serviceData: AddServicePayload): Promise<Service> {
-  const apiUrl = `${getApiBaseUrl()}/services`;
+  const apiUrlPath = `/services`;
   try {
-    const authHeaders = await getApiAuthHeaders(true);
-    const response = await fetch(apiUrl, {
+    const response = await authedFetch(apiUrlPath, {
       method: 'POST',
-      headers: authHeaders,
       body: JSON.stringify(serviceData),
     });
 
@@ -131,15 +123,14 @@ export async function addClubService(serviceData: AddServicePayload): Promise<Se
 }
 
 export async function getServicesByClubId(clubId: string): Promise<Service[]> {
-  const apiUrl = `${getApiBaseUrl()}/services/club/${clubId}`;
+  const apiUrlPath = `/services/club/${clubId}`;
   try {
-    const authHeaders = await getApiAuthHeaders(false);
-    const response = await fetch(apiUrl, { headers: authHeaders });
+    const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
       if (response.status === 404) { 
         return []; 
       }
-      throw new Error(`Failed to fetch services for club ${clubId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
+      throw new Error(`Failed to fetch services for club ${clubId}: ${response.statusText} (${response.status}) from ${getApiBaseUrl()}${apiUrlPath}`);
     }
     return await response.json();
   } catch (error) {
@@ -149,15 +140,14 @@ export async function getServicesByClubId(clubId: string): Promise<Service[]> {
 }
 
 export async function getServiceById(serviceId: string): Promise<Service | null> {
-  const apiUrl = `${getApiBaseUrl()}/services/${serviceId}`;
+  const apiUrlPath = `/services/${serviceId}`;
   try {
-    const authHeaders = await getApiAuthHeaders(false);
-    const response = await fetch(apiUrl, { headers: authHeaders });
+    const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
       if (response.status === 404) {
         return null;
       }
-      throw new Error(`Failed to fetch service ${serviceId}: ${response.statusText} (${response.status}) from ${apiUrl}`);
+      throw new Error(`Failed to fetch service ${serviceId}: ${response.statusText} (${response.status}) from ${getApiBaseUrl()}${apiUrlPath}`);
     }
     return await response.json();
   } catch (error) {
