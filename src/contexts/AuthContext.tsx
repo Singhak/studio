@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import {
   User as FirebaseUser,
   onAuthStateChanged,
@@ -19,20 +19,19 @@ import {
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging'; // Corrected import
+import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging';
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
 import type { AppNotification, ApiNotification, UserRole } from '@/lib/types';
-import { Bell, CheckCheck, Trash2, Mailbox } from 'lucide-react'; // Removed Settings as it's not used here
+import { Bell, CheckCheck, Trash2, Mailbox } from 'lucide-react';
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
 import { Button } from '@/components/ui/button';
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 
-// Define CourtlyUser interface
 export interface CourtlyUser extends FirebaseUser {
-  displayName: string | null; // Explicitly string | null
-  email: string | null;       // Explicitly string | null
-  phoneNumber: string | null; // Explicitly string | null
-  photoURL: string | null;    // Explicitly string | null
+  displayName: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  photoURL: string | null;
   uid: string;
   roles: UserRole[];
 }
@@ -65,12 +64,10 @@ const CUSTOM_REFRESH_TOKEN_KEY = 'courtlyCustomRefreshToken';
 const LAST_NOTIFICATION_REMINDER_KEY = 'courtly-last-notification-reminder-shown';
 const COURTLY_USER_ROLES_PREFIX = 'courtly_user_roles_';
 
-// Helper type guard for UserRole
 const ALL_USER_ROLES_VALUES: ReadonlyArray<UserRole> = ['user', 'owner', 'admin', 'editor'];
 const isValidUserRole = (role: any): role is UserRole => {
   return ALL_USER_ROLES_VALUES.includes(role);
 };
-
 
 const transformApiNotificationToApp = (apiNotif: ApiNotification): AppNotification => {
   return {
@@ -104,6 +101,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const unsubscribeFcmOnMessageRef = React.useRef<(() => void) | null>(null);
+  const isProcessingLoginRef = React.useRef(false);
+
 
   const getNotificationStorageKey = useCallback((uid: string | null | undefined) => {
     return uid ? `courtly-app-notifications-${uid}` : null;
@@ -111,26 +111,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const setAndStoreAccessToken = useCallback((token: string | null) => {
     setAccessTokenState(token);
-    if (token) {
-      localStorage.setItem(CUSTOM_ACCESS_TOKEN_KEY, token);
-    } else {
-      localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem(CUSTOM_ACCESS_TOKEN_KEY, token);
+      } else {
+        localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
+      }
     }
   }, []);
 
   const setAndStoreRefreshToken = useCallback((token: string | null) => {
     setRefreshTokenState(token);
-    if (token) {
-      localStorage.setItem(CUSTOM_REFRESH_TOKEN_KEY, token);
-    } else {
-      localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem(CUSTOM_REFRESH_TOKEN_KEY, token);
+      } else {
+        localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
+      }
     }
   }, []);
   
-
   const saveNotificationsToStorage = useCallback((updatedNotifications: AppNotification[], uid: string | null | undefined) => {
     const storageKey = getNotificationStorageKey(uid);
-    if (storageKey) {
+    if (storageKey && typeof window !== 'undefined') {
       localStorage.setItem(storageKey, JSON.stringify(updatedNotifications));
     }
   }, [getNotificationStorageKey]);
@@ -149,32 +152,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       saveNotificationsToStorage(appNotifications, userForNotifications.uid);
     } catch (error) {
       console.error("Failed to fetch weekly notifications:", error);
-      const storageKey = getNotificationStorageKey(userForNotifications.uid);
-      if (storageKey) {
-        const stored = localStorage.getItem(storageKey);
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored) as AppNotification[];
-            setNotifications(parsed);
-            setUnreadCount(parsed.filter(n => !n.read).length);
-          } catch (parseError) {
-            console.error(`Failed to parse stored notifications (key: ${storageKey}). Data was: "${stored.substring(0, 100)}..."`, parseError);
-            localStorage.removeItem(storageKey);
+      if (typeof window !== 'undefined') {
+        const storageKey = getNotificationStorageKey(userForNotifications.uid);
+        if (storageKey) {
+          const stored = localStorage.getItem(storageKey);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored) as AppNotification[];
+              setNotifications(parsed);
+              setUnreadCount(parsed.filter(n => !n.read).length);
+            } catch (parseError) {
+              console.error(`Failed to parse stored notifications (key: ${storageKey}). Data was: "${stored.substring(0, 100)}..."`, parseError);
+              localStorage.removeItem(storageKey);
+              setNotifications([]);
+              setUnreadCount(0);
+            }
+          } else {
             setNotifications([]);
             setUnreadCount(0);
           }
-        } else {
-          setNotifications([]);
-          setUnreadCount(0);
         }
       }
     }
   }, [getNotificationStorageKey, saveNotificationsToStorage]);
 
-
   const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
     const newAppNotification: AppNotification = {
-      id: id || `client_${Date.now().toString()}`,
+      id: id || `client_${Date.now().toString()}_${Math.random().toString(36).substring(2,7)}`,
       title,
       body,
       href,
@@ -183,7 +187,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     setNotifications(prev => {
       const updated = [newAppNotification, ...prev.slice(0, 19)];
-      // Use a local variable for currentUser in case the state hasn't updated yet in this closure
       const currentUid = auth.currentUser?.uid; 
       if (currentUid) { 
         saveNotificationsToStorage(updated, currentUid);
@@ -227,7 +230,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const markAllNotificationsAsRead = useCallback(async () => {
     const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
     if (unreadIds.length === 0) return;
-
     try {
       await markNotificationsAsReadApi(unreadIds);
       setNotifications(prev => {
@@ -249,7 +251,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [notifications, saveNotificationsToStorage, toast]);
 
-
   const clearAllNotifications = useCallback(async () => {
     console.log("Simulating: Would call API to clear/delete all notifications for user if endpoint existed.");
     setNotifications([]);
@@ -270,58 +271,79 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error signing out:", error);
       toast({ variant: "destructive", toastTitle: "Logout Failed", toastDescription: error.message });
     } finally {
-      if (uidBeforeLogout) {
+      if (uidBeforeLogout && typeof window !== 'undefined') {
         const notificationKey = getNotificationStorageKey(uidBeforeLogout);
         if (notificationKey) localStorage.removeItem(notificationKey);
         localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidBeforeLogout}`);
       }
       setAndStoreAccessToken(null);
       setAndStoreRefreshToken(null);
-      setCurrentUser(null);
+      setCurrentUser(null); // This should trigger onAuthStateChanged to update state further
       setNotifications([]);
       setUnreadCount(0);
+      isProcessingLoginRef.current = false; // Ensure this is reset on logout
     }
   }, [getNotificationStorageKey, toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
 
-  const getStoredRoles = (uid: string): UserRole[] => {
+  const getStoredRoles = useCallback((uid: string): UserRole[] => {
     const defaultRoles: UserRole[] = ['user'];
+    if (typeof window === 'undefined') return defaultRoles;
+
     const storedRolesString = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${uid}`);
     let finalRoles: UserRole[] = defaultRoles;
 
     if (storedRolesString) {
       try {
-        const parsedJson = JSON.parse(storedRolesString); // Returns any
+        const parsedJson = JSON.parse(storedRolesString);
         if (Array.isArray(parsedJson)) {
-          const validatedRoles = parsedJson.filter(isValidUserRole); // Correctly produces UserRole[]
-          
+          const validatedRoles = parsedJson.filter(isValidUserRole);
           if (validatedRoles.length > 0) {
             const baseRoles = new Set<UserRole>(validatedRoles);
-            // Ensure 'user' role is always present if other significant roles exist or if it's the only role.
             if (baseRoles.has('owner') || baseRoles.has('admin') || baseRoles.has('editor') || baseRoles.has('user')) {
               baseRoles.add('user');
             }
-             // If after filtering, baseRoles is empty (e.g. localStorage had ["invalidrole"]), default to ['user']
             finalRoles = baseRoles.size > 0 ? Array.from(baseRoles) : defaultRoles;
           }
         }
       } catch (e) {
-        console.error(`Error parsing stored roles for user ${uid}, defaulting to ${JSON.stringify(defaultRoles)}. Error: ${e}. Stored string was: ${storedRolesString.substring(0,100)}`);
-        // finalRoles remains defaultRoles
+        console.error(`Error parsing stored roles for user ${uid}, defaulting. Error: ${e}. Stored: ${storedRolesString.substring(0,100)}`);
       }
     }
-    // Save back to localStorage if it was missing, malformed, or needed correction
+    
     const currentStoredStringForCompare = localStorage.getItem(`${COURTLY_USER_ROLES_PREFIX}${uid}`);
     const newRolesStringToStore = JSON.stringify(finalRoles);
     if (currentStoredStringForCompare !== newRolesStringToStore) {
         localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${uid}`, newRolesStringToStore);
     }
     return finalRoles;
-  };
+  }, []);
+
+  const setupFcm = useCallback(async (fcmUser: CourtlyUser | null) => {
+    if (unsubscribeFcmOnMessageRef.current) {
+      unsubscribeFcmOnMessageRef.current();
+      unsubscribeFcmOnMessageRef.current = null;
+    }
+    if (fcmUser) {
+      const messaging = await initializeFirebaseMessaging();
+      if (messaging) {
+        unsubscribeFcmOnMessageRef.current = onMessage(messaging, (payload: MessagePayload) => {
+          console.log('Foreground Message received. ', payload);
+          const title = payload.notification?.title || 'New Notification';
+          const body = payload.notification?.body;
+          addNotificationCb(title, body, payload.data?.href, payload.messageId);
+          toast({
+            toastTitle: (<div className="flex items-center"><Bell className="h-5 w-5 text-primary mr-2" /><span>{title}</span></div>),
+            toastDescription: body || 'You have a new message.',
+          });
+        });
+      }
+    }
+  }, [addNotificationCb, toast]);
 
 
-  const handleCustomApiLogin = useCallback(async (firebaseUser: FirebaseUser): Promise<CourtlyUser | null> => {
+  const handleCustomApiLogin = useCallback(async (fbUser: FirebaseUser): Promise<CourtlyUser | null> => {
     try {
-      const firebaseIdToken = await firebaseUser.getIdToken();
+      const firebaseIdToken = await fbUser.getIdToken();
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -331,7 +353,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: "Custom login failed after Firebase sign-in." }));
         toast({ variant: "destructive", toastTitle: "Custom Login Failed", toastDescription: errorData.message || `Error ${response.status}` });
-        await signOut(auth); 
+        await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure:", e));; 
+        setCurrentUser(null); // Ensure user is null
+        setAndStoreAccessToken(null);
+        setAndStoreRefreshToken(null);
         return null;
       }
 
@@ -339,41 +364,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAndStoreAccessToken(customTokenData.accessToken);
       setAndStoreRefreshToken(customTokenData.refreshToken);
       
-      const userRoles = getStoredRoles(firebaseUser.uid);
-
+      const userRoles = getStoredRoles(fbUser.uid);
       const courtlyUser: CourtlyUser = {
-        ...(firebaseUser as any), // Spread FirebaseUser properties
-        displayName: firebaseUser.displayName, // Explicitly set from FirebaseUser
-        email: firebaseUser.email,
-        phoneNumber: firebaseUser.phoneNumber,
-        photoURL: firebaseUser.photoURL,
-        uid: firebaseUser.uid,
-        roles: userRoles, // userRoles is guaranteed to be UserRole[] by getStoredRoles
+        ...(fbUser as any),
+        displayName: fbUser.displayName,
+        email: fbUser.email,
+        phoneNumber: fbUser.phoneNumber,
+        photoURL: fbUser.photoURL,
+        uid: fbUser.uid,
+        roles: userRoles,
       };
       setCurrentUser(courtlyUser);
+      await setupFcm(courtlyUser);
       return courtlyUser;
 
     } catch (error) {
       console.error("Error during custom API login:", error);
       toast({ variant: "destructive", toastTitle: "Login Error", toastDescription: "Failed to communicate with authentication server." });
       await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure:", e));
+      setCurrentUser(null);
+      setAndStoreAccessToken(null);
+      setAndStoreRefreshToken(null);
       return null;
     }
-  }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
+  }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken, getStoredRoles, setupFcm]);
 
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
-    let currentRefreshTokenValue = refreshToken; // Use state variable first
+    let currentRefreshTokenValue = refreshToken; 
     if (!currentRefreshTokenValue && typeof window !== 'undefined') {
       currentRefreshTokenValue = localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY);
     }
-
     if (!currentRefreshTokenValue) {
       console.log("AUTH_CONTEXT: No refresh token available for refresh attempt.");
-      // No need to logout here if there's no refresh token, means user is effectively logged out of custom API.
       return false;
     }
-
     console.log("AUTH_CONTEXT: Attempting to refresh token...");
     try {
       const response = await fetch('/api/auth/refresh', {
@@ -381,23 +406,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: currentRefreshTokenValue }),
       });
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: "Token refresh failed with status " + response.status }));
         console.error("AUTH_CONTEXT: Token refresh failed.", errorData.message);
         if (response.status === 401 || response.status === 403) {
           toast({ variant: "destructive", toastTitle: "Session Expired", toastDescription: "Please log in again."});
-          await logoutUserCb(); // Use the callback version
+          await logoutUserCb();
         } else {
            toast({ variant: "destructive", toastTitle: "Refresh Error", toastDescription: errorData.message });
         }
         return false;
       }
-
       const newTokens = await response.json();
       if (!newTokens.accessToken) {
         console.error("AUTH_CONTEXT: Token refresh successful but no new access token received.");
-        await logoutUserCb(); // Use the callback version
+        await logoutUserCb();
         return false;
       }
       setAndStoreAccessToken(newTokens.accessToken);
@@ -415,12 +438,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     initializeAuthHelpers({
-      getAccessToken: () => accessToken, // Use state variable which reflects localStorage
+      getAccessToken: () => accessToken,
       attemptTokenRefresh,
       logoutUser: logoutUserCb,
     });
   }, [accessToken, attemptTokenRefresh, logoutUserCb]);
-
 
   useEffect(() => {
     if (currentUser?.uid) {
@@ -431,98 +453,78 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser?.uid, fetchAndSetWeeklyNotifications]);
 
-
   useEffect(() => {
-    let unsubscribeFcmOnMessage: (() => void) | null = null;
-
-    const setupFcm = async (fcmUser: CourtlyUser | null) => {
-      if (fcmUser) {
-        const messaging = await initializeFirebaseMessaging();
-        if (messaging) {
-          unsubscribeFcmOnMessage = onMessage(messaging, (payload: MessagePayload) => {
-            console.log('Foreground Message received. ', payload);
-            const title = payload.notification?.title || 'New Notification';
-            const body = payload.notification?.body;
-            addNotificationCb(title, body, payload.data?.href, payload.messageId);
-            toast({
-              toastTitle: (<div className="flex items-center">
-                             <Bell className="h-5 w-5 text-primary mr-2" />
-                             <span>{title}</span>
-                           </div>),
-              toastDescription: body || 'You have a new message.',
-            });
-          });
-        }
-      } else {
-        if (unsubscribeFcmOnMessage) {
-          unsubscribeFcmOnMessage();
-          unsubscribeFcmOnMessage = null;
-        }
-      }
-    };
-
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
-      if (firebaseUser) {
-        const existingLSAccessToken = typeof window !== 'undefined' ? localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY) : null;
-        const existingLSRefreshToken = typeof window !== 'undefined' ? localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY) : null;
+      try {
+        if (firebaseUser) {
+          const existingLSAccessToken = typeof window !== 'undefined' ? localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY) : null;
+          const existingLSRefreshToken = typeof window !== 'undefined' ? localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY) : null;
 
-        let courtlyUserForContext: CourtlyUser | null = null;
-
-        if (existingLSAccessToken && existingLSRefreshToken) {
-          setAccessTokenState(existingLSAccessToken);
-          setRefreshTokenState(existingLSRefreshToken);
-          
-          const userRoles = getStoredRoles(firebaseUser.uid); // Ensures roles is UserRole[]
-          
-          courtlyUserForContext = {
-            ...(firebaseUser as any),
-            displayName: firebaseUser.displayName,
-            email: firebaseUser.email,
-            phoneNumber: firebaseUser.phoneNumber,
-            photoURL: firebaseUser.photoURL,
-            uid: firebaseUser.uid,
-            roles: userRoles, // Assign the validated roles
-          };
-          setCurrentUser(courtlyUserForContext);
-        } else {
-           console.log("Firebase user exists, but no custom tokens in localStorage. Attempting custom API login.");
-           const courtlyUserAfterCustomLogin = await handleCustomApiLogin(firebaseUser);
-            courtlyUserForContext = courtlyUserAfterCustomLogin; // This will set currentUser via handleCustomApiLogin
+          if (existingLSAccessToken && existingLSRefreshToken) {
+            setAccessTokenState(existingLSAccessToken);
+            setRefreshTokenState(existingLSRefreshToken);
+            const userRoles = getStoredRoles(firebaseUser.uid);
+            const courtlyUser: CourtlyUser = {
+              ...(firebaseUser as any),
+              displayName: firebaseUser.displayName,
+              email: firebaseUser.email,
+              phoneNumber: firebaseUser.phoneNumber,
+              photoURL: firebaseUser.photoURL,
+              uid: firebaseUser.uid,
+              roles: userRoles,
+            };
+            setCurrentUser(courtlyUser);
+            await setupFcm(courtlyUser);
+          } else {
+            if (!isProcessingLoginRef.current) {
+              isProcessingLoginRef.current = true;
+              console.log("AUTH_CONTEXT: Firebase user exists, but no custom tokens in localStorage. Attempting custom API login.");
+              try {
+                await handleCustomApiLogin(firebaseUser);
+                // setCurrentUser and setupFcm are called within handleCustomApiLogin
+              } catch (e) {
+                console.error("AUTH_CONTEXT: Error in handleCustomApiLogin from onAuthStateChanged", e);
+              } finally {
+                isProcessingLoginRef.current = false;
+              }
+            } else {
+              console.log("AUTH_CONTEXT: Custom API login already in progress, skipping duplicate attempt.");
+            }
+          }
+        } else { // No Firebase user
+          setAndStoreAccessToken(null);
+          setAndStoreRefreshToken(null);
+          setCurrentUser(null);
+          setNotifications([]);
+          setUnreadCount(0);
+          if (unsubscribeFcmOnMessageRef.current) {
+            unsubscribeFcmOnMessageRef.current();
+            unsubscribeFcmOnMessageRef.current = null;
+          }
+          await setupFcm(null);
+          isProcessingLoginRef.current = false; // Reset if user logs out during processing
         }
-        if (courtlyUserForContext) { // Ensure user object is available before setting up FCM
-            await setupFcm(courtlyUserForContext);
-        }
-
-      } else { // No Firebase user
-        setAndStoreAccessToken(null);
-        setAndStoreRefreshToken(null);
-        setCurrentUser(null);
-        setNotifications([]);
-        setUnreadCount(0);
-        if (unsubscribeFcmOnMessage) {
-          unsubscribeFcmOnMessage();
-          unsubscribeFcmOnMessage = null;
-        }
-        await setupFcm(null); // Clean up FCM
+      } catch (e) {
+        console.error("AUTH_CONTEXT: Error in onAuthStateChanged main try block:", e);
+        isProcessingLoginRef.current = false; // Ensure reset on error
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeFcmOnMessage) {
-        unsubscribeFcmOnMessage();
+      if (unsubscribeFcmOnMessageRef.current) {
+        unsubscribeFcmOnMessageRef.current();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleCustomApiLogin, setAndStoreAccessToken, setAndStoreRefreshToken]);
+  }, [handleCustomApiLogin, setAndStoreAccessToken, setAndStoreRefreshToken, getStoredRoles, setupFcm]);
 
 
   useEffect(() => {
     if (loading) return;
-
-    const authPages = ['/login', '/register', '/auth/complete-profile'];
+    const authPages = ['/login', '/register']; // Removed /auth/complete-profile
     const isAuthPage = authPages.includes(pathname);
     const isProtectedPath = pathname.startsWith('/dashboard');
 
@@ -537,7 +539,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } else { 
         if (isProtectedPath) {
-          console.warn("User on protected path without custom tokens. Logging out.");
+          console.warn("AUTH_CONTEXT: User on protected path without custom tokens. Logging out.");
           logoutUserCb(); 
         }
       }
@@ -549,7 +551,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [currentUser, loading, router, pathname, accessToken, refreshToken, logoutUserCb]);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || typeof window === 'undefined') return;
 
     if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
       const lastReminderTimestampStr = localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY);
@@ -564,42 +566,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (shouldShowReminder) {
-        const { dismiss } = toast({
-          toastTitle: (
-            <div className="flex items-center">
-              <Bell className="h-5 w-5 text-primary mr-2" />
-              <span>Stay Updated!</span>
-            </div>
-          ),
+        const toastInstance = toast({
+          toastTitle: (<div className="flex items-center"><Bell className="h-5 w-5 text-primary mr-2" /><span>Stay Updated!</span></div>),
           toastDescription: "Enable notifications for timely booking and club updates.",
           duration: 15000,
           toastAction: (
             <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full">
-              <Button
-                size="sm"
-                onClick={async () => {
-                  dismiss();
-                  await requestNotificationPermission();
-                  localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
-                }}
-                className="w-full sm:w-auto"
-              >
-                <Bell className="mr-2 h-4 w-4" /> Enable
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  dismiss();
-                  localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
-                }}
-                className="w-full sm:w-auto"
-              >
-                Maybe Later
-              </Button>
+              <Button size="sm" onClick={async () => { toastInstance.dismiss(); await requestNotificationPermission(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());}} className="w-full sm:w-auto"><Bell className="mr-2 h-4 w-4" /> Enable</Button>
+              <Button size="sm" variant="outline" onClick={() => { toastInstance.dismiss(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());}} className="w-full sm:w-auto">Maybe Later</Button>
             </div>
           ),
-          onDismiss: () => { // Correctly using onDismiss here
+          onDismiss: () => { 
             if (!localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || !isSameDay(parseInt(localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || '0', 10), now)) {
               localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
             }
@@ -607,22 +584,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [loading, toast]);
 
 
   const signUpWithEmail = async (email: string, password: string, name: string): Promise<CourtlyUser | null> => {
+    setLoading(true);
+    isProcessingLoginRef.current = true;
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
       await updateProfile(firebaseUser, { displayName: name });
 
-      const courtlyUser = await handleCustomApiLogin(firebaseUser);
+      const courtlyUser = await handleCustomApiLogin(firebaseUser); // This handles setting roles too
       if (!courtlyUser) {
         await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure during signup:", e));
         return null;
       }
-      // Default roles are set by handleCustomApiLogin if not found in localStorage
       toast({ toastTitle: "Registration Successful!", toastDescription: "Welcome!" });
       return courtlyUser;
     } catch (error: any) {
@@ -633,17 +610,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toast({ variant: "destructive", toastTitle: "Registration Failed", toastDescription: error.message });
       }
       return null;
+    } finally {
+      isProcessingLoginRef.current = false;
+      setLoading(false);
     }
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<CourtlyUser | null> => {
+    setLoading(true);
+    isProcessingLoginRef.current = true;
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
-
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
-      // Roles are loaded by handleCustomApiLogin
       toast({ toastTitle: "Login Successful!", toastDescription: "Welcome back!" });
       return courtlyUser;
     } catch (error: any) {
@@ -656,34 +636,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAndStoreAccessToken(null);
       setAndStoreRefreshToken(null);
       return null;
+    } finally {
+      isProcessingLoginRef.current = false;
+      setLoading(false);
     }
   };
 
   const signInWithGoogle = async (): Promise<CourtlyUser | null> => {
+    setLoading(true);
+    isProcessingLoginRef.current = true;
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
-
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
-      // Roles are loaded by handleCustomApiLogin
       toast({ toastTitle: "Google Sign-In Successful!", toastDescription: "Welcome!" });
       return courtlyUser;
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       toast({ variant: "destructive", toastTitle: "Google Sign-In Failed", toastDescription: error.message });
       return null;
+    } finally {
+      isProcessingLoginRef.current = false;
+      setLoading(false);
     }
   };
 
   const signInWithPhoneNumberFlow = async (phoneNumber: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
+    setLoading(true); // Potentially set isProcessingLoginRef.current = true here too if needed
     try {
       const confirmationResult = await firebaseSignInWithPhoneNumber(auth, phoneNumber, appVerifier);
       toast({ toastTitle: "Verification Code Sent", toastDescription: "Please check your phone for the SMS code." });
       return confirmationResult;
     } catch (error: any) {
-      if (window.recaptchaVerifier) {
+      if (typeof window !== 'undefined' && window.recaptchaVerifier) {
         window.recaptchaVerifier.clear();
         window.recaptchaVerifier = undefined;
       }
@@ -694,42 +681,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toast({ variant: "destructive", toastTitle: "Phone Sign-In Error", toastDescription: error.message });
       }
       return null;
+    } finally {
+      setLoading(false);
     }
   };
 
   const confirmPhoneNumberCode = async (confirmationResult: ConfirmationResult, code: string): Promise<CourtlyUser | null> => {
+    setLoading(true);
+    isProcessingLoginRef.current = true;
     try {
       const userCredential = await confirmationResult.confirm(code);
       const firebaseUser = userCredential.user;
-
       const courtlyUser = await handleCustomApiLogin(firebaseUser);
       if (!courtlyUser) return null;
-      // Roles are loaded by handleCustomApiLogin
       toast({ toastTitle: "Phone Sign-In Successful!", toastDescription: "Welcome!" });
       return courtlyUser;
     } catch (error: any) {
       console.error("Error verifying phone code:", error);
       toast({ variant: "destructive", toastTitle: "Verification Failed", toastDescription: error.message });
       return null;
+    } finally {
+      isProcessingLoginRef.current = false;
+      setLoading(false);
     }
   };
 
   const updateCourtlyUserRoles = (newRolesInput: UserRole[]) => {
-    if (currentUser) {
-      const rolesToSet = new Set<UserRole>(newRolesInput);
-      // Ensure 'user' role is always present if other roles are, or if the input is empty.
-      if (rolesToSet.size === 0 || (!rolesToSet.has('user') && (rolesToSet.has('owner') || rolesToSet.has('admin') || rolesToSet.has('editor')))) {
-          rolesToSet.add('user');
-      } else if (rolesToSet.size === 0) { 
-          rolesToSet.add('user');
+    if (currentUser && typeof window !== 'undefined') {
+      const rolesToSet = new Set<UserRole>(newRolesInput.filter(isValidUserRole));
+      if (rolesToSet.size > 0 || newRolesInput.length === 0) { // Ensure 'user' is added if other roles exist, or if roles are cleared to just 'user'
+        rolesToSet.add('user');
       }
       
       const finalRoles = Array.from(rolesToSet);
+      if (finalRoles.length === 0) { // Should not happen if 'user' is always added, but as a safeguard
+        finalRoles.push('user');
+      }
 
-      const updatedUser: CourtlyUser = {
-        ...currentUser,
-        roles: finalRoles,
-      };
+      const updatedUser: CourtlyUser = { ...currentUser, roles: finalRoles };
       setCurrentUser(updatedUser);
       localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(finalRoles));
     }
@@ -767,3 +756,4 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
