@@ -21,11 +21,11 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging';
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
-import type { AppNotification, ApiNotification, UserRole } from '@/lib/types';
+import type { AppNotification, ApiNotification, UserRole, CourtlyUserBase } from '@/lib/types';
 import { Bell, CheckCheck, Trash2, Mailbox } from 'lucide-react';
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
 import { Button } from '@/components/ui/button';
-import { initializeAuthHelpers } from '@/lib/apiUtils';
+import { getApiAuthHeaders, getApiBaseUrl, initializeAuthHelpers } from '@/lib/apiUtils';
 
 export interface CourtlyUser extends FirebaseUser {
   displayName: string | null;
@@ -102,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const unsubscribeFcmOnMessageRef = React.useRef<(() => void) | null>(null);
-  
+
   // Ref to prevent re-entrant processing within onAuthStateChanged for the same Firebase event
   const isProcessingAuthEventRef = React.useRef(false);
   const currentProcessingUidRef = React.useRef<string | null>(null);
@@ -133,7 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }
   }, []);
-  
+
   const saveNotificationsToStorage = useCallback((updatedNotifications: AppNotification[], uid: string | null | undefined) => {
     const storageKey = getNotificationStorageKey(uid);
     if (storageKey && typeof window !== 'undefined') {
@@ -181,7 +181,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
     const newAppNotification: AppNotification = {
-      id: id || `client_${Date.now().toString()}_${Math.random().toString(36).substring(2,7)}`,
+      id: id || `client_${Date.now().toString()}_${Math.random().toString(36).substring(2, 7)}`,
       title,
       body,
       href,
@@ -190,14 +190,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     setNotifications(prev => {
       const updated = [newAppNotification, ...prev.slice(0, 19)];
-      const currentFbUser = auth.currentUser; 
-      if (currentFbUser) { 
+      const currentFbUser = auth.currentUser;
+      if (currentFbUser) {
         saveNotificationsToStorage(updated, currentFbUser.uid);
       }
       return updated;
     });
     setUnreadCount(prev => prev + 1);
-  }, [saveNotificationsToStorage]); 
+  }, [saveNotificationsToStorage]);
 
   const markNotificationAsRead = useCallback(async (notificationId: string) => {
     try {
@@ -281,10 +281,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       setAndStoreAccessToken(null);
       setAndStoreRefreshToken(null);
-      setCurrentUser(null); 
+      setCurrentUser(null);
       setNotifications([]);
       setUnreadCount(0);
-      isProcessingAuthEventRef.current = false; 
+      isProcessingAuthEventRef.current = false;
       currentProcessingUidRef.current = null;
     }
   }, [getNotificationStorageKey, toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
@@ -342,8 +342,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: "Custom login failed after Firebase sign-in." }));
         toast({ variant: "destructive", toastTitle: "Custom Login Failed", toastDescription: errorData.message || `Error ${response.status}` });
-        await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure:", e));; 
-        setCurrentUser(null); 
+        await signOut(auth).catch(e => console.error("Error signing out Firebase user after custom login failure:", e));;
+        setCurrentUser(null);
         setAndStoreAccessToken(null);
         setAndStoreRefreshToken(null);
         return null;
@@ -352,16 +352,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const customTokenData = await response.json();
       setAndStoreAccessToken(customTokenData.accessToken);
       setAndStoreRefreshToken(customTokenData.refreshToken);
-      
+      const aboutMe = await fetchAboutMe() as CourtlyUserBase
+      if (aboutMe) {
+        updateCourtlyUserRoles(aboutMe.roles);
+      }
       const userRoles = getStoredRoles(fbUser.uid);
       const courtlyUser: CourtlyUser = {
         ...(fbUser as any),
         displayName: fbUser.displayName,
-        email: fbUser.email,
+        email: aboutMe.email || fbUser.email,
         phoneNumber: fbUser.phoneNumber,
         photoURL: fbUser.photoURL,
         uid: fbUser.uid,
-        roles: userRoles.length > 0 ? userRoles : ['user'],
+        roles: aboutMe?.roles || userRoles.length > 0 ? userRoles : ['user'],
+        id: aboutMe?.id
       };
       setCurrentUser(courtlyUser);
       await setupFcm(courtlyUser);
@@ -380,7 +384,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
-    let currentRefreshTokenValue = refreshToken; 
+    let currentRefreshTokenValue = refreshToken;
     if (!currentRefreshTokenValue && typeof window !== 'undefined') {
       currentRefreshTokenValue = localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY);
     }
@@ -390,19 +394,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     console.log("AUTH_CONTEXT: Attempting to refresh token...");
     try {
-      const response = await fetch('/api/auth/refresh', {
+      const apiUrl = getApiBaseUrl() + '/auth/refresh-access-token';
+      const authHeaders = await getApiAuthHeaders()
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ refreshToken: currentRefreshTokenValue }),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: "Token refresh failed with status " + response.status }));
         console.error("AUTH_CONTEXT: Token refresh failed.", errorData.message);
         if (response.status === 401 || response.status === 403) {
-          toast({ variant: "destructive", toastTitle: "Session Expired", toastDescription: "Please log in again."});
+          toast({ variant: "destructive", toastTitle: "Session Expired", toastDescription: "Please log in again." });
           await logoutUserCb();
         } else {
-           toast({ variant: "destructive", toastTitle: "Refresh Error", toastDescription: errorData.message });
+          toast({ variant: "destructive", toastTitle: "Refresh Error", toastDescription: errorData.message });
         }
         return false;
       }
@@ -427,7 +433,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     initializeAuthHelpers({
-      getAccessToken: () => accessToken,
+      getAccessToken: () => {
+        if (!accessToken) {
+          if (typeof window !== 'undefined') return localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY);
+          return null;
+        } else {
+          return accessToken;
+        }
+      },
       attemptTokenRefresh,
       logoutUser: logoutUserCb,
     });
@@ -447,18 +460,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(true);
 
       if (isProcessingAuthEventRef.current && firebaseUser?.uid === currentProcessingUidRef.current) {
-          console.log(`AUTH_CONTEXT: Already processing auth event for UID: ${firebaseUser?.uid}. Skipping.`);
-          setLoading(false); // Ensure loading state is reset
-          return;
+        console.log(`AUTH_CONTEXT: Already processing auth event for UID: ${firebaseUser?.uid}. Skipping.`);
+        setLoading(false); // Ensure loading state is reset
+        return;
       }
 
       if (firebaseUser) {
-          isProcessingAuthEventRef.current = true;
-          currentProcessingUidRef.current = firebaseUser.uid;
+        isProcessingAuthEventRef.current = true;
+        currentProcessingUidRef.current = firebaseUser.uid;
       } else {
-          currentProcessingUidRef.current = null; // Clear if no user
+        currentProcessingUidRef.current = null; // Clear if no user
       }
-      
+
       try {
         if (firebaseUser) {
           console.log(`AUTH_CONTEXT: Firebase user ${firebaseUser.uid} detected.`);
@@ -477,15 +490,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               phoneNumber: firebaseUser.phoneNumber,
               photoURL: firebaseUser.photoURL,
               uid: firebaseUser.uid,
-              roles: userRoles.length > 0 ? userRoles : ['user'], 
+              roles: userRoles.length > 0 ? userRoles : ['user'],
             };
             setCurrentUser(courtlyUserInstance);
             await setupFcm(courtlyUserInstance);
           } else {
             console.log("AUTH_CONTEXT: No custom tokens in localStorage. Attempting custom API login.");
-            await handleCustomApiLogin(firebaseUser); 
+            await handleCustomApiLogin(firebaseUser);
           }
-        } else { 
+        } else {
           console.log("AUTH_CONTEXT: No Firebase user. Clearing session.");
           setAndStoreAccessToken(null);
           setAndStoreRefreshToken(null);
@@ -501,17 +514,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (e) {
         console.error("AUTH_CONTEXT: Error in onAuthStateChanged main try block:", e);
       } finally {
-          if (firebaseUser && firebaseUser.uid === currentProcessingUidRef.current) {
-              isProcessingAuthEventRef.current = false;
-          } else if (!firebaseUser && currentProcessingUidRef.current === null) { 
-              // If firebaseUser is null, and we were not processing a specific UID, reset the general flag.
-              isProcessingAuthEventRef.current = false;
-          }
-          // Only clear currentProcessingUidRef if it matches the user we finished processing
-          if (currentProcessingUidRef.current === firebaseUser?.uid || !firebaseUser) {
-              currentProcessingUidRef.current = null;
-          }
-          setLoading(false);
+        if (firebaseUser && firebaseUser.uid === currentProcessingUidRef.current) {
+          isProcessingAuthEventRef.current = false;
+        } else if (!firebaseUser && currentProcessingUidRef.current === null) {
+          // If firebaseUser is null, and we were not processing a specific UID, reset the general flag.
+          isProcessingAuthEventRef.current = false;
+        }
+        // Only clear currentProcessingUidRef if it matches the user we finished processing
+        if (currentProcessingUidRef.current === firebaseUser?.uid || !firebaseUser) {
+          currentProcessingUidRef.current = null;
+        }
+        setLoading(false);
       }
     });
 
@@ -526,12 +539,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (loading) return;
-    const authPages = ['/login', '/register', '/auth/complete-profile']; 
+    const authPages = ['/login', '/register', '/auth/complete-profile'];
     const isAuthPage = authPages.includes(pathname);
     const isProtectedPath = pathname.startsWith('/dashboard');
 
     if (currentUser) {
-      if (accessToken && refreshToken) { 
+      if (accessToken && refreshToken) {
         if (isAuthPage) {
           if (currentUser.roles.includes('owner')) {
             router.push('/dashboard/owner');
@@ -539,13 +552,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             router.push('/dashboard/user');
           }
         }
-      } else { 
+      } else {
         if (isProtectedPath) {
           console.warn("AUTH_CONTEXT: User on protected path without custom tokens. Logging out.");
-          logoutUserCb(); 
+          logoutUserCb();
         }
       }
-    } else { 
+    } else {
       if (isProtectedPath) {
         router.push('/login');
       }
@@ -574,11 +587,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           duration: 15000,
           toastAction: (
             <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full">
-              <Button size="sm" onClick={async () => { toastInstance.dismiss(); await requestNotificationPermission(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());}} className="w-full sm:w-auto"><Bell className="mr-2 h-4 w-4" /> Enable</Button>
-              <Button size="sm" variant="outline" onClick={() => { toastInstance.dismiss(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());}} className="w-full sm:w-auto">Maybe Later</Button>
+              <Button size="sm" onClick={async () => { toastInstance.dismiss(); await requestNotificationPermission(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString()); }} className="w-full sm:w-auto"><Bell className="mr-2 h-4 w-4" /> Enable</Button>
+              <Button size="sm" variant="outline" onClick={() => { toastInstance.dismiss(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString()); }} className="w-full sm:w-auto">Maybe Later</Button>
             </div>
           ),
-          onDismiss: () => { 
+          onDismiss: () => {
             if (!localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || !isSameDay(parseInt(localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || '0', 10), now)) {
               localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
             }
@@ -685,13 +698,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (currentUser && typeof window !== 'undefined') {
       const rolesToSet = new Set<UserRole>(newRolesInput.filter(isValidUserRole));
       if (rolesToSet.size === 0 && newRolesInput.length === 0) { // If explicitly clearing to no roles, default to 'user'
-         rolesToSet.add('user');
+        rolesToSet.add('user');
       } else if (rolesToSet.size > 0) { // If any valid roles are present, ensure 'user' is among them
-         rolesToSet.add('user');
+        rolesToSet.add('user');
       } else { // Fallback if somehow newRolesInput was not empty but yielded no valid roles after filter
-         rolesToSet.add('user');
+        rolesToSet.add('user');
       }
-      
+
       const finalRoles = Array.from(rolesToSet);
       const updatedUser: CourtlyUser = { ...currentUser, roles: finalRoles };
       setCurrentUser(updatedUser);
@@ -699,6 +712,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const fetchAboutMe = async (): Promise<CourtlyUserBase | null> => {
+    const apiUrlPath = getApiBaseUrl() + `/users/my-info`;
+    const authHeaders = await getApiAuthHeaders();
+    try {
+      const response = await fetch(apiUrlPath, {
+        method: 'GET',
+        headers: authHeaders,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: `Failed to User details: ${response.statusText} (${response.status})` }));
+        console.error(errorBody.message);
+        // throw new Error(errorBody.message);
+        return null;
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching User detail API:', error);
+      if (error instanceof Error) {
+        return null;
+        // throw error;
+      } else {
+        // throw new Error('An unexpected error occurred while fetching User Details.');
+        return null;
+      }
+    }
+  }
 
   const value = {
     currentUser,

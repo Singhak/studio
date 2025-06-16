@@ -1,6 +1,4 @@
 
-import type { AuthContextType } from '@/contexts/AuthContext'; // Import for type hint
-
 const CUSTOM_ACCESS_TOKEN_KEY = 'courtlyCustomAccessToken';
 
 export function getApiBaseUrl(): string {
