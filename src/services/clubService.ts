@@ -1,9 +1,12 @@
 
 import type { Club, ClubAddress, ClubLocationGeo, Service } from '@/lib/types';
 import { getApiBaseUrl, authedFetch } from '@/lib/apiUtils';
+import { getCachedClubEntry, setCachedClubEntry, isCacheEntryValid } from '@/lib/cacheUtils';
 
 export async function getAllClubs(): Promise<Club[]> {
   const apiUrlPath = `/clubs`;
+  // Note: Caching for list views like getAllClubs is more complex due to potential pagination, filtering, etc.
+  // For this iteration, only detail views (getClubById, getServicesByClubId) are cached.
   try {
     const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
@@ -17,8 +20,16 @@ export async function getAllClubs(): Promise<Club[]> {
 }
 
 export async function getClubById(clubId: string): Promise<Club | null> {
+  const cachedEntry = getCachedClubEntry(clubId);
+
+  if (cachedEntry && cachedEntry.clubData && isCacheEntryValid(cachedEntry)) {
+    console.log(`[CACHE] Club ${clubId}: Using cached clubData.`);
+    return cachedEntry.clubData;
+  }
+
   const apiUrlPath = `/clubs/${clubId}`;
   try {
+    console.log(`[API] Club ${clubId}: Fetching fresh clubData.`);
     const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
       if (response.status === 404) {
@@ -26,7 +37,11 @@ export async function getClubById(clubId: string): Promise<Club | null> {
       }
       throw new Error(`Failed to fetch club ${clubId}: ${response.statusText} (${response.status}) from ${getApiBaseUrl()}${apiUrlPath}`);
     }
-    return await response.json();
+    const fetchedClub = await response.json();
+    if (fetchedClub) {
+      setCachedClubEntry(clubId, { clubData: fetchedClub });
+    }
+    return fetchedClub;
   } catch (error) {
     console.error(`Error fetching club by ID ${clubId}:`, error);
     throw error;
@@ -35,6 +50,7 @@ export async function getClubById(clubId: string): Promise<Club | null> {
 
 export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
   const apiUrlPath = `/clubs/owner/${ownerId}`;
+  // Caching not implemented for this list view in this iteration.
   try {
     const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
@@ -49,6 +65,7 @@ export async function getClubsByOwnerId(ownerId: string): Promise<Club[]> {
 
 export async function getLoggedInOwnerClubs(): Promise<Club[]> {
   const apiUrlPath = `/clubs/my-owned`;
+  // Caching not implemented for this list view in this iteration.
   try {
     const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
@@ -85,6 +102,10 @@ export async function registerClub(clubData: RegisterClubPayload): Promise<Club>
       const errorMessage = responseBody?.message || `Club registration failed: ${response.statusText} (${response.status})`;
       throw new Error(errorMessage);
     }
+    // After registering, we might want to cache this new club's data.
+    if (responseBody && responseBody._id) {
+      setCachedClubEntry(responseBody._id, { clubData: responseBody as Club });
+    }
     return responseBody as Club;
   } catch (error) {
     console.error('Error registering club in service:', error);
@@ -111,6 +132,15 @@ export async function addClubService(serviceData: AddServicePayload): Promise<Se
       const errorMessage = responseBody?.message || `Failed to add service: ${response.statusText} (${response.status})`;
       throw new Error(errorMessage);
     }
+    // After adding a service, invalidate the services cache for the parent club.
+    if (serviceData.club) {
+       const existingEntry = getCachedClubEntry(serviceData.club);
+       if (existingEntry) {
+           setCachedClubEntry(serviceData.club, { servicesData: null }); // Mark services as needing refresh
+           // Or fetch services again and update, for simplicity, just mark for refresh
+           console.log(`[CACHE] Club ${serviceData.club}: Services cache marked for refresh after adding new service.`);
+       }
+    }
     return responseBody as Service;
   } catch (error) {
     console.error('Error adding club service:', error);
@@ -123,16 +153,29 @@ export async function addClubService(serviceData: AddServicePayload): Promise<Se
 }
 
 export async function getServicesByClubId(clubId: string): Promise<Service[]> {
+  const cachedEntry = getCachedClubEntry(clubId);
+
+  if (cachedEntry && cachedEntry.servicesData && isCacheEntryValid(cachedEntry)) {
+    console.log(`[CACHE] Club ${clubId}: Using cached servicesData.`);
+    return cachedEntry.servicesData;
+  }
+
   const apiUrlPath = `/services/club/${clubId}`;
   try {
+    console.log(`[API] Club ${clubId}: Fetching fresh servicesData.`);
     const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
       if (response.status === 404) { 
+        setCachedClubEntry(clubId, { servicesData: [] }); // Cache empty services if 404
         return []; 
       }
       throw new Error(`Failed to fetch services for club ${clubId}: ${response.statusText} (${response.status}) from ${getApiBaseUrl()}${apiUrlPath}`);
     }
-    return await response.json();
+    const fetchedServices = await response.json();
+    if (fetchedServices) {
+      setCachedClubEntry(clubId, { servicesData: fetchedServices });
+    }
+    return fetchedServices || [];
   } catch (error) {
     console.error(`Error fetching services for club ID ${clubId}:`, error);
     throw error;
@@ -141,6 +184,8 @@ export async function getServicesByClubId(clubId: string): Promise<Service[]> {
 
 export async function getServiceById(serviceId: string): Promise<Service | null> {
   const apiUrlPath = `/services/${serviceId}`;
+  // Caching for individual services by their own ID is not part of this iteration.
+  // They are cached as part of their parent club's entry.
   try {
     const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
