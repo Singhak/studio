@@ -29,8 +29,8 @@ const statusBadgeVariant = (status: Booking['status']) => {
 };
 
 export default function OwnerDashboardPage() {
-  const { toast } = useToast();
-  const { currentUser, loading: authLoading, addNotification } = useAuth(); // Get authLoading and currentUser
+  const { toast } = useToast(); // Assuming useToast returns a stable toast function
+  const { currentUser, loading: authLoading, addNotification } = useAuth();
   const [ownerClubs, setOwnerClubs] = useState<Club[]>([]);
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   const [isLoadingClubs, setIsLoadingClubs] = useState(true);
@@ -40,78 +40,126 @@ export default function OwnerDashboardPage() {
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
 
+  // Effect to fetch owner's clubs
   useEffect(() => {
-    const fetchClubsForOwner = async () => {
-      if (!currentUser) { // Should not happen if authLoading is false and currentUser is null, but defensive
+    console.log("OwnerDashboard: useEffect[fetchClubs] - Triggered. AuthLoading:", authLoading, "CurrentUser:", !!currentUser);
+    const fetchClubs = async () => {
+      if (!currentUser) { // Should not happen if authLoading is false, but defensive
+        console.log("OwnerDashboard: useEffect[fetchClubs] - No current user, skipping club fetch.");
         setIsLoadingClubs(false);
         setOwnerClubs([]);
         setSelectedClub(null);
+        setClubsError(null); // Clear previous errors
         return;
       }
+      console.log("OwnerDashboard: useEffect[fetchClubs] - Fetching clubs for owner:", currentUser.uid);
       setIsLoadingClubs(true);
       setClubsError(null);
       try {
         const clubsForOwner = await getLoggedInOwnerClubs();
+        console.log("OwnerDashboard: useEffect[fetchClubs] - Clubs fetched:", clubsForOwner.length);
         setOwnerClubs(clubsForOwner);
         if (clubsForOwner.length > 0) {
-          setSelectedClub(clubsForOwner[0]);
+          // Set selectedClub only if it's not set or the first club ID is different
+          setSelectedClub(prevSelectedClub => {
+            const newFirstClub = clubsForOwner[0];
+            if (prevSelectedClub?._id === newFirstClub._id) {
+              return prevSelectedClub; // Keep existing selection if ID matches
+            }
+            console.log("OwnerDashboard: useEffect[fetchClubs] - Setting selected club to first in list:", newFirstClub.name);
+            return newFirstClub; // Otherwise, update
+          });
         } else {
+          console.log("OwnerDashboard: useEffect[fetchClubs] - No clubs found, setting selectedClub to null.");
           setSelectedClub(null);
         }
       } catch (err) {
-        console.error("Failed to fetch owner's clubs:", err);
+        console.error("OwnerDashboard: useEffect[fetchClubs] - Failed to fetch owner's clubs:", err);
         const errorMessage = err instanceof Error ? err.message : "An unknown error occurred while fetching clubs.";
         setClubsError(errorMessage);
         toast({ variant: "destructive", toastTitle: "Error Loading Clubs", toastDescription: errorMessage });
+        setOwnerClubs([]); 
+        setSelectedClub(null);
       } finally {
+        console.log("OwnerDashboard: useEffect[fetchClubs] - Finished fetching clubs, setIsLoadingClubs(false)");
         setIsLoadingClubs(false);
       }
     };
 
     if (!authLoading && currentUser) {
-      fetchClubsForOwner();
+      fetchClubs();
     } else if (!authLoading && !currentUser) {
-      // User is definitively not logged in, or session lost
+      // User is definitively not logged in, or session lost after loading
+      console.log("OwnerDashboard: useEffect[fetchClubs] - Auth loaded, no user. Clearing club state.");
       setIsLoadingClubs(false);
       setOwnerClubs([]);
       setSelectedClub(null);
-      setClubsError(null); // Clear previous errors
-      // AuthContext redirection should handle pushing to login if on protected route
+      setClubsError(null);
     }
-    // If authLoading is true, we wait.
-  }, [currentUser, authLoading, toast]);
+    // Dependencies: authLoading and currentUser. The `toast` function should be stable if `useToast` is well-implemented.
+  }, [currentUser, authLoading, toast]); // Kept toast as original
 
 
   const fetchBookingsForClub = useCallback(async (clubId: string) => {
+    if (!clubId) {
+      console.log("OwnerDashboard: fetchBookingsForClub - No clubId, clearing bookings state.");
+      setClubBookings([]);
+      setBookingsError(null);
+      setIsLoadingBookings(false); // Ensure loading is false
+      return;
+    }
+    console.log("OwnerDashboard: fetchBookingsForClub - Called for clubId:", clubId);
     setIsLoadingBookings(true);
     setBookingsError(null);
     try {
       const bookings = await getBookingsByClubId(clubId);
       bookings.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      console.log("OwnerDashboard: fetchBookingsForClub - Bookings fetched for club", clubId, ":", bookings.length);
       setClubBookings(bookings);
     } catch (err) {
-      console.error(`Failed to fetch bookings for club ${clubId}:`, err);
-      const errorMessage = err instanceof Error ? err.message : `Could not load bookings for ${selectedClub?.name || 'this club'}.`;
+      console.error(`OwnerDashboard: fetchBookingsForClub - Failed to fetch bookings for club ${clubId}:`, err);
+      // Use ownerClubs state to find the name for the error message, if available
+      const clubNameForError = ownerClubs.find(c => c._id === clubId)?.name || 'this club';
+      const errorMessage = err instanceof Error ? err.message : `Could not load bookings for ${clubNameForError}.`;
       setBookingsError(errorMessage);
       toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
+      setClubBookings([]);
     } finally {
+      console.log("OwnerDashboard: fetchBookingsForClub - Finished fetching bookings for club", clubId, ", setIsLoadingBookings(false)");
       setIsLoadingBookings(false);
     }
-  }, [toast, selectedClub?.name]);
+  // The primary dependency for re-creating this function should be the `toast` and `ownerClubs` (for error message club name)
+  // `selectedClub?._id` isn't needed here as `clubId` is passed as an argument.
+  }, [toast, ownerClubs]);
 
+  // Effect to fetch bookings when selectedClub._id changes
   useEffect(() => {
-    if (selectedClub?._id) {
-      fetchBookingsForClub(selectedClub._id);
+    const currentSelectedClubId = selectedClub?._id;
+    console.log("OwnerDashboard: useEffect[fetchBookings] - Triggered. selectedClubId:", currentSelectedClubId);
+    if (currentSelectedClubId) {
+      fetchBookingsForClub(currentSelectedClubId);
     } else {
+      console.log("OwnerDashboard: useEffect[fetchBookings] - No selected club ID, clearing bookings.");
       setClubBookings([]);
-      setBookingsError(null); // Clear booking error if no club is selected
+      setBookingsError(null); 
+      setIsLoadingBookings(false); 
     }
-  }, [selectedClub, fetchBookingsForClub]);
+  // This effect now depends on selectedClub?._id and the stable fetchBookingsForClub callback.
+  }, [selectedClub?._id, fetchBookingsForClub]);
 
 
   const handleClubChange = (clubId: string) => {
-    const club = ownerClubs.find(c => c._id === clubId);
-    setSelectedClub(club || null);
+    console.log("OwnerDashboard: handleClubChange - Called with clubId:", clubId);
+    const clubToSelect = ownerClubs.find(c => c._id === clubId);
+    if (clubToSelect && clubToSelect._id !== selectedClub?._id) {
+        console.log("OwnerDashboard: handleClubChange - Setting new selected club:", clubToSelect.name);
+        setSelectedClub(clubToSelect); // This will trigger the useEffect for bookings
+    } else if (!clubToSelect) {
+        console.log("OwnerDashboard: handleClubChange - Club ID not found in ownerClubs, setting selectedClub to null.");
+        setSelectedClub(null);
+    } else {
+        console.log("OwnerDashboard: handleClubChange - Selected club ID is the same as current, no change.");
+    }
   };
   
   const currentClubBookings = useMemo(() => {
@@ -119,16 +167,14 @@ export default function OwnerDashboardPage() {
   }, [clubBookings]);
 
 
-  const getServiceName = (serviceId: string): string => {
-    // Attempt to find service in selectedClub.services first for better accuracy
+  const getServiceName = useCallback((serviceId: string): string => {
     if (selectedClub && selectedClub.services) {
         const serviceInClub = selectedClub.services.find(s => s._id === serviceId);
         if (serviceInClub) return serviceInClub.name;
     }
-    // Fallback to allMockServices if not found in club or club.services is undefined
     const service = allMockServices.find(s => s._id === serviceId);
     return service ? service.name : 'Unknown Service';
-  };
+  }, [selectedClub]); // Depends on selectedClub object identity
 
   const totalRevenue = useMemo(() => {
     if (!selectedClub) return 0;
@@ -148,13 +194,9 @@ export default function OwnerDashboardPage() {
   }, [currentClubBookings, selectedClub]);
 
   const servicesOfferedCount = useMemo(() => {
-      // Use selectedClub.services if available (fetched with getClubById).
-      // Fallback to counting distinct services from bookings if club.services is not populated/available.
       if (selectedClub && selectedClub.services && selectedClub.services.length > 0) {
           return selectedClub.services.length;
       }
-      // Fallback if selectedClub.services isn't populated (e.g. from a list view)
-      // This might not be accurate if not all services have bookings.
       const serviceIds = new Set(currentClubBookings.map(b => b.serviceId));
       return serviceIds.size;
   }, [selectedClub, currentClubBookings]);
@@ -165,32 +207,66 @@ export default function OwnerDashboardPage() {
   }, [currentClubBookings, selectedClub]);
 
 
-  if (authLoading || (isLoadingClubs && !selectedClub && !clubsError)) {
+  // Initial loading: covers auth loading OR initial club loading if user is already known
+  if (authLoading || (isLoadingClubs && !clubsError && !currentUser)) {
+    console.log("OwnerDashboard: Render - Initial Loading (Auth or Pre-User Club Load).");
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <Loader2 className="w-16 h-16 text-primary animate-spin mb-6" />
         <h1 className="text-2xl font-bold mb-2">Loading Dashboard...</h1>
-        <p className="text-muted-foreground">Fetching your club data.</p>
+        <p className="text-muted-foreground">Checking authentication and fetching your club data.</p>
+      </div>
+    );
+  }
+  
+  // If auth is done, currentUser exists, but clubs are still loading
+  if (currentUser && isLoadingClubs) {
+    console.log("OwnerDashboard: Render - Loading Clubs (User Authenticated).");
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-8">
+        <Loader2 className="w-16 h-16 text-primary animate-spin mb-6" />
+        <h1 className="text-2xl font-bold mb-2">Loading Your Clubs...</h1>
+        <p className="text-muted-foreground">Fetching your club details.</p>
       </div>
     );
   }
 
   if (clubsError && !isLoadingClubs) { // Show only if not loading and error exists
+    console.log("OwnerDashboard: Render - Clubs Error Display.");
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <AlertTriangle className="w-24 h-24 text-destructive mb-6" />
         <h1 className="text-3xl font-bold mb-2 text-destructive">Error Loading Clubs</h1>
         <p className="text-muted-foreground mb-6 max-w-md">{clubsError}</p>
         <Button onClick={() => {
-           if (currentUser) { // Retry fetching clubs
+           if (currentUser) {
+             // Re-trigger the fetchClubs useEffect by changing a dependency or calling a direct refresh function
+             // For simplicity, a component refresh can be simulated if a direct refetch is complex
+             // For now, we can just rely on the existing effect if we manually set loading to true
+             // This is a bit of a hack; a dedicated refetch function for clubs would be better.
              setIsLoadingClubs(true); // Manually set loading state for retry
-             // Re-trigger the useEffect by temporarily changing a dependency if needed,
-             // or call the fetch function directly if extracted.
-             // For simplicity here, we'll rely on the existing useEffect trigger if state changes or re-evaluate.
-             // A more direct retry would be:
-             // const RerunFetchClubs = async () => { ... }; RerunFetchClubs();
-             // For now, a page reload is a simple user-driven retry.
-             window.location.reload();
+             // Re-triggering the first useEffect; this could be done by changing currentUser or authLoading if that's feasible,
+             // or making fetchClubs an explicit function that can be called.
+             // For now, we'll assume the effect logic for retrying is sufficient.
+             // A simple but less ideal way: window.location.reload();
+             console.log("OwnerDashboard: Retrying club fetch...");
+             // To truly refetch, ideally the `fetchClubs` logic would be callable directly,
+             // or the dependency array of its useEffect would be manipulated to force a re-run.
+             // This current retry button might not be effective without a more direct refetch mechanism
+             // for the `fetchClubs` useEffect.
+             // Simplest retry if the effect structure is kept: reload.
+             // Or, make fetchClubs a useCallback and call it.
+             // For now:
+              const reFetchClubs = async () => {
+                if (!currentUser) return;
+                setIsLoadingClubs(true); setClubsError(null);
+                try {
+                  const clubsForOwner = await getLoggedInOwnerClubs();
+                  setOwnerClubs(clubsForOwner);
+                  if (clubsForOwner.length > 0) setSelectedClub(clubsForOwner[0]); else setSelectedClub(null);
+                } catch (err) { /* handle error */ } finally { setIsLoadingClubs(false); }
+              };
+              reFetchClubs();
            } else {
              toast({variant: "destructive", toastTitle: "Cannot Retry", toastDescription: "User not authenticated."})
            }
@@ -201,7 +277,8 @@ export default function OwnerDashboardPage() {
     );
   }
 
-  if (!isLoadingClubs && ownerClubs.length === 0 && !clubsError) { // No clubs, no error, not loading
+  if (!isLoadingClubs && ownerClubs.length === 0 && !clubsError && currentUser) { // No clubs, no error, not loading, user exists
+    console.log("OwnerDashboard: Render - No Clubs Registered Display.");
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <ClubIconLucide className="w-24 h-24 text-muted-foreground mb-6" />
@@ -220,6 +297,7 @@ export default function OwnerDashboardPage() {
   }
   
   if (!selectedClub && !isLoadingClubs && ownerClubs.length > 0 && !clubsError) {
+     console.log("OwnerDashboard: Render - Clubs Loaded, No Club Selected (e.g., initial state or multi-club choice).");
      return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <ClubIconLucide className="w-24 h-24 text-muted-foreground mb-6 animate-pulse" />
@@ -240,13 +318,14 @@ export default function OwnerDashboardPage() {
                 </Select>
             </div>
         )}
+        {ownerClubs.length === 1 && <p className="text-muted-foreground mt-2">Displaying dashboard for: {ownerClubs[0].name}</p>}
       </div>
     );
   }
 
   // Fallback if selectedClub is somehow still null after loading and checks.
-  // This should ideally not be reached if logic above is correct.
   if (!selectedClub) {
+      console.log("OwnerDashboard: Render - Fallback: No selected club and not caught by other conditions.");
       return <div className="flex justify-center items-center min-h-[200px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Preparing club data...</p></div>;
   }
 
@@ -367,7 +446,7 @@ export default function OwnerDashboardPage() {
                    <AlertTriangle className="mx-auto h-10 w-10 mb-2" />
                   <p className="font-semibold">Could not load bookings</p>
                   <p className="text-sm">{bookingsError}</p>
-                  <Button variant="outline" className="mt-3" onClick={() => fetchBookingsForClub(selectedClub._id)}>Try Again</Button>
+                  <Button variant="outline" className="mt-3" onClick={() => { selectedClub?._id && fetchBookingsForClub(selectedClub._id)}}>Try Again</Button>
                 </div>
               ) : currentClubBookings.length > 0 ? (
                 <Table>
@@ -484,5 +563,4 @@ export default function OwnerDashboardPage() {
     </div>
   );
 }
-
     

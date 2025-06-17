@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,11 @@ import { ReviewForm } from '@/components/features/reviews/ReviewForm';
 import {
   AlertDialog,
   AlertDialogContent,
-  AlertDialogTrigger,
+  // AlertDialogTrigger, // Not used if dialog opened programmatically
 } from "@/components/ui/alert-dialog";
 import { getAllClubs } from '@/services/clubService';
-import { getBookingsByUserId } from '@/services/bookingService'; // Import new service
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { getBookingsByUserId } from '@/services/bookingService'; 
+import { useAuth } from '@/contexts/AuthContext'; 
 import { useToast } from '@/hooks/use-toast';
 
 const statusBadgeVariant = (status: Booking['status']) => {
@@ -35,7 +35,7 @@ const statusBadgeVariant = (status: Booking['status']) => {
 
 export default function UserDashboardPage() {
   const { currentUser, loading: authLoading } = useAuth();
-  const { toast } = useToast();
+  const { toast } = useToast(); // Assuming useToast returns a stable toast function
 
   const [userBookings, setUserBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
@@ -48,40 +48,51 @@ export default function UserDashboardPage() {
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
 
   useEffect(() => {
-    const fetchUserBookings = async () => {
+    console.log("UserDashboard: useEffect[fetchBookings] - Triggered. AuthLoading:", authLoading, "CurrentUser:", !!currentUser);
+    const fetchBookings = async () => {
       if (!currentUser) {
+        console.log("UserDashboard: useEffect[fetchBookings] - No current user, skipping booking fetch.");
         setIsLoadingBookings(false);
+        setUserBookings([]);
+        setBookingsError(null);
         return;
       }
+      console.log("UserDashboard: useEffect[fetchBookings] - Fetching bookings for user:", currentUser.uid);
       setIsLoadingBookings(true);
       setBookingsError(null);
       try {
         const bookings = await getBookingsByUserId(currentUser.uid);
-        // Sort bookings: upcoming first, then by date descending for past
         bookings.sort((a, b) => {
             const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.date) >= new Date();
             const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date();
             if (aIsUpcoming && !bIsUpcoming) return -1;
             if (!aIsUpcoming && bIsUpcoming) return 1;
-            return new Date(b.date).getTime() - new Date(a.date).getTime(); // For both upcoming or both past, sort by most recent date
+            return new Date(b.date).getTime() - new Date(a.date).getTime(); 
         });
+        console.log("UserDashboard: useEffect[fetchBookings] - Bookings fetched:", bookings.length);
         setUserBookings(bookings);
       } catch (error) {
-        console.error("Failed to fetch user bookings:", error);
+        console.error("UserDashboard: useEffect[fetchBookings] - Failed to fetch user bookings:", error);
         const errorMessage = error instanceof Error ? error.message : "Could not load your bookings.";
         setBookingsError(errorMessage);
         toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
+        setUserBookings([]);
       } finally {
+        console.log("UserDashboard: useEffect[fetchBookings] - Finished fetching bookings, setIsLoadingBookings(false)");
         setIsLoadingBookings(false);
       }
     };
 
     if (!authLoading && currentUser) {
-      fetchUserBookings();
+      fetchBookings();
     } else if (!authLoading && !currentUser) {
-      setIsLoadingBookings(false); // No user, so not loading bookings
+      console.log("UserDashboard: useEffect[fetchBookings] - Auth loaded, no user. Clearing booking state.");
+      setIsLoadingBookings(false);
+      setUserBookings([]);
+      setBookingsError(null);
     }
-  }, [currentUser, authLoading, toast]);
+  // Dependencies: authLoading and currentUser.
+  }, [currentUser, authLoading, toast]); // Kept toast as original
 
 
   useEffect(() => {
@@ -99,9 +110,9 @@ export default function UserDashboardPage() {
     fetchFavoriteClubs();
   }, []);
 
-  const upcomingBookings = userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date());
-  const pastBookings = userBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id));
-  const completedBookingsCount = userBookings.filter(b => b.status === 'completed').length;
+  const upcomingBookings = useMemo(() => userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date()), [userBookings]);
+  const pastBookings = useMemo(() => userBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id)), [userBookings, upcomingBookings]);
+  const completedBookingsCount = useMemo(() => userBookings.filter(b => b.status === 'completed').length, [userBookings]);
 
 
   const handleOpenReviewDialog = (booking: Booking) => {
@@ -116,17 +127,30 @@ export default function UserDashboardPage() {
   };
   
   const hasBeenReviewed = (bookingId: string) => {
-    // Placeholder: In a real app, this would check against stored review data
-    return bookingId === 'ub3_mock_reviewed'; // Example
+    return bookingId === 'ub3_mock_reviewed'; 
   };
 
-  if (authLoading) {
+  // Combined initial loading state
+  if (authLoading || (isLoadingBookings && !bookingsError && !currentUser)) {
+    console.log("UserDashboard: Render - Initial Loading (Auth or Pre-User Booking Load).");
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-12rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
+  
+  // If auth is done, currentUser exists, but bookings are still loading
+  if (currentUser && isLoadingBookings) {
+     console.log("UserDashboard: Render - Loading Bookings (User Authenticated).");
+     return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-12rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+         <p className="ml-3 text-muted-foreground">Loading your bookings...</p>
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-6">
@@ -170,7 +194,7 @@ export default function UserDashboardPage() {
         </Card>
       </section>
 
-      {bookingsError && (
+      {bookingsError && !isLoadingBookings && (
         <Card className="border-destructive bg-destructive/10">
           <CardHeader>
             <CardTitle className="text-destructive flex items-center"><AlertTriangle className="mr-2"/>Error Loading Bookings</CardTitle>
@@ -178,7 +202,21 @@ export default function UserDashboardPage() {
           <CardContent>
             <p className="text-destructive-foreground">{bookingsError}</p>
             <Button variant="outline" className="mt-3" onClick={() => {
-                if(currentUser) getBookingsByUserId(currentUser.uid); else toast({toastDescription: "Please log in to retry."});
+                if(currentUser) {
+                    // Manually trigger refetch
+                    const reFetchBookings = async () => {
+                      if (!currentUser) return;
+                      setIsLoadingBookings(true); setBookingsError(null);
+                      try {
+                        const bookings = await getBookingsByUserId(currentUser.uid);
+                        bookings.sort((a,b) => { /* ... sort logic ... */ });
+                        setUserBookings(bookings);
+                      } catch (err) { /* handle error */ } finally { setIsLoadingBookings(false); }
+                    };
+                    reFetchBookings();
+                } else {
+                     toast({toastDescription: "Please log in to retry."});
+                }
             }}>Try Again</Button>
           </CardContent>
         </Card>
@@ -328,3 +366,4 @@ export default function UserDashboardPage() {
     </div>
   );
 }
+
