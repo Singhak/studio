@@ -1,5 +1,6 @@
 // src/contexts/authHelpers/roleManager.ts
-import type { UserRole, CourtlyUser } from '@/contexts/AuthContext'; // Assuming CourtlyUser is defined/exported there or moved to a shared type file
+import type { UserRole } from '@/lib/types';
+import type { CourtlyUser } from '@/contexts/AuthContext'; // For the function that updates AuthContext's state
 import { COURTLY_USER_ROLES_PREFIX } from './constants';
 
 export const ALL_USER_ROLES_VALUES: ReadonlyArray<UserRole> = ['user', 'owner', 'admin', 'editor'];

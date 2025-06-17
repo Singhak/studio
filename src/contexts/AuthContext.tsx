@@ -1,4 +1,4 @@
-
+// src/contexts/AuthContext.tsx
 "use client";
 
 import type { ReactNode } from 'react';
@@ -7,14 +7,16 @@ import type { User as FirebaseUser, RecaptchaVerifier, ConfirmationResult } from
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
-import type { ToastFn } from "@/hooks/use-toast"; // Ensure ToastFn is correctly imported
+import type { ToastFn } from "@/hooks/use-toast";
 import { useToast } from "@/hooks/use-toast";
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 import { Button } from '@/components/ui/button';
+import type { UserRole, AppNotification, ApiNotification, SetupFcmFn, ApiNotificationData } from '@/lib/types';
+
 
 // Import helpers
 import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX, NOTIFICATION_STORAGE_PREFIX } from './authHelpers/constants';
-import { getStoredRoles, updateCurrentUserRoles as updateRolesHelper, type UserRole } from './authHelpers/roleManager';
+import { getStoredRoles, updateCurrentUserRoles as updateRolesHelper } from './authHelpers/roleManager';
 import {
   signUpWithEmailFirebase,
   signInWithEmailFirebase,
@@ -37,46 +39,13 @@ import {
   clearAllAppNotifications as clearAllNotificationsManager,
   setupFcmMessaging,
   showNotificationPermissionReminder,
-  getNotificationStorageKey // Import getNotificationStorageKey
+  getNotificationStorageKey
 } from './authHelpers/notificationManager';
 
 
 export interface CourtlyUser extends FirebaseUser {
   roles: UserRole[];
 }
-export type SetupFcmFn = (user: CourtlyUser | null) => Promise<(() => void) | null>;
-
-export interface AppNotification {
-  id: string;
-  title: string;
-  body?: string;
-  timestamp: number;
-  read: boolean;
-  href?: string;
-}
-
-export interface ApiNotificationData {
-  bookingId?: string;
-  type?: string;
-  href?: string;
-  [key: string]: any;
-}
-
-export interface ApiNotification {
-  _id: string;
-  recipient: string;
-  title: string;
-  message: string;
-  type: string;
-  relatedEntityId?: string;
-  relatedEntityType?: string;
-  isRead: boolean;
-  createdAt: string;
-  updatedAt: string;
-  data?: ApiNotificationData;
-  __v?: number;
-}
-
 
 interface AuthContextType {
   currentUser: CourtlyUser | null;
@@ -218,7 +187,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             
             const userRoles = getStoredRoles(firebaseUser.uid);
             const courtlyUserInstance: CourtlyUser = {
-              ...(firebaseUser as any),
+              ...(firebaseUser as any), // This includes all FirebaseUser props
               roles: userRoles.length > 0 ? userRoles : ['user'],
             };
             setCurrentUser(courtlyUserInstance);
@@ -324,38 +293,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const signUpWithEmail = async (email: string, password: string, name: string): Promise<void> => {
-    setLoading(true);
+    // setLoading(true); // No longer needed here as onAuthStateChanged handles loading
     await signUpWithEmailFirebase(auth, email, password, name, toast);
     // onAuthStateChanged will handle the rest
-    setLoading(false);
+    // setLoading(false);
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<void> => {
-    setLoading(true);
+    // setLoading(true);
     await signInWithEmailFirebase(auth, email, password, toast);
     // onAuthStateChanged will handle the rest
-    setLoading(false);
+    // setLoading(false);
   };
 
   const signInWithGoogle = async (): Promise<void> => {
-    setLoading(true);
+    // setLoading(true);
     await signInWithGoogleFirebase(auth, toast);
     // onAuthStateChanged will handle the rest
-    setLoading(false);
+    // setLoading(false);
   };
 
   const signInWithPhoneNumberFlow = async (phoneNumber: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
-    setLoading(true);
+    // setLoading(true);
     const result = await signInWithPhoneNumberFirebase(auth, phoneNumber, appVerifier, toast);
-    setLoading(false);
+    // setLoading(false); // Loading is managed by onAuthStateChanged
     return result;
   };
 
   const confirmPhoneNumberCode = async (confirmationResult: ConfirmationResult, code: string): Promise<void> => {
-    setLoading(true);
+    // setLoading(true);
     await confirmPhoneNumberCodeFirebase(confirmationResult, code, toast);
     // onAuthStateChanged will handle the rest
-    setLoading(false);
+    // setLoading(false);
   };
 
   const updateCourtlyUserRoles = (roles: UserRole[]) => {
