@@ -1,6 +1,7 @@
 // src/contexts/authHelpers/tokenManager.ts
 import type { User as FirebaseUser, Auth } from 'firebase/auth';
-import type { CourtlyUser, UserRole, SetupFcmFn } from '@/contexts/AuthContext';
+import type { CourtlyUser, SetupFcmFn } from '@/contexts/AuthContext';
+import type { UserRole } from '@/lib/types';
 import type { ToastFn } from '@/hooks/use-toast';
 import { getStoredRoles } from './roleManager';
 import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX } from './constants';
