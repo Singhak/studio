@@ -3,20 +3,18 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import type { User as FirebaseUser, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast, type ToastFn } from "@/hooks/use-toast";
-import { initializeAuthHelpers } from '@/lib/apiUtils';
 import { Button } from '@/components/ui/button';
-import type { UserRole, AppNotification, ApiNotification } from '@/lib/types';
-
+import type { UserRole, AppNotification } from '@/lib/types'; // Removed ApiNotification as it's handled by notificationManager
 
 // Import helpers
 import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX, NOTIFICATION_STORAGE_PREFIX } from './authHelpers/constants';
-import { getStoredRoles, updateCurrentUserRoles as updateRolesHelper } from './authHelpers/roleManager';
+// getStoredRoles, updateCurrentUserRoles are used by roleManager itself or components directly
 import {
   signUpWithEmailFirebase,
   signInWithEmailFirebase,
@@ -29,7 +27,7 @@ import {
   handleCustomApiLogin,
   attemptTokenRefresh as attemptTokenRefreshApi,
   clearCustomTokens,
-  loadTokensFromStorage,
+  // loadTokensFromStorage, // Not directly used inside AuthContext after initial setup
 } from './authHelpers/tokenManager';
 import {
   fetchAndSetWeeklyAppNotifications,
@@ -40,7 +38,8 @@ import {
   setupFcmMessaging,
   showNotificationPermissionReminder,
   getNotificationStorageKey
-} from './authHelpers/notificationManager';
+} from './authHelpers/notificationManager.tsx'; // Note .tsx extension
+import { initializeAuthHelpers } from '@/lib/apiUtils';
 
 
 export interface CourtlyUser extends FirebaseUser {
@@ -84,10 +83,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const unsubscribeFcmOnMessageRef = React.useRef<(() => void) | null>(null);
+  const unsubscribeFcmOnMessageRef = useRef<(() => void) | null>(null);
   
-  const isProcessingLoginRef = React.useRef(false);
-  const processingUidRef = React.useRef<string | null>(null);
+  const isProcessingLoginRef = useRef(false);
+  const processingUidRef = useRef<string | null>(null);
 
 
   const setAndStoreAccessToken = useCallback((token: string | null) => {
@@ -128,10 +127,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const uidBeforeLogout = auth.currentUser?.uid;
     await logoutFirebase(auth, toast);
 
-    clearCustomTokens();
+    clearCustomTokens(); // From tokenManager
     setAndStoreAccessToken(null);
     setAndStoreRefreshToken(null);
-    // setCurrentUser(null) is handled by onAuthStateChanged
+    // setCurrentUser(null) is handled by onAuthStateChanged after logoutFirebase
 
     if (uidBeforeLogout && typeof window !== 'undefined') {
         localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidBeforeLogout}`);
@@ -140,6 +139,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             localStorage.removeItem(notificationStorageKey);
         }
     }
+    setNotifications([]); // Clear local notification state immediately
+    setUnreadCount(0);
     
     router.push('/login');
   }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken, router]);
@@ -159,16 +160,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       const currentEventUid = firebaseUser?.uid || null;
+      console.log(`AUTH_CONTEXT: onAuthStateChanged event received. Firebase user UID: ${currentEventUid || 'null'}. Current processing UID: ${processingUidRef.current}, isProcessing: ${isProcessingLoginRef.current}`);
+
 
       if (isProcessingLoginRef.current && processingUidRef.current === currentEventUid) {
-        console.log(`AUTH_CONTEXT: onAuthStateChanged re-entrant for UID: ${currentEventUid}. Processing already in progress. Skipping.`);
+        console.log(`AUTH_CONTEXT: onAuthStateChanged RE-ENTRANT for UID: ${currentEventUid}. Current processing for this specific UID/state not finished. Skipping new event.`);
         return;
       }
+
       if (isProcessingLoginRef.current && processingUidRef.current !== currentEventUid) {
-          console.warn(`AUTH_CONTEXT: New auth event for UID ${currentEventUid} while processing ${processingUidRef.current}. This is expected if logout is triggered during login attempt. Proceeding with new event.`);
+          console.warn(`AUTH_CONTEXT: New auth event for UID ${currentEventUid} arrived while an older event for UID ${processingUidRef.current} was still processing. The new event will take precedence. Old event's finally block might run later but its effect on isProcessingLoginRef should be guarded.`);
       }
 
-      // Indicate start of processing for this specific event
       isProcessingLoginRef.current = true;
       processingUidRef.current = currentEventUid;
       setLoading(true);
@@ -176,93 +179,104 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         if (firebaseUser) {
           console.log(`AUTH_CONTEXT: Firebase user ${firebaseUser.uid} detected. Attempting custom session.`);
-          // handleCustomApiLogin now calls setAndStoreAccessToken, setAndStoreRefreshToken, and setupFcm internally on success
           const loggedInCourtlyUser = await handleCustomApiLogin({
             firebaseUser,
-            auth, // auth is not directly used by handleCustomApiLogin, but kept for interface consistency
+            auth,
             toast,
-            setupFcm, // Pass the setupFcm function
-            setAndStoreAccessToken, // Pass the setters
+            setupFcm,
+            setAndStoreAccessToken,
             setAndStoreRefreshToken,
           });
 
           if (!loggedInCourtlyUser) {
-            console.warn("AUTH_CONTEXT: Custom API login failed or returned no user, despite Firebase user existing. Initiating full Firebase logout.");
-            await logoutFirebase(auth, toast); // This will trigger onAuthStateChanged again with firebaseUser = null.
-                                              // The current event's finally block will run.
-                                              // The new (null) event will start its own processing cycle.
+            console.warn(`AUTH_CONTEXT: Custom API login failed or returned no user for Firebase UID ${firebaseUser.uid}. Initiating full Firebase logout.`);
+            await logoutFirebase(auth, toast); // This will trigger onAuthStateChanged(null)
           } else {
-            setCurrentUser(loggedInCourtlyUser); // Set the fully formed CourtlyUser
-            console.log(`AUTH_CONTEXT: Custom session successful for ${loggedInCourtlyUser.uid}.`);
+            setCurrentUser(loggedInCourtlyUser);
+            console.log(`AUTH_CONTEXT: Custom session successful for ${loggedInCourtlyUser.uid}. Roles: ${loggedInCourtlyUser.roles.join(', ')}`);
           }
         } else { // No Firebase user (firebaseUser is null)
-          console.log("AUTH_CONTEXT: No Firebase user detected by onAuthStateChanged. Clearing session.");
-          clearCustomTokens();
-          setAndStoreAccessToken(null);
-          setAndStoreRefreshToken(null);
-          setCurrentUser(null);
-          setNotifications([]);
-          setUnreadCount(0);
+          if (currentUser !== null || accessToken !== null || refreshToken !== null) {
+            console.log("AUTH_CONTEXT: No Firebase user detected by onAuthStateChanged. Current app state indicates an active session. Clearing session.");
+            clearCustomTokens();
+            setAndStoreAccessToken(null);
+            setAndStoreRefreshToken(null);
+            setCurrentUser(null); // This will trigger re-render
+            setNotifications([]);
+            setUnreadCount(0);
+          } else {
+            console.log("AUTH_CONTEXT: No Firebase user detected, and app state is already clean (no user, no tokens). No session state changes needed.");
+          }
+          
           if (unsubscribeFcmOnMessageRef.current) {
+            console.log("AUTH_CONTEXT: Cleaning up existing FCM listener.");
             unsubscribeFcmOnMessageRef.current();
             unsubscribeFcmOnMessageRef.current = null;
           }
-          await setupFcm(null); // Ensure FCM is cleaned up/reset for no user
+          await setupFcm(null);
         }
       } catch (e) {
-        console.error("AUTH_CONTEXT: Critical error in onAuthStateChanged's main try block:", e);
-        clearCustomTokens();
-        setAndStoreAccessToken(null);
-        setAndStoreRefreshToken(null);
-        setCurrentUser(null);
+        console.error(`AUTH_CONTEXT: Critical error in onAuthStateChanged's main try block for UID ${currentEventUid}:`, e);
         if (auth.currentUser) { 
             console.error("AUTH_CONTEXT: Firebase user still present after critical error. Forcing logout.");
-            await logoutFirebase(auth, toast); // Attempt to logout Firebase user if one was present
+            await logoutFirebase(auth, toast);
+        } else {
+            clearCustomTokens();
+            setAndStoreAccessToken(null); setAndStoreRefreshToken(null); setCurrentUser(null);
         }
       } finally {
-        // This finally block is for the event (currentEventUid) that was being processed.
-        // Only mark processing as done if this finally block corresponds to the UID currently marked as processing.
         if (processingUidRef.current === currentEventUid) {
             isProcessingLoginRef.current = false;
-            // processingUidRef.current = null; // Optionally clear the UID marker here or let the next event overwrite
+             console.log(`AUTH_CONTEXT: Finished processing for UID: ${currentEventUid}. isProcessingLoginRef set to false.`);
+        } else {
+            console.warn(`AUTH_CONTEXT: Finally block for superseded event UID ${currentEventUid} (current active processing is for ${processingUidRef.current}). No change to isProcessingLoginRef from this older event's finally.`);
         }
-        setLoading(false); // Indicate that this specific event's processing is finished
+        setLoading(false);
+        console.log(`AUTH_CONTEXT: setLoading(false) after processing UID: ${currentEventUid}.`);
       }
     });
   
     return () => {
+      console.log("AUTH_CONTEXT: Unsubscribing from onAuthStateChanged.");
       unsubscribeAuth();
       if (unsubscribeFcmOnMessageRef.current) {
+        console.log("AUTH_CONTEXT: Cleaning up FCM listener on AuthProvider unmount.");
         unsubscribeFcmOnMessageRef.current();
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken]);
-
+  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken, currentUser, accessToken, refreshToken]); // Added currentUser, accessToken, refreshToken to deps for the conditional clearing logic
 
   useEffect(() => {
-    if (loading) return; // Wait for auth processing to finish before making routing decisions
+    if (loading) {
+        console.log("AUTH_CONTEXT: Redirection logic waiting: Auth is loading.");
+        return;
+    }
 
     const authPages = ['/login', '/register', '/auth/complete-profile'];
     const isAuthPage = authPages.includes(pathname);
     const isProtectedPath = pathname.startsWith('/dashboard');
 
+    console.log(`AUTH_CONTEXT: Redirection check. Path: ${pathname}, IsAuthPage: ${isAuthPage}, IsProtected: ${isProtectedPath}, CurrentUser: ${!!currentUser}, AccessToken: ${!!accessToken}`);
+
     if (currentUser && accessToken && refreshToken) {
       // User is fully authenticated (Firebase user + custom tokens)
       if (isAuthPage) {
-        router.push(currentUser.roles.includes('owner') ? '/dashboard/owner' : '/dashboard/user');
+        const targetDashboard = currentUser.roles.includes('owner') ? '/dashboard/owner' : '/dashboard/user';
+        console.log(`AUTH_CONTEXT: User authenticated, on auth page. Redirecting to ${targetDashboard}.`);
+        router.push(targetDashboard);
       }
     } else if (!currentUser && isProtectedPath) {
       // No user (neither Firebase nor custom tokens imply a valid session), but on protected path
+      console.log("AUTH_CONTEXT: No user, on protected path. Redirecting to /login.");
       router.push('/login');
-    } else if (!loading && currentUser && (!accessToken || !refreshToken) && isProtectedPath) {
-      // Firebase user exists, but custom tokens are missing, and we are NOT in a loading state from onAuthStateChanged.
-      // This indicates a potential desync or failure in custom token acquisition after Firebase auth.
+    } else if (currentUser && (!accessToken || !refreshToken) && isProtectedPath) {
+      // Firebase user exists, but custom tokens are missing, and we are NOT in a loading state.
       console.warn("AUTH_CONTEXT: Redirection logic: Firebase user exists, but custom tokens missing on protected path (and not loading). Triggering full logout.");
       fullLogoutSequence();
+    } else {
+        console.log("AUTH_CONTEXT: Redirection logic: No redirection needed based on current state.");
     }
-    // If !currentUser and !isProtectedPath, do nothing (e.g., user is on home page, not logged in).
-    // If currentUser && tokens && !isProtectedPath, do nothing (e.g., user is on home page, logged in).
   }, [currentUser, loading, router, pathname, accessToken, refreshToken, fullLogoutSequence]);
 
   useEffect(() => {
@@ -290,49 +304,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUpWithEmail = async (email: string, password: string, name: string): Promise<void> => {
     await signUpWithEmailFirebase(auth, email, password, name, toast);
-    // onAuthStateChanged will handle the rest
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<void> => {
     await signInWithEmailFirebase(auth, email, password, toast);
-    // onAuthStateChanged will handle the rest
   };
 
   const signInWithGoogle = async (): Promise<void> => {
     await signInWithGoogleFirebase(auth, toast);
-    // onAuthStateChanged will handle the rest
   };
 
   const signInWithPhoneNumberFlow = async (phoneNumber: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
     return signInWithPhoneNumberFirebase(auth, phoneNumber, appVerifier, toast);
-    // After confirmation, onAuthStateChanged will handle the rest
   };
 
   const confirmPhoneNumberCode = async (confirmationResult: ConfirmationResult, code: string): Promise<void> => {
     await confirmPhoneNumberCodeFirebase(confirmationResult, code, toast);
-    // onAuthStateChanged will handle the rest
   };
 
-  const updateCourtlyUserRoles = (roles: UserRole[]) => {
-    const updatedUser = updateRolesHelper(currentUser, roles, setCurrentUser);
-    if (updatedUser && currentUser) {
-        const oldPrimaryRoleIsOwner = currentUser.roles.includes('owner');
-        const newPrimaryRoleIsOwner = updatedUser.roles.includes('owner');
-        if (oldPrimaryRoleIsOwner !== newPrimaryRoleIsOwner) {
-            router.push(newPrimaryRoleIsOwner ? '/dashboard/owner' : '/dashboard/user');
-        } else if (pathname === '/auth/complete-profile') { 
-             router.push(newPrimaryRoleIsOwner ? '/dashboard/owner' : '/dashboard/user');
-        }
+  const updateCourtlyUserRolesCb = useCallback((roles: UserRole[]) => { // Renamed to avoid conflict, used in value
+    if (currentUser && typeof window !== 'undefined') {
+      const rolesToSet = new Set<UserRole>(roles.filter(role => ['user', 'owner', 'admin', 'editor'].includes(role)));
+      if (rolesToSet.size > 0 || roles.length > 0) rolesToSet.add('user');
+      else rolesToSet.add('user');
+      
+      const finalRoles = Array.from(rolesToSet);
+      const updatedUser: CourtlyUser = { ...currentUser, roles: finalRoles };
+      
+      localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(finalRoles));
+      setCurrentUser(updatedUser); // This will trigger the redirection useEffect
+
+      // Check if primary role view needs to change for immediate redirection
+      const currentPrimaryIsOwner = currentUser.roles.includes('owner');
+      const newPrimaryIsOwner = finalRoles.includes('owner');
+      if (currentPrimaryIsOwner !== newPrimaryIsOwner || pathname === '/auth/complete-profile') {
+          router.push(newPrimaryIsOwner ? '/dashboard/owner' : '/dashboard/user');
+      }
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, router, pathname]); // Add router, pathname as dependencies
   
-  const markNotificationAsRead = async (notificationId: string) => {
+  const markNotificationAsReadCb = async (notificationId: string) => { // Renamed
     await markNotificationReadManager(notificationId, notifications, currentUser?.uid, toast, setNotifications, setUnreadCount);
   };
-  const markAllNotificationsAsRead = async () => {
+  const markAllNotificationsAsReadCb = async () => { // Renamed
     await markAllNotificationsReadManager(notifications, currentUser?.uid, toast, setNotifications, setUnreadCount);
   };
-  const clearAllNotifications = async () => {
+  const clearAllNotificationsCb = async () => { // Renamed
     await clearAllNotificationsManager(currentUser?.uid, toast, setNotifications, setUnreadCount);
   };
 
@@ -348,14 +366,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signInWithPhoneNumberFlow,
     confirmPhoneNumberCode,
     logoutUser: fullLogoutSequence,
-    updateCourtlyUserRoles,
+    updateCourtlyUserRoles: updateCourtlyUserRolesCb,
     attemptTokenRefresh,
     notifications,
     unreadCount,
     addNotification: addNotificationCb,
-    markNotificationAsRead,
-    markAllNotificationsAsRead,
-    clearAllNotifications,
+    markNotificationAsRead: markNotificationAsReadCb,
+    markAllNotificationsAsRead: markAllNotificationsAsReadCb,
+    clearAllNotifications: clearAllNotificationsCb,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -369,7 +387,6 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-// Ensure window.recaptchaVerifier is declared for global use if not already.
 declare global {
   interface Window { recaptchaVerifier?: RecaptchaVerifier }
 }
