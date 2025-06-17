@@ -72,3 +72,39 @@ export async function getBookingsForServiceOnDate(serviceId: string, date: strin
     }
   }
 }
+
+export async function getBookingsByUserId(userId: string): Promise<Booking[]> {
+  const apiUrlPath = `/bookings?userId=${encodeURIComponent(userId)}`;
+  try {
+    const response = await authedFetch(apiUrlPath, {
+      method: 'GET',
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: `Failed to get user bookings: ${response.statusText}` }));
+      throw new Error(errorBody.message);
+    }
+    return await response.json() as Booking[];
+  } catch (error) {
+    console.error(`Error fetching bookings for user ${userId}:`, error);
+    if (error instanceof Error) throw error;
+    throw new Error('An unexpected error occurred while fetching user bookings.');
+  }
+}
+
+export async function getBookingsByClubId(clubId: string): Promise<Booking[]> {
+  const apiUrlPath = `/bookings?clubId=${encodeURIComponent(clubId)}`;
+  try {
+    const response = await authedFetch(apiUrlPath, {
+      method: 'GET',
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: `Failed to get club bookings: ${response.statusText}` }));
+      throw new Error(errorBody.message);
+    }
+    return await response.json() as Booking[];
+  } catch (error) {
+    console.error(`Error fetching bookings for club ${clubId}:`, error);
+    if (error instanceof Error) throw error;
+    throw new Error('An unexpected error occurred while fetching club bookings.');
+  }
+}

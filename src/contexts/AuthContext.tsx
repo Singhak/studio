@@ -2,20 +2,19 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { User as FirebaseUser, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
-import type { ToastFn } from "@/hooks/use-toast";
 import { useToast } from "@/hooks/use-toast";
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 import { Button } from '@/components/ui/button';
-import type { UserRole, AppNotification, ApiNotification, SetupFcmFn, ApiNotificationData } from '@/lib/types';
+import type { UserRole, AppNotification } from '@/lib/types';
 
 
 // Import helpers
-import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX, NOTIFICATION_STORAGE_PREFIX } from './authHelpers/constants';
+import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX } from './authHelpers/constants';
 import { getStoredRoles, updateCurrentUserRoles as updateRolesHelper } from './authHelpers/roleManager';
 import {
   signUpWithEmailFirebase,

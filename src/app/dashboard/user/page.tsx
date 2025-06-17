@@ -8,10 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Booking, Club } from "@/lib/types"; 
-import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2 } from "lucide-react"; 
+import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2, AlertTriangle } from "lucide-react"; 
 import Link from "next/link";
 import { ClubCard } from '@/components/features/clubs/ClubCard'; 
-import { mockUserBookings } from '@/lib/mockData'; 
 import { ReviewForm } from '@/components/features/reviews/ReviewForm';
 import {
   AlertDialog,
@@ -19,6 +18,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getAllClubs } from '@/services/clubService';
+import { getBookingsByUserId } from '@/services/bookingService'; // Import new service
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useToast } from '@/hooks/use-toast';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -32,14 +34,55 @@ const statusBadgeVariant = (status: Booking['status']) => {
 };
 
 export default function UserDashboardPage() {
-  const upcomingBookings = mockUserBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date());
-  const pastBookings = mockUserBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id));
-  const completedBookingsCount = mockUserBookings.filter(b => b.status === 'completed').length;
-  
+  const { currentUser, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+
+  const [userBookings, setUserBookings] = useState<Booking[]>([]);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+  const [bookingsError, setBookingsError] = useState<string | null>(null);
+
   const [favoriteClubs, setFavoriteClubs] = useState<Club[]>([]);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(true);
+  
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
+
+  useEffect(() => {
+    const fetchUserBookings = async () => {
+      if (!currentUser) {
+        setIsLoadingBookings(false);
+        return;
+      }
+      setIsLoadingBookings(true);
+      setBookingsError(null);
+      try {
+        const bookings = await getBookingsByUserId(currentUser.uid);
+        // Sort bookings: upcoming first, then by date descending for past
+        bookings.sort((a, b) => {
+            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.date) >= new Date();
+            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date();
+            if (aIsUpcoming && !bIsUpcoming) return -1;
+            if (!aIsUpcoming && bIsUpcoming) return 1;
+            return new Date(b.date).getTime() - new Date(a.date).getTime(); // For both upcoming or both past, sort by most recent date
+        });
+        setUserBookings(bookings);
+      } catch (error) {
+        console.error("Failed to fetch user bookings:", error);
+        const errorMessage = error instanceof Error ? error.message : "Could not load your bookings.";
+        setBookingsError(errorMessage);
+        toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
+      } finally {
+        setIsLoadingBookings(false);
+      }
+    };
+
+    if (!authLoading && currentUser) {
+      fetchUserBookings();
+    } else if (!authLoading && !currentUser) {
+      setIsLoadingBookings(false); // No user, so not loading bookings
+    }
+  }, [currentUser, authLoading, toast]);
+
 
   useEffect(() => {
     const fetchFavoriteClubs = async () => {
@@ -49,13 +92,17 @@ export default function UserDashboardPage() {
         setFavoriteClubs(allClubs.filter(club => club.isFavorite));
       } catch (error) {
         console.error("Failed to fetch favorite clubs:", error);
-        // Optionally set an error state here
       } finally {
         setIsLoadingFavorites(false);
       }
     };
     fetchFavoriteClubs();
   }, []);
+
+  const upcomingBookings = userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date());
+  const pastBookings = userBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id));
+  const completedBookingsCount = userBookings.filter(b => b.status === 'completed').length;
+
 
   const handleOpenReviewDialog = (booking: Booking) => {
     setSelectedBookingForReview(booking);
@@ -69,9 +116,17 @@ export default function UserDashboardPage() {
   };
   
   const hasBeenReviewed = (bookingId: string) => {
-    return bookingId === 'ub3'; // Example: booking ub3 has been reviewed
+    // Placeholder: In a real app, this would check against stored review data
+    return bookingId === 'ub3_mock_reviewed'; // Example
   };
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-12rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -89,7 +144,7 @@ export default function UserDashboardPage() {
             <BookCopy className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockUserBookings.length}</div>
+            <div className="text-2xl font-bold">{isLoadingBookings ? <Loader2 className="h-6 w-6 animate-spin" /> : userBookings.length}</div>
             <p className="text-xs text-muted-foreground">All your bookings</p>
           </CardContent>
         </Card>
@@ -99,7 +154,7 @@ export default function UserDashboardPage() {
             <CalendarClock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{upcomingBookings.length}</div>
+            <div className="text-2xl font-bold">{isLoadingBookings ? <Loader2 className="h-6 w-6 animate-spin" /> : upcomingBookings.length}</div>
             <p className="text-xs text-muted-foreground">Active and future reservations</p>
           </CardContent>
         </Card>
@@ -109,12 +164,25 @@ export default function UserDashboardPage() {
             <HistoryIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{completedBookingsCount}</div>
+            <div className="text-2xl font-bold">{isLoadingBookings ? <Loader2 className="h-6 w-6 animate-spin" /> : completedBookingsCount}</div>
             <p className="text-xs text-muted-foreground">Successfully attended</p>
           </CardContent>
         </Card>
       </section>
 
+      {bookingsError && (
+        <Card className="border-destructive bg-destructive/10">
+          <CardHeader>
+            <CardTitle className="text-destructive flex items-center"><AlertTriangle className="mr-2"/>Error Loading Bookings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive-foreground">{bookingsError}</p>
+            <Button variant="outline" className="mt-3" onClick={() => {
+                if(currentUser) getBookingsByUserId(currentUser.uid); else toast({toastDescription: "Please log in to retry."});
+            }}>Try Again</Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="upcoming">
         <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 gap-1 h-auto md:h-10">
@@ -131,7 +199,9 @@ export default function UserDashboardPage() {
               <CardDescription>Manage your upcoming court reservations.</CardDescription>
             </CardHeader>
             <CardContent>
-              {upcomingBookings.length > 0 ? (
+              {isLoadingBookings ? (
+                <div className="text-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /></div>
+              ) : upcomingBookings.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -145,7 +215,7 @@ export default function UserDashboardPage() {
                   <TableBody>
                     {upcomingBookings.map((booking) => (
                       <TableRow key={booking.id}>
-                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-1)}</TableCell> 
+                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-4)}</TableCell> 
                         <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
                         <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
@@ -170,7 +240,9 @@ export default function UserDashboardPage() {
               <CardDescription>Review your booking history and leave feedback.</CardDescription>
             </CardHeader>
             <CardContent>
-              {pastBookings.length > 0 ? (
+             {isLoadingBookings ? (
+                <div className="text-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /></div>
+              ) : pastBookings.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -183,7 +255,7 @@ export default function UserDashboardPage() {
                 <TableBody>
                   {pastBookings.map((booking) => (
                     <TableRow key={booking.id}>
-                      <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-1)}</TableCell>
+                      <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-4)}</TableCell>
                       <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
                       <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
@@ -223,7 +295,7 @@ export default function UserDashboardPage() {
               ) : favoriteClubs.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {favoriteClubs.map((club) => (
-                    <ClubCard key={club.id} club={club} />
+                    <ClubCard key={club._id || club.id} club={club} />
                   ))}
                 </div>
               ) : (

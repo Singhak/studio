@@ -36,17 +36,16 @@ export async function POST(request: NextRequest) {
 
     const newBookingId = `booking_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     
-    // Calculate duration in hours for price calculation (simplified)
     const startHour = parseInt(body.startTime.split(':')[0]);
     const endHour = parseInt(body.endTime.split(':')[0]);
-    const durationHours = Math.max(1, endHour - startHour); // Ensure at least 1 hour for pricing
+    const durationHours = Math.max(1, endHour - startHour); 
     const totalPrice = service.hourlyPrice * durationHours;
 
 
     const newBookingEntry: Booking = {
       id: newBookingId,
-      userId: `user_mock_${Math.random().toString(36).substring(2, 7)}`, // Mock user ID
-      clubId: service.club, // Get clubId from the service
+      userId: `user_mock_${Math.random().toString(36).substring(2, 7)}`, // Mock user ID for now, real app would get from auth
+      clubId: service.club, 
       serviceId: body.serviceId,
       date: body.bookingDate,
       startTime: body.startTime,
@@ -90,21 +89,34 @@ export async function POST(request: NextRequest) {
 // GET endpoint to view bookings
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+  const clubId = searchParams.get('clubId');
   const serviceId = searchParams.get('serviceId');
   const date = searchParams.get('date'); // Expected format YYYY-MM-DD
 
   let allBookings = [...bookingsStore, ...mockUserBookings, ...baseMockOwnerBookings];
 
-  // Deduplicate bookings by ID, giving preference to bookingsStore (potentially more up-to-date from POSTs)
   const uniqueBookingsMap = new Map<string, Booking>();
   allBookings.forEach(booking => {
-    // Prefer bookings from bookingsStore if IDs clash with mockData
     if (!uniqueBookingsMap.has(booking.id) || bookingsStore.some(b => b.id === booking.id)) {
       uniqueBookingsMap.set(booking.id, booking);
     }
   });
   allBookings = Array.from(uniqueBookingsMap.values());
 
+  // Priority 1: Filter by userId if provided
+  if (userId) {
+    const userBookings = allBookings.filter(booking => booking.userId === userId);
+    return NextResponse.json(userBookings);
+  }
+
+  // Priority 2: Filter by clubId if provided (and userId was not)
+  if (clubId) {
+    const clubBookings = allBookings.filter(booking => booking.clubId === clubId);
+    return NextResponse.json(clubBookings);
+  }
+  
+  // Priority 3: Filter by serviceId and date if both provided
   if (serviceId && date) {
     const filteredBookings = allBookings.filter(
       (booking) => booking.serviceId === serviceId && booking.date === date
@@ -112,7 +124,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(filteredBookings);
   }
   
-  // If only serviceId is provided, return all bookings for that service
+  // Priority 4: Filter by serviceId only
   if (serviceId) {
     const filteredBookings = allBookings.filter(
       (booking) => booking.serviceId === serviceId
@@ -120,7 +132,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(filteredBookings);
   }
 
-  // If no specific filters (serviceId, date) are provided, return all combined and deduplicated bookings.
-  // This could be a large payload in a real app, consider pagination or requiring filters.
+  // Default: If no specific filters, return all (consider implications for large datasets)
   return NextResponse.json(allBookings);
 }

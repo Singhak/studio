@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Booking, Club, Service } from "@/lib/types";
-import { mockServices as allMockServices, baseMockOwnerBookings } from '@/lib/mockData';
+import { mockServices as allMockServices } from '@/lib/mockData'; // Keep for getServiceName, baseMockOwnerBookings removed
 import Link from 'next/link';
-import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2 } from "lucide-react";
+import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { getLoggedInOwnerClubs } from '@/services/clubService';
+import { getBookingsByClubId } from '@/services/bookingService'; // Import new service
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -32,43 +33,78 @@ export default function OwnerDashboardPage() {
   const { addNotification } = useAuth();
   const [ownerClubs, setOwnerClubs] = useState<Club[]>([]);
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoadingClubs, setIsLoadingClubs] = useState(true);
+  const [clubsError, setClubsError] = useState<string | null>(null);
+
+  const [clubBookings, setClubBookings] = useState<Booking[]>([]);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(false);
+  const [bookingsError, setBookingsError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchClubsForOwner = async () => {
-      setIsLoading(true);
-      setError(null);
+      setIsLoadingClubs(true);
+      setClubsError(null);
       try {
         const clubsForOwner = await getLoggedInOwnerClubs();
         setOwnerClubs(clubsForOwner);
         if (clubsForOwner.length > 0) {
-          setSelectedClub(clubsForOwner[0]);
+          setSelectedClub(clubsForOwner[0]); // Auto-select first club
         } else {
           setSelectedClub(null);
         }
       } catch (err) {
         console.error("Failed to fetch owner's clubs:", err);
-        setError(err instanceof Error ? err.message : "An unknown error occurred while fetching clubs.");
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred while fetching clubs.";
+        setClubsError(errorMessage);
+        toast({ variant: "destructive", toastTitle: "Error Loading Clubs", toastDescription: errorMessage });
       } finally {
-        setIsLoading(false);
+        setIsLoadingClubs(false);
       }
     };
     fetchClubsForOwner();
-  }, []);
+  }, [toast]);
+
+  const fetchBookingsForClub = useCallback(async (clubId: string) => {
+    setIsLoadingBookings(true);
+    setBookingsError(null);
+    try {
+      const bookings = await getBookingsByClubId(clubId);
+      // Sort bookings by date, most recent first
+      bookings.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setClubBookings(bookings);
+    } catch (err) {
+      console.error(`Failed to fetch bookings for club ${clubId}:`, err);
+      const errorMessage = err instanceof Error ? err.message : `Could not load bookings for ${selectedClub?.name || 'this club'}.`;
+      setBookingsError(errorMessage);
+      toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
+    } finally {
+      setIsLoadingBookings(false);
+    }
+  }, [toast, selectedClub?.name]);
+
+  useEffect(() => {
+    if (selectedClub?._id) {
+      fetchBookingsForClub(selectedClub._id);
+    } else {
+      setClubBookings([]); // Clear bookings if no club is selected
+    }
+  }, [selectedClub, fetchBookingsForClub]);
+
 
   const handleClubChange = (clubId: string) => {
     const club = ownerClubs.find(c => c._id === clubId);
     setSelectedClub(club || null);
+    // Bookings will be refetched by the useEffect watching selectedClub
   };
-
+  
+  // This function uses clubBookings (API sourced) now instead of baseMockOwnerBookings
   const currentClubBookings = useMemo(() => {
-    if (!selectedClub) return [];
-    return baseMockOwnerBookings.filter(booking => booking.clubId === (selectedClub._id || (selectedClub as any).id));
-  }, [selectedClub]);
+    return clubBookings;
+  }, [clubBookings]);
+
 
   const getServiceName = (serviceId: string): string => {
-    const service = allMockServices.find(s => s._id === serviceId); // Use _id for services
+    const service = allMockServices.find(s => s._id === serviceId);
     return service ? service.name : 'Unknown Service';
   };
 
@@ -90,7 +126,7 @@ export default function OwnerDashboardPage() {
   }, [currentClubBookings, selectedClub]);
 
   const servicesOfferedCount = useMemo(() => {
-      if (!selectedClub || !selectedClub.services) return 0;
+      if (!selectedClub || !selectedClub.services) return 0; // services are part of Club type, fetched with getClubById
       return selectedClub.services.length;
   }, [selectedClub]);
 
@@ -100,7 +136,7 @@ export default function OwnerDashboardPage() {
   }, [currentClubBookings, selectedClub]);
 
 
-  if (isLoading) {
+  if (isLoadingClubs) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <Loader2 className="w-16 h-16 text-primary animate-spin mb-6" />
@@ -110,12 +146,12 @@ export default function OwnerDashboardPage() {
     );
   }
 
-  if (error) {
+  if (clubsError) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
-        <ClubIconLucide className="w-24 h-24 text-destructive mb-6" />
+        <AlertTriangle className="w-24 h-24 text-destructive mb-6" />
         <h1 className="text-3xl font-bold mb-2 text-destructive">Error Loading Clubs</h1>
-        <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
+        <p className="text-muted-foreground mb-6 max-w-md">{clubsError}</p>
         <Button onClick={() => window.location.reload()} className="mt-6">
           Try Again
         </Button>
@@ -123,7 +159,7 @@ export default function OwnerDashboardPage() {
     );
   }
 
-  if (ownerClubs.length === 0 && !isLoading) {
+  if (ownerClubs.length === 0 && !isLoadingClubs) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <ClubIconLucide className="w-24 h-24 text-muted-foreground mb-6" />
@@ -140,8 +176,8 @@ export default function OwnerDashboardPage() {
       </div>
     );
   }
-
-  if (!selectedClub && ownerClubs.length > 0 && !isLoading) {
+  
+  if (!selectedClub && ownerClubs.length > 0 && !isLoadingClubs) {
      return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <ClubIconLucide className="w-24 h-24 text-muted-foreground mb-6 animate-pulse" />
@@ -166,7 +202,7 @@ export default function OwnerDashboardPage() {
     );
   }
 
-  if (!selectedClub && !isLoading) {
+  if (!selectedClub && !isLoadingClubs) { // Should not happen if ownerClubs.length > 0 due to auto-selection
       return <div className="flex justify-center items-center min-h-[200px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Preparing club data...</p></div>;
   }
 
@@ -211,7 +247,7 @@ export default function OwnerDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-                {totalRevenue.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                {isLoadingBookings ? <Loader2 className="h-6 w-6 animate-spin" /> : totalRevenue.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
             </div>
             <p className="text-xs text-muted-foreground">From confirmed & completed bookings</p>
           </CardContent>
@@ -222,7 +258,7 @@ export default function OwnerDashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeBookingsCount}</div>
+            <div className="text-2xl font-bold">{isLoadingBookings ? <Loader2 className="h-6 w-6 animate-spin" /> : activeBookingsCount}</div>
             <p className="text-xs text-muted-foreground">Confirmed or pending</p>
           </CardContent>
         </Card>
@@ -232,7 +268,7 @@ export default function OwnerDashboardPage() {
             <BellRing className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{pendingRequestsCount}</div>
+            <div className="text-2xl font-bold">{isLoadingBookings ? <Loader2 className="h-6 w-6 animate-spin" /> : pendingRequestsCount}</div>
             <p className="text-xs text-muted-foreground">Needs your attention</p>
           </CardContent>
         </Card>
@@ -262,7 +298,7 @@ export default function OwnerDashboardPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalFulfilledBookingsCount}</div>
+            <div className="text-2xl font-bold">{isLoadingBookings ? <Loader2 className="h-6 w-6 animate-spin" /> : totalFulfilledBookingsCount}</div>
             <p className="text-xs text-muted-foreground">Total confirmed or completed</p>
           </CardContent>
         </Card>
@@ -280,7 +316,16 @@ export default function OwnerDashboardPage() {
               <CardDescription>Approve or reject new booking requests for this club.</CardDescription>
             </CardHeader>
             <CardContent>
-              {currentClubBookings.length > 0 ? (
+              {isLoadingBookings ? (
+                 <div className="text-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /></div>
+              ) : bookingsError ? (
+                <div className="text-center py-8 text-destructive">
+                   <AlertTriangle className="mx-auto h-10 w-10 mb-2" />
+                  <p className="font-semibold">Could not load bookings</p>
+                  <p className="text-sm">{bookingsError}</p>
+                  <Button variant="outline" className="mt-3" onClick={() => fetchBookingsForClub(selectedClub!._id)}>Try Again</Button>
+                </div>
+              ) : currentClubBookings.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -294,7 +339,7 @@ export default function OwnerDashboardPage() {
                   <TableBody>
                     {currentClubBookings.map((booking) => (
                       <TableRow key={booking.id}>
-                        <TableCell className="font-medium">User {booking.userId.slice(-2)}</TableCell>
+                        <TableCell className="font-medium">User {booking.userId.slice(-4)}</TableCell>
                         <TableCell>{new Date(booking.date).toLocaleDateString()} at {booking.startTime}</TableCell>
                         <TableCell>{getServiceName(booking.serviceId)}</TableCell>
                         <TableCell><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
@@ -309,18 +354,15 @@ export default function OwnerDashboardPage() {
                                 onClick={() => {
                                     toast({
                                         toastTitle: "Booking Accepted (Sim)",
-                                        toastDescription: `Booking for User ${booking.userId.slice(-2)} at ${selectedClub!.name} accepted.`,
+                                        toastDescription: `Booking for User ${booking.userId.slice(-4)} at ${selectedClub!.name} accepted.`,
                                     });
                                     addNotification(
                                         `Booking Confirmed: ${selectedClub!.name}`,
                                         `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} has been confirmed.`,
                                         '/dashboard/user'
                                     );
-                                    const bookingIndex = baseMockOwnerBookings.findIndex(b => b.id === booking.id);
-                                    if (bookingIndex !== -1) {
-                                      baseMockOwnerBookings[bookingIndex].status = 'confirmed';
-                                      setSelectedClub(prev => prev ? {...prev, _timestamp: Date.now()} : null); // Trigger re-render
-                                    }
+                                    // In a real app, you'd call an API to update status and then refetch bookings
+                                    setClubBookings(prev => prev.map(b => b.id === booking.id ? {...b, status: 'confirmed'} : b));
                                 }}
                               >
                                 <CheckCircle className="h-5 w-5" />
@@ -330,18 +372,14 @@ export default function OwnerDashboardPage() {
                                      toast({
                                         variant: "destructive",
                                         toastTitle: "Booking Rejected (Sim)",
-                                        toastDescription: `Booking for User ${booking.userId.slice(-2)} at ${selectedClub!.name} rejected.`,
+                                        toastDescription: `Booking for User ${booking.userId.slice(-4)} at ${selectedClub!.name} rejected.`,
                                     });
                                     addNotification(
                                         `Booking Update: ${selectedClub!.name}`,
                                         `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} could not be confirmed.`,
                                         '/dashboard/user'
                                     );
-                                    const bookingIndex = baseMockOwnerBookings.findIndex(b => b.id === booking.id);
-                                    if (bookingIndex !== -1) {
-                                      baseMockOwnerBookings[bookingIndex].status = 'rejected';
-                                      setSelectedClub(prev => prev ? {...prev, _timestamp: Date.now()} : null); // Trigger re-render
-                                    }
+                                    setClubBookings(prev => prev.map(b => b.id === booking.id ? {...b, status: 'rejected'} : b));
                                 }}
                               >
                                 <XCircle className="h-5 w-5" />
@@ -388,18 +426,6 @@ export default function OwnerDashboardPage() {
                 </div>
                  <Button variant="outline" asChild><Link href={`/dashboard/owner/availability?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Update</Link></Button>
               </div>
-               {/* Placeholder for "Add Another Club" if desired when >0 clubs exist */}
-              {/* 
-              {ownerClubs.length > 0 && (
-                <div className="pt-4 mt-4 border-t">
-                  <Button asChild variant="default" className="w-full sm:w-auto">
-                    <Link href="/dashboard/owner/register-club">
-                      <PlusCircle className="mr-2 h-4 w-4" /> Register Another Club
-                    </Link>
-                  </Button>
-                </div>
-              )}
-              */}
             </CardContent>
              <CardFooter>
                 <Button asChild variant="destructive" className="ml-auto"
