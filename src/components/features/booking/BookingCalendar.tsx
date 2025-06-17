@@ -6,7 +6,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Clock, Loader2, AlertTriangle } from 'lucide-react';
+import { Clock, Loader2, AlertTriangle, RefreshCw } from 'lucide-react'; // Added RefreshCw
 import type { TimeSlot, TimeSlotStatus, Service, DayOfWeek, Booking, UserRole } from '@/lib/types'; // Added UserRole
 import { getBookingsForServiceOnDate } from '@/services/bookingService';
 import { format as formatDateFns, parse, addMinutes, isBefore, isEqual, getDay, startOfToday as getStartOfToday } from 'date-fns';
@@ -50,9 +50,9 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     if (clientLoaded && selectedService) {
       const today = new Date();
       setSelectedDate(today);
-      setInternalSelectedTimeSlot(null); 
+      setInternalSelectedTimeSlot(null);
       if (onSlotSelect) {
-        onSlotSelect(today, null); 
+        onSlotSelect(today, null);
       }
     } else if (!selectedService && clientLoaded) {
       setSelectedDate(undefined);
@@ -64,96 +64,94 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedService, clientLoaded]); 
+  }, [selectedService, clientLoaded]);
 
-  useEffect(() => {
+  const generateAndSetTimeSlots = useCallback(async () => {
     if (!clientLoaded || !selectedService || !selectedDate) {
       setTimeSlots([]);
       setSlotError(null);
-      setIsLoadingSlots(false); // Ensure loading is false if prerequisites are not met
+      setIsLoadingSlots(false);
       return;
     }
 
-    const generateAndSetTimeSlots = async () => {
-      setIsLoadingSlots(true);
-      setSlotError(null);
-      setTimeSlots([]); 
+    setIsLoadingSlots(true);
+    setSlotError(null);
+    setTimeSlots([]);
 
-      const serviceDayIndex = getDay(selectedDate);
-      const serviceAvailableDaysMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-      const serviceDayString = Object.keys(serviceAvailableDaysMap).find(key => serviceAvailableDaysMap[key] === serviceDayIndex) as DayOfWeek | undefined;
+    const serviceDayIndex = getDay(selectedDate);
+    const serviceAvailableDaysMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const serviceDayString = Object.keys(serviceAvailableDaysMap).find(key => serviceAvailableDaysMap[key] === serviceDayIndex) as DayOfWeek | undefined;
 
-      if (!serviceDayString || !selectedService.availableDays?.includes(serviceDayString)) {
-        setSlotError(`${selectedService.name} is not available on ${formatDateFns(selectedDate, 'EEEE')}.`);
-        setTimeSlots([]);
-        setIsLoadingSlots(false);
-        return;
-      }
+    if (!serviceDayString || !selectedService.availableDays?.includes(serviceDayString)) {
+      setSlotError(`${selectedService.name} is not available on ${formatDateFns(selectedDate, 'EEEE')}.`);
+      setTimeSlots([]);
+      setIsLoadingSlots(false);
+      return;
+    }
 
-      try {
-        const dateString = formatDateFns(selectedDate, 'yyyy-MM-dd');
-        const existingBookings = await getBookingsForServiceOnDate(selectedService._id, dateString);
+    try {
+      const dateString = formatDateFns(selectedDate, 'yyyy-MM-dd');
+      const existingBookings = await getBookingsForServiceOnDate(selectedService._id, dateString);
 
-        const openingTimeStr = selectedService.openingTime || "00:00";
-        const closingTimeStr = selectedService.closingTime || "23:59";
-        const slotDuration = selectedService.slotDurationMinutes || 60;
+      const openingTimeStr = selectedService.openingTime || "00:00";
+      const closingTimeStr = selectedService.closingTime || "23:59";
+      const slotDuration = selectedService.slotDurationMinutes || 60;
 
-        const generatedSlots: DisplayTimeSlot[] = [];
-        let currentTime = parse(openingTimeStr, 'HH:mm', selectedDate);
-        const closingTime = parse(closingTimeStr, 'HH:mm', selectedDate);
+      const generatedSlots: DisplayTimeSlot[] = [];
+      let currentTime = parse(openingTimeStr, 'HH:mm', selectedDate);
+      const closingTime = parse(closingTimeStr, 'HH:mm', selectedDate);
 
+      while (isBefore(currentTime, closingTime)) {
+        const slotStart = new Date(currentTime);
+        const slotEnd = addMinutes(slotStart, slotDuration);
 
-        while (isBefore(currentTime, closingTime)) {
-          const slotStart = new Date(currentTime);
-          const slotEnd = addMinutes(slotStart, slotDuration);
+        if (isBefore(slotEnd, closingTime) || isEqual(slotEnd, closingTime)) {
+          const startTimeFormatted = formatDateFns(slotStart, 'HH:mm');
+          const endTimeFormatted = formatDateFns(slotEnd, 'HH:mm');
+          let displayStatus: TimeSlotStatus = 'available';
+          let isCurrentUsersPendingBooking = false;
 
-          if (isBefore(slotEnd, closingTime) || isEqual(slotEnd, closingTime)) {
-            const startTimeFormatted = formatDateFns(slotStart, 'HH:mm');
-            const endTimeFormatted = formatDateFns(slotEnd, 'HH:mm');
+          const conflictingBooking = existingBookings.find(booking => booking.startTime === startTimeFormatted);
 
-            let displayStatus: TimeSlotStatus = 'available';
-            let isCurrentUsersPendingBooking = false;
-
-            const conflictingBooking = existingBookings.find(booking => booking.startTime === startTimeFormatted);
-
-            if (conflictingBooking) {
-              if (conflictingBooking.status === 'pending') {
-                if (currentUser && conflictingBooking.userId === currentUser.uid) { 
-                  displayStatus = 'pending'; 
-                  isCurrentUsersPendingBooking = true;
-                } else {
-                  displayStatus = 'confirmed'; 
-                }
-              } else if (conflictingBooking.status === 'confirmed') {
-                displayStatus = 'confirmed'; 
+          if (conflictingBooking) {
+            if (conflictingBooking.status === 'pending') {
+              if (currentUser && conflictingBooking.userId === currentUser.uid) {
+                displayStatus = 'pending';
+                isCurrentUsersPendingBooking = true;
+              } else {
+                displayStatus = 'confirmed';
               }
+            } else if (conflictingBooking.status === 'confirmed') {
+              displayStatus = 'confirmed';
             }
-            
-            generatedSlots.push({
-              startTime: startTimeFormatted,
-              endTime: endTimeFormatted,
-              status: displayStatus,
-              isCurrentUsersPending: isCurrentUsersPendingBooking,
-            });
           }
-          currentTime = addMinutes(currentTime, slotDuration);
-        }
-        setTimeSlots(generatedSlots);
-        if(generatedSlots.length === 0 && isBefore(parse(openingTimeStr, 'HH:mm', selectedDate), parse(closingTimeStr, 'HH:mm', selectedDate))) {
-            setSlotError(`No time slots could be generated for ${selectedService.name} between ${openingTimeStr} and ${closingTimeStr} on this day.`);
-        } else if (generatedSlots.length === 0) {
-             setSlotError(`${selectedService.name} may not have operating hours defined that allow for slot generation on this day.`);
-        }
 
-      } catch (error) {
-        console.error("Error fetching or generating time slots:", error);
-        setSlotError(error instanceof Error ? error.message : "Failed to load time slots.");
-        setTimeSlots([]);
-      } finally {
-        setIsLoadingSlots(false); // Ensure loading state is reset
+          generatedSlots.push({
+            startTime: startTimeFormatted,
+            endTime: endTimeFormatted,
+            status: displayStatus,
+            isCurrentUsersPending: isCurrentUsersPendingBooking,
+          });
+        }
+        currentTime = addMinutes(currentTime, slotDuration);
       }
-    };
+      setTimeSlots(generatedSlots);
+      if(generatedSlots.length === 0 && isBefore(parse(openingTimeStr, 'HH:mm', selectedDate), parse(closingTimeStr, 'HH:mm', selectedDate))) {
+          setSlotError(`No time slots could be generated for ${selectedService.name} between ${openingTimeStr} and ${closingTimeStr} on this day.`);
+      } else if (generatedSlots.length === 0) {
+           setSlotError(`${selectedService.name} may not have operating hours defined that allow for slot generation on this day.`);
+      }
 
+    } catch (error) {
+      console.error("Error fetching or generating time slots:", error);
+      setSlotError(error instanceof Error ? error.message : "Failed to load time slots.");
+      setTimeSlots([]);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  }, [selectedDate, selectedService, clientLoaded, currentUser]);
+
+  useEffect(() => {
     generateAndSetTimeSlots();
     if (internalSelectedTimeSlot) {
         setInternalSelectedTimeSlot(null);
@@ -162,11 +160,11 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, selectedService, clientLoaded, currentUser]); 
+  }, [selectedDate, selectedService, generateAndSetTimeSlots]); // generateAndSetTimeSlots is now a dependency
 
   const handleDateChange = (date: Date | undefined) => {
     setSelectedDate(date);
-    setInternalSelectedTimeSlot(null); 
+    setInternalSelectedTimeSlot(null);
     if (onSlotSelect) {
       onSlotSelect(date, null);
     }
@@ -176,10 +174,10 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     if (slot.status === 'available') {
       setInternalSelectedTimeSlot(slot);
       if (onSlotSelect) {
-        onSlotSelect(selectedDate, { 
-            startTime: slot.startTime, 
-            endTime: slot.endTime, 
-            status: slot.status 
+        onSlotSelect(selectedDate, {
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            status: slot.status
         });
       }
     }
@@ -197,8 +195,8 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
       buttonClassName += " bg-yellow-100 border-yellow-400 text-yellow-700 hover:bg-yellow-200 focus:bg-yellow-200 cursor-not-allowed";
       isDisabled = true;
       tooltipText = "Your Pending Booking";
-    } else if (slot.status === 'confirmed') { 
-      variant = 'secondary'; 
+    } else if (slot.status === 'confirmed') {
+      variant = 'secondary';
       isDisabled = true;
       buttonClassName += " opacity-70 cursor-not-allowed";
       tooltipText = "Unavailable";
@@ -207,9 +205,9 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
       isDisabled = false;
       tooltipText = "Available";
     }
-    
+
     if (internalSelectedTimeSlot?.startTime === slot.startTime && slot.status === 'available') {
-      variant = 'default'; 
+      variant = 'default';
       tooltipText = "Selected";
     }
     return { variant, isDisabled, buttonClassName, buttonText, tooltipText };
@@ -274,9 +272,12 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
                 {isLoadingSlots ? (
                   <div className="flex items-center justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /> <span className="ml-2">Loading slots...</span></div>
                 ) : slotError ? (
-                  <div className="text-destructive text-center p-4 flex flex-col items-center gap-2">
-                    <AlertTriangle size={24} />
+                  <div className="text-destructive text-center p-4 flex flex-col items-center gap-3">
+                    <AlertTriangle size={32} />
                     <span>{slotError}</span>
+                    <Button onClick={generateAndSetTimeSlots} variant="outline" size="sm">
+                      <RefreshCw className="mr-2 h-4 w-4" /> Try Again
+                    </Button>
                   </div>
                 ) : selectedDate && timeSlots.length > 0 ? (
                   <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-2">
@@ -295,7 +296,7 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
                       return (
                         <Tooltip key={`${slot.startTime}-${index}`}>
                           <TooltipTrigger asChild>
-                            {isDisabled && slot.status !== 'available' ? ( 
+                            {isDisabled && slot.status !== 'available' ? (
                               <span className="inline-block w-full" tabIndex={0}>
                                 {actualButton}
                               </span>
@@ -323,3 +324,4 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     </TooltipProvider>
   );
 }
+
