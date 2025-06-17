@@ -48,15 +48,13 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
 
   useEffect(() => {
     if (clientLoaded && selectedService) {
-      // When a new service is selected, default the date to today
       const today = new Date();
       setSelectedDate(today);
-      setInternalSelectedTimeSlot(null); // Clear any previous slot selection
+      setInternalSelectedTimeSlot(null); 
       if (onSlotSelect) {
-        onSlotSelect(today, null); // Inform parent about the date change and cleared slot
+        onSlotSelect(today, null); 
       }
     } else if (!selectedService && clientLoaded) {
-      // If service is deselected, clear everything
       setSelectedDate(undefined);
       setTimeSlots([]);
       setInternalSelectedTimeSlot(null);
@@ -66,18 +64,13 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedService, clientLoaded]); // Removed onSlotSelect from deps
+  }, [selectedService, clientLoaded]); 
 
   useEffect(() => {
-    if (!clientLoaded || !selectedDate || !selectedService) {
-      if (clientLoaded && selectedService && !selectedDate) {
-         setTimeSlots([]);
-         setSlotError(null);
-      } else if (clientLoaded && !selectedService) {
-        setTimeSlots([]);
-        setSlotError(null);
-      }
-      setIsLoadingSlots(false);
+    if (!clientLoaded || !selectedService || !selectedDate) {
+      setTimeSlots([]);
+      setSlotError(null);
+      setIsLoadingSlots(false); // Ensure loading is false if prerequisites are not met
       return;
     }
 
@@ -125,11 +118,11 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
 
             if (conflictingBooking) {
               if (conflictingBooking.status === 'pending') {
-                if (currentUser && conflictingBooking.userId === currentUser.uid) { // Compare with currentUser.uid
+                if (currentUser && conflictingBooking.userId === currentUser.uid) { 
                   displayStatus = 'pending'; 
                   isCurrentUsersPendingBooking = true;
                 } else {
-                  displayStatus = 'confirmed'; // Other user's pending, treat as booked for this user
+                  displayStatus = 'confirmed'; 
                 }
               } else if (conflictingBooking.status === 'confirmed') {
                 displayStatus = 'confirmed'; 
@@ -157,12 +150,11 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
         setSlotError(error instanceof Error ? error.message : "Failed to load time slots.");
         setTimeSlots([]);
       } finally {
-        setIsLoadingSlots(false);
+        setIsLoadingSlots(false); // Ensure loading state is reset
       }
     };
 
     generateAndSetTimeSlots();
-    // When date or service changes, the selected slot should be cleared
     if (internalSelectedTimeSlot) {
         setInternalSelectedTimeSlot(null);
         if (onSlotSelect) {
@@ -170,11 +162,11 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, selectedService, clientLoaded, currentUser]); // Added currentUser as a dependency
+  }, [selectedDate, selectedService, clientLoaded, currentUser]); 
 
   const handleDateChange = (date: Date | undefined) => {
     setSelectedDate(date);
-    setInternalSelectedTimeSlot(null); // Clear selected time slot when date changes
+    setInternalSelectedTimeSlot(null); 
     if (onSlotSelect) {
       onSlotSelect(date, null);
     }
@@ -205,8 +197,8 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
       buttonClassName += " bg-yellow-100 border-yellow-400 text-yellow-700 hover:bg-yellow-200 focus:bg-yellow-200 cursor-not-allowed";
       isDisabled = true;
       tooltipText = "Your Pending Booking";
-    } else if (slot.status === 'confirmed') { // This covers other's pending and all confirmed
-      variant = 'secondary'; // Use secondary for booked/unavailable
+    } else if (slot.status === 'confirmed') { 
+      variant = 'secondary'; 
       isDisabled = true;
       buttonClassName += " opacity-70 cursor-not-allowed";
       tooltipText = "Unavailable";

@@ -37,45 +37,37 @@ export function ClubDetailsContent({ club }: { club: Club }) {
 
   useEffect(() => {
     const loadServicesForCurrentClub = async () => {
-      if (!clubId) {
-        setIsLoadingServices(false);
-        setFetchedServices([]);
-        setServicesError("Club information is incomplete.");
-        setSelectedServiceForBooking(null);
-        setSelectedBookingDate(undefined);
-        setSelectedBookingSlot(null);
-        return;
-      }
-      setIsLoadingServices(true);
-      setServicesError(null);
-      setFetchedServices(null); // Clear previous services before fetching new ones
-      setSelectedSportFilter("all");
-      // Reset selections when clubId changes
+      // Reset all service-related states when clubId changes or re-fetching
+      setFetchedServices(null);
       setSelectedServiceForBooking(null);
       setSelectedBookingDate(undefined);
       setSelectedBookingSlot(null);
+      setServicesError(null);
+      setSelectedSportFilter("all");
+      setIsLoadingServices(true);
+
+      if (!clubId) {
+        setServicesError("Club information is incomplete.");
+        setIsLoadingServices(false);
+        return;
+      }
 
       try {
         const services = await getServicesByClubId(clubId);
         setFetchedServices(services || []);
         if (services && services.length > 0) {
-          // Auto-select the first service and set default date
-          setSelectedServiceForBooking(services[0]);
+          setSelectedServiceForBooking(services[0]); // Auto-select first service
           setSelectedBookingDate(new Date()); // Default to today
-          setSelectedBookingSlot(null); // Clear any previous slot selection
         } else {
-          // No services, ensure everything is cleared
+          // No services found, ensure selected service is null
           setSelectedServiceForBooking(null);
-          setSelectedBookingDate(undefined);
-          setSelectedBookingSlot(null);
         }
       } catch (error) {
         console.error(`[ClubDetailsContent] Failed to fetch services for club ${clubId}:`, error);
-        setServicesError(error instanceof Error ? error.message : "Could not load services for this club.");
-        setFetchedServices([]);
-        setSelectedServiceForBooking(null);
-        setSelectedBookingDate(undefined);
-        setSelectedBookingSlot(null);
+        const errorMessage = error instanceof Error ? error.message : "Could not load services for this club.";
+        setServicesError(errorMessage);
+        setFetchedServices([]); // Set to empty array on error to avoid null issues
+        setSelectedServiceForBooking(null); // Ensure no service is selected on error
       } finally {
         setIsLoadingServices(false);
       }
@@ -91,11 +83,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
 
   const handleServiceSelectionForBooking = (service: Service) => {
     setSelectedServiceForBooking(service);
-    // When a service is manually selected, BookingCalendar's useEffect will reset its date to today
-    // and inform us via onSlotSelect, which handleCalendarSlotSelect will catch.
-    // So, we don't need to explicitly set selectedBookingDate here to new Date().
-    // We do need to clear the slot.
-    setSelectedBookingSlot(null);
+    setSelectedBookingSlot(null); // Clear slot when service changes
     toast({
         toastTitle: `Service Selected: ${service.name}`,
         toastDescription: "Please pick a date and time slot for this service.",
@@ -186,17 +174,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         `Your booking request for ${club.name} is ${bookingResponse.status}.`,
         '/dashboard/user'
       );
-
-      // Reset selection after successful booking
-      // The BookingCalendar will re-fetch slots for the current date due to service or date change.
-      // If we want the calendar to stick to the booked date, we might not reset selectedBookingDate.
-      // For now, let's clear the slot. The date will be today due to BookingCalendar's internal reset or user selection.
       setSelectedBookingSlot(null);
-      // To ensure the calendar visually updates and potentially re-fetches slots:
-      // Force a re-render or ensure BookingCalendar's useEffect for fetching slots re-runs.
-      // This is generally handled by selectedService or selectedDate changing.
-      // After booking, we might want to manually trigger a refresh of slots if the date remains the same.
-      // For simplicity, we are currently relying on the user to pick a new date/slot or service changing.
 
     } catch (error) {
       console.error("Booking failed:", error);
@@ -293,7 +271,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
               )}
             </CardHeader>
             <CardContent>
-              {isLoadingServices && !fetchedServices ? ( // Show loader only on initial load or full club change
+              {isLoadingServices && fetchedServices === null ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
                   <span>Loading services...</span>
@@ -362,7 +340,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
             size="lg"
             className="w-full text-lg py-6"
             onClick={handleBookSlot}
-            disabled={!selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking}
+            disabled={!selectedServiceForBooking || !selectedBookingDate || !selectedBookingSlot || isBooking || isLoadingServices || !!servicesError}
           >
             {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
             Book Selected Slot
