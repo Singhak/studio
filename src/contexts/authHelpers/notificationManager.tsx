@@ -1,4 +1,5 @@
-// src/contexts/authHelpers/notificationManager.ts
+// src/contexts/authHelpers/notificationManager.tsx
+import type React from 'react';
 import type { AppNotification, ApiNotification, CourtlyUser } from '@/contexts/AuthContext';
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
 import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging';
@@ -7,7 +8,6 @@ import type { ToastFn } from '@/hooks/use-toast';
 import { Bell } from 'lucide-react';
 import { clearClubCache } from '@/lib/cacheUtils';
 import { NOTIFICATION_STORAGE_PREFIX, LAST_NOTIFICATION_REMINDER_KEY } from './constants';
-import type React from 'react';
 
 export const getNotificationStorageKey = (uid: string | null | undefined): string | null => {
   return uid ? `${NOTIFICATION_STORAGE_PREFIX}${uid}` : null;

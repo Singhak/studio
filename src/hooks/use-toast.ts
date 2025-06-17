@@ -140,9 +140,18 @@ function dispatch(action: Action) {
   })
 }
 
-type ToastArg = Omit<ToasterToast, "id">
+export type ToastArg = Omit<ToasterToast, "id">;
 
-function toast({ ...props }: ToastArg) {
+export type ToastFnReturn = {
+  id: string;
+  dismiss: () => void;
+  update: (props: Partial<ToastArg>) => void;
+};
+
+export type ToastFn = (props: ToastArg) => ToastFnReturn;
+
+
+function toast({ ...props }: ToastArg): ToastFnReturn {
   const id = genId()
 
   const update = (newToastProps: Partial<ToastArg>) =>

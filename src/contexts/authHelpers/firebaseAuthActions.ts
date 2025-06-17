@@ -12,7 +12,7 @@ import {
   type RecaptchaVerifier,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import type { ToastFn } from '@/hooks/use-toast'; // Assuming a type definition for the toast function
+import type { ToastFn } from '@/hooks/use-toast';
 
 export const signUpWithEmailFirebase = async (
   auth: Auth,
