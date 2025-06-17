@@ -11,7 +11,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useToast, type ToastFn } from "@/hooks/use-toast";
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 import { Button } from '@/components/ui/button';
-import type { UserRole, AppNotification } from '@/lib/types';
+import type { UserRole, AppNotification, ApiNotification } from '@/lib/types';
 
 
 // Import helpers
@@ -86,7 +86,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const unsubscribeFcmOnMessageRef = React.useRef<(() => void) | null>(null);
   
-  // Refs to manage processing state of onAuthStateChanged
   const isProcessingLoginRef = React.useRef(false);
   const processingUidRef = React.useRef<string | null>(null);
 
@@ -126,17 +125,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const fullLogoutSequence = useCallback(async () => {
-    const uidBeforeLogout = auth.currentUser?.uid; // Get UID before Firebase sign-out
-    await logoutFirebase(auth, toast); // This will trigger onAuthStateChanged with null
-    
-    // The rest of the cleanup will be handled by onAuthStateChanged when firebaseUser is null
-    // However, ensure custom tokens are cleared immediately
+    const uidBeforeLogout = auth.currentUser?.uid;
+    await logoutFirebase(auth, toast);
+
     clearCustomTokens();
     setAndStoreAccessToken(null);
     setAndStoreRefreshToken(null);
-    //setCurrentUser(null); // This will be set by onAuthStateChanged
+    // setCurrentUser(null) is handled by onAuthStateChanged
 
-    // Clear roles for the logged-out user specifically
     if (uidBeforeLogout && typeof window !== 'undefined') {
         localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidBeforeLogout}`);
         const notificationStorageKey = getNotificationStorageKey(uidBeforeLogout);
@@ -145,8 +141,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     }
     
-    isProcessingLoginRef.current = false; // Reset processing flag
-    processingUidRef.current = null;
     router.push('/login');
   }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken, router]);
 
@@ -168,52 +162,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (isProcessingLoginRef.current && processingUidRef.current === currentEventUid) {
         console.log(`AUTH_CONTEXT: onAuthStateChanged re-entrant for UID: ${currentEventUid}. Processing already in progress. Skipping.`);
-        return; // Avoid re-entry for the same user event if already processing
+        return;
+      }
+      if (isProcessingLoginRef.current && processingUidRef.current !== currentEventUid) {
+          console.warn(`AUTH_CONTEXT: New auth event for UID ${currentEventUid} while processing ${processingUidRef.current}. This is expected if logout is triggered during login attempt. Proceeding with new event.`);
       }
 
-      setLoading(true);
+      // Indicate start of processing for this specific event
       isProcessingLoginRef.current = true;
       processingUidRef.current = currentEventUid;
-  
+      setLoading(true);
+
       try {
         if (firebaseUser) {
-          console.log(`AUTH_CONTEXT: Firebase user ${firebaseUser.uid} detected.`);
-          const storedTokens = loadTokensFromStorage();
-  
-          if (storedTokens.accessToken && storedTokens.refreshToken) {
-            console.log("AUTH_CONTEXT: Found custom tokens. Hydrating session.");
-            setAndStoreAccessToken(storedTokens.accessToken);
-            setAndStoreRefreshToken(storedTokens.refreshToken);
-            
-            const userRoles = getStoredRoles(firebaseUser.uid);
-            const courtlyUserInstance: CourtlyUser = {
-              ...(firebaseUser as any), 
-              roles: userRoles.length > 0 ? userRoles : ['user'],
-            };
-            setCurrentUser(courtlyUserInstance);
-            await setupFcm(courtlyUserInstance);
+          console.log(`AUTH_CONTEXT: Firebase user ${firebaseUser.uid} detected. Attempting custom session.`);
+          // handleCustomApiLogin now calls setAndStoreAccessToken, setAndStoreRefreshToken, and setupFcm internally on success
+          const loggedInCourtlyUser = await handleCustomApiLogin({
+            firebaseUser,
+            auth, // auth is not directly used by handleCustomApiLogin, but kept for interface consistency
+            toast,
+            setupFcm, // Pass the setupFcm function
+            setAndStoreAccessToken, // Pass the setters
+            setAndStoreRefreshToken,
+          });
+
+          if (!loggedInCourtlyUser) {
+            console.warn("AUTH_CONTEXT: Custom API login failed or returned no user, despite Firebase user existing. Initiating full Firebase logout.");
+            await logoutFirebase(auth, toast); // This will trigger onAuthStateChanged again with firebaseUser = null.
+                                              // The current event's finally block will run.
+                                              // The new (null) event will start its own processing cycle.
           } else {
-            console.log("AUTH_CONTEXT: No custom tokens found. Attempting custom API login.");
-            const loggedInUser = await handleCustomApiLogin({
-              firebaseUser,
-              auth,
-              toast,
-              setupFcm,
-              setAndStoreAccessToken,
-              setAndStoreRefreshToken,
-            });
-            
-            if (!loggedInUser) {
-              console.warn("AUTH_CONTEXT: Custom API login failed for Firebase user. Session invalid, logging out Firebase user.");
-              await logoutFirebase(auth, toast); // This will trigger onAuthStateChanged again with user=null
-                                                 // which will then handle full cleanup.
-              // setCurrentUser(null) will be handled by the subsequent onAuthStateChanged(null)
-            } else {
-              setCurrentUser(loggedInUser); // Successfully logged in with custom tokens
-            }
+            setCurrentUser(loggedInCourtlyUser); // Set the fully formed CourtlyUser
+            console.log(`AUTH_CONTEXT: Custom session successful for ${loggedInCourtlyUser.uid}.`);
           }
-        } else { // No Firebase user
-          console.log("AUTH_CONTEXT: No Firebase user. Clearing session.");
+        } else { // No Firebase user (firebaseUser is null)
+          console.log("AUTH_CONTEXT: No Firebase user detected by onAuthStateChanged. Clearing session.");
           clearCustomTokens();
           setAndStoreAccessToken(null);
           setAndStoreRefreshToken(null);
@@ -224,21 +207,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             unsubscribeFcmOnMessageRef.current();
             unsubscribeFcmOnMessageRef.current = null;
           }
-          await setupFcm(null);
+          await setupFcm(null); // Ensure FCM is cleaned up/reset for no user
         }
       } catch (e) {
-        console.error("AUTH_CONTEXT: Error in onAuthStateChanged main try block:", e);
+        console.error("AUTH_CONTEXT: Critical error in onAuthStateChanged's main try block:", e);
         clearCustomTokens();
         setAndStoreAccessToken(null);
         setAndStoreRefreshToken(null);
         setCurrentUser(null);
+        if (auth.currentUser) { 
+            console.error("AUTH_CONTEXT: Firebase user still present after critical error. Forcing logout.");
+            await logoutFirebase(auth, toast); // Attempt to logout Firebase user if one was present
+        }
       } finally {
-        // Only reset the processing flag if the current event's UID matches the one being processed.
-        // This prevents a rapid subsequent event (e.g., null after a user) from clearing the flag prematurely.
+        // This finally block is for the event (currentEventUid) that was being processed.
+        // Only mark processing as done if this finally block corresponds to the UID currently marked as processing.
         if (processingUidRef.current === currentEventUid) {
             isProcessingLoginRef.current = false;
+            // processingUidRef.current = null; // Optionally clear the UID marker here or let the next event overwrite
         }
-        setLoading(false);
+        setLoading(false); // Indicate that this specific event's processing is finished
       }
     });
   
@@ -249,32 +237,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken]); // fullLogoutSequence removed as it creates cycles, it's called by attemptTokenRefresh
+  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken]);
 
 
   useEffect(() => {
-    if (loading) return;
+    if (loading) return; // Wait for auth processing to finish before making routing decisions
+
     const authPages = ['/login', '/register', '/auth/complete-profile'];
     const isAuthPage = authPages.includes(pathname);
     const isProtectedPath = pathname.startsWith('/dashboard');
 
     if (currentUser && accessToken && refreshToken) {
+      // User is fully authenticated (Firebase user + custom tokens)
       if (isAuthPage) {
-        if (currentUser.roles.includes('owner')) {
-          router.push('/dashboard/owner');
-        } else {
-          router.push('/dashboard/user');
-        }
+        router.push(currentUser.roles.includes('owner') ? '/dashboard/owner' : '/dashboard/user');
       }
     } else if (!currentUser && isProtectedPath) {
-        router.push('/login');
-    } else if (currentUser && (!accessToken || !refreshToken) && isProtectedPath) {
-        console.warn("AUTH_CONTEXT: Firebase user exists but custom tokens are missing on a protected path. Logging out.");
-        // Don't call fullLogoutSequence directly here as it might create loops with onAuthStateChanged.
-        // The onAuthStateChanged logic should handle the state if handleCustomApiLogin fails.
-        // If tokens are missing, the next authedFetch will fail and trigger refresh/logout via apiUtils.
+      // No user (neither Firebase nor custom tokens imply a valid session), but on protected path
+      router.push('/login');
+    } else if (!loading && currentUser && (!accessToken || !refreshToken) && isProtectedPath) {
+      // Firebase user exists, but custom tokens are missing, and we are NOT in a loading state from onAuthStateChanged.
+      // This indicates a potential desync or failure in custom token acquisition after Firebase auth.
+      console.warn("AUTH_CONTEXT: Redirection logic: Firebase user exists, but custom tokens missing on protected path (and not loading). Triggering full logout.");
+      fullLogoutSequence();
     }
-  }, [currentUser, loading, router, pathname, accessToken, refreshToken]);
+    // If !currentUser and !isProtectedPath, do nothing (e.g., user is on home page, not logged in).
+    // If currentUser && tokens && !isProtectedPath, do nothing (e.g., user is on home page, logged in).
+  }, [currentUser, loading, router, pathname, accessToken, refreshToken, fullLogoutSequence]);
 
   useEffect(() => {
     initializeAuthHelpers({
@@ -301,22 +290,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUpWithEmail = async (email: string, password: string, name: string): Promise<void> => {
     await signUpWithEmailFirebase(auth, email, password, name, toast);
+    // onAuthStateChanged will handle the rest
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<void> => {
     await signInWithEmailFirebase(auth, email, password, toast);
+    // onAuthStateChanged will handle the rest
   };
 
   const signInWithGoogle = async (): Promise<void> => {
     await signInWithGoogleFirebase(auth, toast);
+    // onAuthStateChanged will handle the rest
   };
 
   const signInWithPhoneNumberFlow = async (phoneNumber: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
     return signInWithPhoneNumberFirebase(auth, phoneNumber, appVerifier, toast);
+    // After confirmation, onAuthStateChanged will handle the rest
   };
 
   const confirmPhoneNumberCode = async (confirmationResult: ConfirmationResult, code: string): Promise<void> => {
     await confirmPhoneNumberCodeFirebase(confirmationResult, code, toast);
+    // onAuthStateChanged will handle the rest
   };
 
   const updateCourtlyUserRoles = (roles: UserRole[]) => {
@@ -374,3 +368,8 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
+// Ensure window.recaptchaVerifier is declared for global use if not already.
+declare global {
+  interface Window { recaptchaVerifier?: RecaptchaVerifier }
+}
