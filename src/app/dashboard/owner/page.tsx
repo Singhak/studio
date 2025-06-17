@@ -9,13 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Booking, Club, Service } from "@/lib/types";
-import { mockServices as allMockServices } from '@/lib/mockData'; // Keep for getServiceName, baseMockOwnerBookings removed
+import { mockServices as allMockServices } from '@/lib/mockData';
 import Link from 'next/link';
 import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { getLoggedInOwnerClubs } from '@/services/clubService';
-import { getBookingsByClubId } from '@/services/bookingService'; // Import new service
+import { getBookingsByClubId } from '@/services/bookingService';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -30,7 +30,7 @@ const statusBadgeVariant = (status: Booking['status']) => {
 
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
-  const { addNotification } = useAuth();
+  const { currentUser, loading: authLoading, addNotification } = useAuth(); // Get authLoading and currentUser
   const [ownerClubs, setOwnerClubs] = useState<Club[]>([]);
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   const [isLoadingClubs, setIsLoadingClubs] = useState(true);
@@ -42,13 +42,19 @@ export default function OwnerDashboardPage() {
 
   useEffect(() => {
     const fetchClubsForOwner = async () => {
+      if (!currentUser) { // Should not happen if authLoading is false and currentUser is null, but defensive
+        setIsLoadingClubs(false);
+        setOwnerClubs([]);
+        setSelectedClub(null);
+        return;
+      }
       setIsLoadingClubs(true);
       setClubsError(null);
       try {
         const clubsForOwner = await getLoggedInOwnerClubs();
         setOwnerClubs(clubsForOwner);
         if (clubsForOwner.length > 0) {
-          setSelectedClub(clubsForOwner[0]); // Auto-select first club
+          setSelectedClub(clubsForOwner[0]);
         } else {
           setSelectedClub(null);
         }
@@ -61,15 +67,26 @@ export default function OwnerDashboardPage() {
         setIsLoadingClubs(false);
       }
     };
-    fetchClubsForOwner();
-  }, [toast]);
+
+    if (!authLoading && currentUser) {
+      fetchClubsForOwner();
+    } else if (!authLoading && !currentUser) {
+      // User is definitively not logged in, or session lost
+      setIsLoadingClubs(false);
+      setOwnerClubs([]);
+      setSelectedClub(null);
+      setClubsError(null); // Clear previous errors
+      // AuthContext redirection should handle pushing to login if on protected route
+    }
+    // If authLoading is true, we wait.
+  }, [currentUser, authLoading, toast]);
+
 
   const fetchBookingsForClub = useCallback(async (clubId: string) => {
     setIsLoadingBookings(true);
     setBookingsError(null);
     try {
       const bookings = await getBookingsByClubId(clubId);
-      // Sort bookings by date, most recent first
       bookings.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setClubBookings(bookings);
     } catch (err) {
@@ -86,7 +103,8 @@ export default function OwnerDashboardPage() {
     if (selectedClub?._id) {
       fetchBookingsForClub(selectedClub._id);
     } else {
-      setClubBookings([]); // Clear bookings if no club is selected
+      setClubBookings([]);
+      setBookingsError(null); // Clear booking error if no club is selected
     }
   }, [selectedClub, fetchBookingsForClub]);
 
@@ -94,16 +112,20 @@ export default function OwnerDashboardPage() {
   const handleClubChange = (clubId: string) => {
     const club = ownerClubs.find(c => c._id === clubId);
     setSelectedClub(club || null);
-    // Bookings will be refetched by the useEffect watching selectedClub
   };
   
-  // This function uses clubBookings (API sourced) now instead of baseMockOwnerBookings
   const currentClubBookings = useMemo(() => {
     return clubBookings;
   }, [clubBookings]);
 
 
   const getServiceName = (serviceId: string): string => {
+    // Attempt to find service in selectedClub.services first for better accuracy
+    if (selectedClub && selectedClub.services) {
+        const serviceInClub = selectedClub.services.find(s => s._id === serviceId);
+        if (serviceInClub) return serviceInClub.name;
+    }
+    // Fallback to allMockServices if not found in club or club.services is undefined
     const service = allMockServices.find(s => s._id === serviceId);
     return service ? service.name : 'Unknown Service';
   };
@@ -126,9 +148,16 @@ export default function OwnerDashboardPage() {
   }, [currentClubBookings, selectedClub]);
 
   const servicesOfferedCount = useMemo(() => {
-      if (!selectedClub || !selectedClub.services) return 0; // services are part of Club type, fetched with getClubById
-      return selectedClub.services.length;
-  }, [selectedClub]);
+      // Use selectedClub.services if available (fetched with getClubById).
+      // Fallback to counting distinct services from bookings if club.services is not populated/available.
+      if (selectedClub && selectedClub.services && selectedClub.services.length > 0) {
+          return selectedClub.services.length;
+      }
+      // Fallback if selectedClub.services isn't populated (e.g. from a list view)
+      // This might not be accurate if not all services have bookings.
+      const serviceIds = new Set(currentClubBookings.map(b => b.serviceId));
+      return serviceIds.size;
+  }, [selectedClub, currentClubBookings]);
 
   const totalFulfilledBookingsCount = useMemo(() => {
     if (!selectedClub) return 0;
@@ -136,7 +165,7 @@ export default function OwnerDashboardPage() {
   }, [currentClubBookings, selectedClub]);
 
 
-  if (isLoadingClubs) {
+  if (authLoading || (isLoadingClubs && !selectedClub && !clubsError)) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <Loader2 className="w-16 h-16 text-primary animate-spin mb-6" />
@@ -146,20 +175,33 @@ export default function OwnerDashboardPage() {
     );
   }
 
-  if (clubsError) {
+  if (clubsError && !isLoadingClubs) { // Show only if not loading and error exists
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <AlertTriangle className="w-24 h-24 text-destructive mb-6" />
         <h1 className="text-3xl font-bold mb-2 text-destructive">Error Loading Clubs</h1>
         <p className="text-muted-foreground mb-6 max-w-md">{clubsError}</p>
-        <Button onClick={() => window.location.reload()} className="mt-6">
+        <Button onClick={() => {
+           if (currentUser) { // Retry fetching clubs
+             setIsLoadingClubs(true); // Manually set loading state for retry
+             // Re-trigger the useEffect by temporarily changing a dependency if needed,
+             // or call the fetch function directly if extracted.
+             // For simplicity here, we'll rely on the existing useEffect trigger if state changes or re-evaluate.
+             // A more direct retry would be:
+             // const RerunFetchClubs = async () => { ... }; RerunFetchClubs();
+             // For now, a page reload is a simple user-driven retry.
+             window.location.reload();
+           } else {
+             toast({variant: "destructive", toastTitle: "Cannot Retry", toastDescription: "User not authenticated."})
+           }
+        }} className="mt-6">
           Try Again
         </Button>
       </div>
     );
   }
 
-  if (ownerClubs.length === 0 && !isLoadingClubs) {
+  if (!isLoadingClubs && ownerClubs.length === 0 && !clubsError) { // No clubs, no error, not loading
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <ClubIconLucide className="w-24 h-24 text-muted-foreground mb-6" />
@@ -177,7 +219,7 @@ export default function OwnerDashboardPage() {
     );
   }
   
-  if (!selectedClub && ownerClubs.length > 0 && !isLoadingClubs) {
+  if (!selectedClub && !isLoadingClubs && ownerClubs.length > 0 && !clubsError) {
      return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <ClubIconLucide className="w-24 h-24 text-muted-foreground mb-6 animate-pulse" />
@@ -202,7 +244,9 @@ export default function OwnerDashboardPage() {
     );
   }
 
-  if (!selectedClub && !isLoadingClubs) { // Should not happen if ownerClubs.length > 0 due to auto-selection
+  // Fallback if selectedClub is somehow still null after loading and checks.
+  // This should ideally not be reached if logic above is correct.
+  if (!selectedClub) {
       return <div className="flex justify-center items-center min-h-[200px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Preparing club data...</p></div>;
   }
 
@@ -211,13 +255,13 @@ export default function OwnerDashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">{selectedClub!.name} - Dashboard</h1>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">{selectedClub.name} - Dashboard</h1>
             <p className="text-muted-foreground text-sm sm:text-base">Manage your club settings, bookings, and services.</p>
         </div>
         <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             {ownerClubs.length > 1 && (
             <div className="min-w-[200px] sm:min-w-0 md:min-w-[200px]">
-                <Select value={selectedClub!._id} onValueChange={handleClubChange}>
+                <Select value={selectedClub._id} onValueChange={handleClubChange}>
                 <SelectTrigger id="club-selector" aria-label="Switch managed club">
                     <SelectValue placeholder="Switch Club..." />
                 </SelectTrigger>
@@ -232,7 +276,7 @@ export default function OwnerDashboardPage() {
             </div>
             )}
             <Button asChild variant="outline" className="w-full sm:w-auto">
-                <Link href={`/clubs/${selectedClub!._id}`}>
+                <Link href={`/clubs/${selectedClub._id}`}>
                     <Eye className="mr-2 h-4 w-4" /> View Club Page
                 </Link>
             </Button>
@@ -278,7 +322,7 @@ export default function OwnerDashboardPage() {
             <ListChecks className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{servicesOfferedCount}</div>
+            <div className="text-2xl font-bold">{isLoadingClubs ? <Loader2 className="h-6 w-6 animate-spin" /> : servicesOfferedCount}</div>
             <p className="text-xs text-muted-foreground">Distinct services listed</p>
           </CardContent>
         </Card>
@@ -288,8 +332,8 @@ export default function OwnerDashboardPage() {
             <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{selectedClub!.averageRating || "N/A"} / 5.0</div>
-            <p className="text-xs text-muted-foreground">Based on user reviews ({selectedClub!.reviewCount} reviews)</p>
+            <div className="text-2xl font-bold">{selectedClub.averageRating || "N/A"} / 5.0</div>
+            <p className="text-xs text-muted-foreground">Based on user reviews ({selectedClub.reviewCount} reviews)</p>
           </CardContent>
         </Card>
         <Card>
@@ -312,7 +356,7 @@ export default function OwnerDashboardPage() {
         <TabsContent value="bookings">
           <Card>
             <CardHeader>
-              <CardTitle>Recent Booking Requests for {selectedClub!.name}</CardTitle>
+              <CardTitle>Recent Booking Requests for {selectedClub.name}</CardTitle>
               <CardDescription>Approve or reject new booking requests for this club.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -323,7 +367,7 @@ export default function OwnerDashboardPage() {
                    <AlertTriangle className="mx-auto h-10 w-10 mb-2" />
                   <p className="font-semibold">Could not load bookings</p>
                   <p className="text-sm">{bookingsError}</p>
-                  <Button variant="outline" className="mt-3" onClick={() => fetchBookingsForClub(selectedClub!._id)}>Try Again</Button>
+                  <Button variant="outline" className="mt-3" onClick={() => fetchBookingsForClub(selectedClub._id)}>Try Again</Button>
                 </div>
               ) : currentClubBookings.length > 0 ? (
                 <Table>
@@ -354,14 +398,13 @@ export default function OwnerDashboardPage() {
                                 onClick={() => {
                                     toast({
                                         toastTitle: "Booking Accepted (Sim)",
-                                        toastDescription: `Booking for User ${booking.userId.slice(-4)} at ${selectedClub!.name} accepted.`,
+                                        toastDescription: `Booking for User ${booking.userId.slice(-4)} at ${selectedClub.name} accepted.`,
                                     });
                                     addNotification(
-                                        `Booking Confirmed: ${selectedClub!.name}`,
+                                        `Booking Confirmed: ${selectedClub.name}`,
                                         `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} has been confirmed.`,
                                         '/dashboard/user'
                                     );
-                                    // In a real app, you'd call an API to update status and then refetch bookings
                                     setClubBookings(prev => prev.map(b => b.id === booking.id ? {...b, status: 'confirmed'} : b));
                                 }}
                               >
@@ -372,10 +415,10 @@ export default function OwnerDashboardPage() {
                                      toast({
                                         variant: "destructive",
                                         toastTitle: "Booking Rejected (Sim)",
-                                        toastDescription: `Booking for User ${booking.userId.slice(-4)} at ${selectedClub!.name} rejected.`,
+                                        toastDescription: `Booking for User ${booking.userId.slice(-4)} at ${selectedClub.name} rejected.`,
                                     });
                                     addNotification(
-                                        `Booking Update: ${selectedClub!.name}`,
+                                        `Booking Update: ${selectedClub.name}`,
                                         `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} could not be confirmed.`,
                                         '/dashboard/user'
                                     );
@@ -393,7 +436,7 @@ export default function OwnerDashboardPage() {
                   </TableBody>
                 </Table>
               ) : (
-                 <p className="text-muted-foreground text-center py-8">No booking requests for {selectedClub!.name} at this time.</p>
+                 <p className="text-muted-foreground text-center py-8">No booking requests for {selectedClub.name} at this time.</p>
               )}
             </CardContent>
           </Card>
@@ -401,38 +444,38 @@ export default function OwnerDashboardPage() {
         <TabsContent value="manage">
           <Card>
             <CardHeader>
-              <CardTitle>Manage {selectedClub!.name}</CardTitle>
+              <CardTitle>Manage {selectedClub.name}</CardTitle>
               <CardDescription>Update club details, services, and availability. These actions apply to the currently selected club.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="font-semibold">Club Information</h3>
-                  <p className="text-sm text-muted-foreground">Edit name, description, location, images for {selectedClub!.name}.</p>
+                  <p className="text-sm text-muted-foreground">Edit name, description, location, images for {selectedClub.name}.</p>
                 </div>
-                <Button variant="outline" asChild><Link href={`/dashboard/owner/settings?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Edit</Link></Button>
+                <Button variant="outline" asChild><Link href={`/dashboard/owner/settings?clubId=${selectedClub._id}`}><Edit className="mr-2 h-4 w-4"/>Edit</Link></Button>
               </div>
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="font-semibold">Services & Pricing</h3>
-                  <p className="text-sm text-muted-foreground">Manage services for {selectedClub!.name}.</p>
+                  <p className="text-sm text-muted-foreground">Manage services for {selectedClub.name}.</p>
                 </div>
-                <Button variant="outline" asChild><Link href={`/dashboard/owner/services?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Manage</Link></Button>
+                <Button variant="outline" asChild><Link href={`/dashboard/owner/services?clubId=${selectedClub._id}`}><Edit className="mr-2 h-4 w-4"/>Manage</Link></Button>
               </div>
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <h3 className="font-semibold">Availability Calendar</h3>
-                  <p className="text-sm text-muted-foreground">Set hours and block dates for {selectedClub!.name}.</p>
+                  <p className="text-sm text-muted-foreground">Set hours and block dates for {selectedClub.name}.</p>
                 </div>
-                 <Button variant="outline" asChild><Link href={`/dashboard/owner/availability?clubId=${selectedClub!._id}`}><Edit className="mr-2 h-4 w-4"/>Update</Link></Button>
+                 <Button variant="outline" asChild><Link href={`/dashboard/owner/availability?clubId=${selectedClub._id}`}><Edit className="mr-2 h-4 w-4"/>Update</Link></Button>
               </div>
             </CardContent>
              <CardFooter>
                 <Button asChild variant="destructive" className="ml-auto"
                  onClick={() => {
-                     alert(`Placeholder: Would attempt to delete club: ${selectedClub!.name} (ID: ${selectedClub!._id})`);
+                     alert(`Placeholder: Would attempt to delete club: ${selectedClub.name} (ID: ${selectedClub._id})`);
                  }}>
-                    <Link href="#"><Trash2 className="mr-2 h-4 w-4"/> Delete {selectedClub!.name.substring(0,15)}...</Link>
+                    <Link href="#"><Trash2 className="mr-2 h-4 w-4"/> Delete {selectedClub.name.substring(0,15)}...</Link>
                 </Button>
             </CardFooter>
           </Card>
@@ -441,3 +484,5 @@ export default function OwnerDashboardPage() {
     </div>
   );
 }
+
+    
