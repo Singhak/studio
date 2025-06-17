@@ -1,71 +1,63 @@
 
 import { NextResponse } from 'next/server';
+// For a real backend, you'd use firebase-admin to verify the idToken
+// import admin from 'firebase-admin';
+// if (!admin.apps.length) {
+//   admin.initializeApp({
+//     credential: admin.credential.cert({ // your service account key
+//       projectId: process.env.FIREBASE_PROJECT_ID,
+//       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+//       privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+//     }),
+//   });
+// }
 
 export async function POST(request: Request) {
-  const realAuthApiUrl = process.env.NEXT_PUBLIC_APP_URL + '/api/auth/login';
-
-  if (!realAuthApiUrl) {
-    console.error('LOGIN_PROXY_ERROR: REAL_AUTH_API_URL environment variable is not set. Ensure it is defined in your .env.local file and the server is restarted.');
-    return NextResponse.json({ message: 'Authentication service is misconfigured. Please contact support (Ref: ENV_MISSING).' }, { status: 503 }); // Service Unavailable
-  }
-
   try {
     const body = await request.json();
     const { idToken } = body;
 
     if (!idToken) {
-      console.error('LOGIN_PROXY_ERROR: idToken is missing from the request body.');
+      console.error('LOGIN_API_ERROR: idToken is missing from the request body.');
       return NextResponse.json({ message: 'idToken is required' }, { status: 400 });
     }
 
-    console.log(`LOGIN_PROXY_INFO: Attempting to proxy login request for idToken (truncated): ${idToken.substring(0, 20)}... to ${realAuthApiUrl}`);
+    console.log(`LOGIN_API_INFO: Received idToken (truncated): ${idToken.substring(0, 20)}...`);
 
-    // Make a request to your real authentication API
-    const realApiResponse = await fetch(realAuthApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Example: Add an API key if your real backend requires it
-        // 'X-Api-Key': process.env.REAL_AUTH_API_KEY || '',
-      },
-      body: JSON.stringify({ idToken: idToken }), // Sending idToken as firebaseToken
+    // In a real backend, verify the Firebase ID token here using firebase-admin
+    // For example:
+    // try {
+    //   const decodedToken = await admin.auth().verifyIdToken(idToken);
+    //   const uid = decodedToken.uid;
+    //   console.log(`LOGIN_API_INFO: Firebase ID Token verified for UID: ${uid}`);
+    //   // Proceed to generate your custom tokens
+    // } catch (error) {
+    //   console.error('LOGIN_API_ERROR: Invalid Firebase ID Token:', error);
+    //   return NextResponse.json({ message: 'Invalid Firebase ID Token' }, { status: 401 });
+    // }
+
+    // --- Mock Token Generation ---
+    // This section simulates generating custom access and refresh tokens.
+    // In a real application, these would be securely generated (e.g., JWTs)
+    // and potentially stored/managed by your backend.
+    const mockAccessToken = `mock-custom-access-token-${Date.now()}`;
+    const mockRefreshToken = `mock-custom-refresh-token-${Date.now()}`;
+    // --- End Mock Token Generation ---
+
+    console.log('LOGIN_API_INFO: Mock custom tokens generated. Returning to client.');
+    return NextResponse.json({
+      accessToken: mockAccessToken,
+      refreshToken: mockRefreshToken,
     });
 
-    // Try to get text first for better error logging if not JSON
-    const responseText = await realApiResponse.text();
-    let responseData;
-
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (e) {
-      console.error(`LOGIN_PROXY_ERROR: Failed to parse JSON response from real API. Status: ${realApiResponse.status}. Response text: ${responseText}`, e);
-      return NextResponse.json({ message: 'Invalid response format from authentication service (not JSON).' }, { status: 502 }); // Bad Gateway
-    }
-
-    if (!realApiResponse.ok) {
-      const errorMessage = responseData?.message || responseData?.error || `Error from real authentication API: ${realApiResponse.status} ${realApiResponse.statusText}`;
-      console.error(`LOGIN_PROXY_ERROR: Real auth API returned an error. Status: ${realApiResponse.status}. Response:`, responseData);
-      return NextResponse.json({ message: errorMessage }, { status: realApiResponse.status });
-    }
-
-    const { accessToken, refreshToken } = responseData;
-
-    if (!accessToken || !refreshToken) {
-      console.error('LOGIN_PROXY_ERROR: Real auth API response missing accessToken or refreshToken. Response:', responseData);
-      return NextResponse.json({ message: 'Invalid token data from authentication service.' }, { status: 502 }); // Bad Gateway
-    }
-
-    console.log('LOGIN_PROXY_INFO: Successfully proxied login. Returning tokens.');
-    return NextResponse.json({ accessToken, refreshToken });
-
   } catch (error) {
-    console.error('LOGIN_PROXY_ERROR: Unexpected error in /api/auth/login proxy route:', error);
-    let message = 'Internal server error while contacting authentication service.';
-    // Check if it's a fetch-related network error
-    if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('NetworkError'))) {
-        message = `Network error or could not connect to the authentication service at ${realAuthApiUrl}. Please check the URL and network connectivity.`;
-        return NextResponse.json({ message }, { status: 504 }); // Gateway Timeout
+    console.error('LOGIN_API_ERROR: Unexpected error in /api/auth/login route:', error);
+    let message = 'Internal server error during login.';
+    // Check if it's a JSON parsing error
+    if (error instanceof SyntaxError) {
+        message = "Invalid JSON body: " + error.message;
+        return NextResponse.json({ message }, { status: 400 }); // Bad Request
     }
-    return NextResponse.json({ message: message + ` (Ref: PROXY_CATCH_ALL)` }, { status: 500 });
+    return NextResponse.json({ message: message + ` (Ref: LOGIN_API_CATCH_ALL)` }, { status: 500 });
   }
 }
