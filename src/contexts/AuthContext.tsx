@@ -7,13 +7,14 @@ import type { User as FirebaseUser, RecaptchaVerifier, ConfirmationResult } from
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
+import type { ToastFn } from "@/hooks/use-toast"; // Ensure ToastFn is correctly imported
 import { useToast } from "@/hooks/use-toast";
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 import { Button } from '@/components/ui/button';
 
 // Import helpers
 import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX, NOTIFICATION_STORAGE_PREFIX } from './authHelpers/constants';
-import { getStoredRoles, updateCurrentUserRoles as updateRolesHelper } from './authHelpers/roleManager';
+import { getStoredRoles, updateCurrentUserRoles as updateRolesHelper, type UserRole } from './authHelpers/roleManager';
 import {
   signUpWithEmailFirebase,
   signInWithEmailFirebase,
@@ -36,9 +37,9 @@ import {
   clearAllAppNotifications as clearAllNotificationsManager,
   setupFcmMessaging,
   showNotificationPermissionReminder,
+  getNotificationStorageKey // Import getNotificationStorageKey
 } from './authHelpers/notificationManager';
 
-export type UserRole = 'user' | 'owner' | 'admin' | 'editor';
 
 export interface CourtlyUser extends FirebaseUser {
   roles: UserRole[];
@@ -162,7 +163,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setNotifications([]);
     setUnreadCount(0);
     if (uidBeforeLogout && typeof window !== 'undefined') {
-        localStorage.removeItem(getNotificationStorageKey(uidBeforeLogout) || '');
+        const notificationStorageKey = getNotificationStorageKey(uidBeforeLogout);
+        if (notificationStorageKey) {
+            localStorage.removeItem(notificationStorageKey);
+        }
         localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidBeforeLogout}`);
     }
     
@@ -191,7 +195,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true); // Start loading at the beginning of any auth state change
+      setLoading(true); 
   
       if (firebaseUser && processingUidRef.current === firebaseUser.uid && isProcessingLoginRef.current) {
         console.log(`AUTH_CONTEXT: Already processing login for UID: ${firebaseUser.uid}. Skipping re-entry.`);
@@ -200,7 +204,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
   
       processingUidRef.current = firebaseUser ? firebaseUser.uid : null;
-      isProcessingLoginRef.current = true; // Mark as processing this auth event
+      isProcessingLoginRef.current = true;
   
       try {
         if (firebaseUser) {
@@ -231,9 +235,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             });
             setCurrentUser(loggedInUser);
             if (!loggedInUser) {
-              // If custom login failed, onAuthStateChanged will fire again with null user if Firebase logout occurs.
-              // It's important that handleCustomApiLogin does NOT sign out from Firebase itself.
-              // The session will be cleared in the `else` block of this `onAuthStateChanged`.
               console.warn("AUTH_CONTEXT: Custom API login failed for Firebase user. Session might be invalid.");
             }
           }
@@ -258,12 +259,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setAndStoreRefreshToken(null);
         setCurrentUser(null);
       } finally {
-        // Only reset processing flag if the current processing UID matches the firebaseUser processed
-        // Or if firebaseUser is null (logout case)
         if ((firebaseUser && processingUidRef.current === firebaseUser.uid) || !firebaseUser) {
             isProcessingLoginRef.current = false;
-            // Do not nullify processingUidRef.current here if firebaseUser is not null,
-            // as it's still the active user's UID. Only nullify on logout.
             if (!firebaseUser) {
                 processingUidRef.current = null;
             }
@@ -278,12 +275,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessageRef.current();
       }
     };
-  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken]); // Keep dependencies minimal and stable
+  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken]); 
 
 
   useEffect(() => {
     if (loading) return;
-    const authPages = ['/login', '/register'];
+    const authPages = ['/login', '/register', '/auth/complete-profile'];
     const isAuthPage = authPages.includes(pathname);
     const isProtectedPath = pathname.startsWith('/dashboard');
 
@@ -368,7 +365,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const newPrimaryRoleIsOwner = updatedUser.roles.includes('owner');
         if (oldPrimaryRoleIsOwner !== newPrimaryRoleIsOwner) {
             router.push(newPrimaryRoleIsOwner ? '/dashboard/owner' : '/dashboard/user');
-        } else if (pathname === '/auth/complete-profile') { // If role didn't change main view but was on complete profile
+        } else if (pathname === '/auth/complete-profile') { 
              router.push(newPrimaryRoleIsOwner ? '/dashboard/owner' : '/dashboard/user');
         }
     }
