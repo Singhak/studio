@@ -1,3 +1,4 @@
+
 // src/contexts/AuthContext.tsx
 "use client";
 
@@ -7,14 +8,14 @@ import type { User as FirebaseUser, RecaptchaVerifier, ConfirmationResult } from
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
-import { useToast } from "@/hooks/use-toast";
+import { useToast, type ToastFn } from "@/hooks/use-toast";
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 import { Button } from '@/components/ui/button';
 import type { UserRole, AppNotification } from '@/lib/types';
 
 
 // Import helpers
-import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX } from './authHelpers/constants';
+import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX, NOTIFICATION_STORAGE_PREFIX } from './authHelpers/constants';
 import { getStoredRoles, updateCurrentUserRoles as updateRolesHelper } from './authHelpers/roleManager';
 import {
   signUpWithEmailFirebase,
@@ -46,6 +47,9 @@ export interface CourtlyUser extends FirebaseUser {
   roles: UserRole[];
 }
 
+export interface SetupFcmFn {
+  (user: CourtlyUser | null): Promise<(() => void) | null>;
+}
 interface AuthContextType {
   currentUser: CourtlyUser | null;
   loading: boolean;
@@ -81,6 +85,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const unsubscribeFcmOnMessageRef = React.useRef<(() => void) | null>(null);
+  
+  // Refs to manage processing state of onAuthStateChanged
   const isProcessingLoginRef = React.useRef(false);
   const processingUidRef = React.useRef<string | null>(null);
 
@@ -105,7 +111,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     addNotificationManager(title, body, href, id, notifications, currentUser?.uid, setNotifications, setUnreadCount);
   }, [notifications, currentUser?.uid]);
 
-  const setupFcm = useCallback(async (user: CourtlyUser | null): Promise<(() => void) | null> => {
+  const setupFcm: SetupFcmFn = useCallback(async (user: CourtlyUser | null): Promise<(() => void) | null> => {
       if (unsubscribeFcmOnMessageRef.current) {
           unsubscribeFcmOnMessageRef.current();
           unsubscribeFcmOnMessageRef.current = null;
@@ -120,34 +126,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const fullLogoutSequence = useCallback(async () => {
-    const uidBeforeLogout = auth.currentUser?.uid;
-    await logoutFirebase(auth, toast);
+    const uidBeforeLogout = auth.currentUser?.uid; // Get UID before Firebase sign-out
+    await logoutFirebase(auth, toast); // This will trigger onAuthStateChanged with null
     
+    // The rest of the cleanup will be handled by onAuthStateChanged when firebaseUser is null
+    // However, ensure custom tokens are cleared immediately
     clearCustomTokens();
-    setAccessTokenState(null);
-    setRefreshTokenState(null);
-    setCurrentUser(null);
-    
-    setNotifications([]);
-    setUnreadCount(0);
+    setAndStoreAccessToken(null);
+    setAndStoreRefreshToken(null);
+    //setCurrentUser(null); // This will be set by onAuthStateChanged
+
+    // Clear roles for the logged-out user specifically
     if (uidBeforeLogout && typeof window !== 'undefined') {
+        localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidBeforeLogout}`);
         const notificationStorageKey = getNotificationStorageKey(uidBeforeLogout);
         if (notificationStorageKey) {
             localStorage.removeItem(notificationStorageKey);
         }
-        localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidBeforeLogout}`);
     }
     
-    if (unsubscribeFcmOnMessageRef.current) {
-        unsubscribeFcmOnMessageRef.current();
-        unsubscribeFcmOnMessageRef.current = null;
-    }
-    await setupFcm(null);
-    
-    isProcessingLoginRef.current = false;
+    isProcessingLoginRef.current = false; // Reset processing flag
     processingUidRef.current = null;
     router.push('/login');
-  }, [toast, setAccessTokenState, setRefreshTokenState, setupFcm, router]);
+  }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken, router]);
 
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
@@ -163,16 +164,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true); 
-  
-      if (firebaseUser && processingUidRef.current === firebaseUser.uid && isProcessingLoginRef.current) {
-        console.log(`AUTH_CONTEXT: Already processing login for UID: ${firebaseUser.uid}. Skipping re-entry.`);
-        setLoading(false);
-        return;
+      const currentEventUid = firebaseUser?.uid || null;
+
+      if (isProcessingLoginRef.current && processingUidRef.current === currentEventUid) {
+        console.log(`AUTH_CONTEXT: onAuthStateChanged re-entrant for UID: ${currentEventUid}. Processing already in progress. Skipping.`);
+        return; // Avoid re-entry for the same user event if already processing
       }
-  
-      processingUidRef.current = firebaseUser ? firebaseUser.uid : null;
+
+      setLoading(true);
       isProcessingLoginRef.current = true;
+      processingUidRef.current = currentEventUid;
   
       try {
         if (firebaseUser) {
@@ -186,13 +187,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             
             const userRoles = getStoredRoles(firebaseUser.uid);
             const courtlyUserInstance: CourtlyUser = {
-              ...(firebaseUser as any), // This includes all FirebaseUser props
+              ...(firebaseUser as any), 
               roles: userRoles.length > 0 ? userRoles : ['user'],
             };
             setCurrentUser(courtlyUserInstance);
             await setupFcm(courtlyUserInstance);
           } else {
-            console.log("AUTH_CONTEXT: No custom tokens. Attempting custom API login.");
+            console.log("AUTH_CONTEXT: No custom tokens found. Attempting custom API login.");
             const loggedInUser = await handleCustomApiLogin({
               firebaseUser,
               auth,
@@ -201,12 +202,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setAndStoreAccessToken,
               setAndStoreRefreshToken,
             });
-            setCurrentUser(loggedInUser);
+            
             if (!loggedInUser) {
-              console.warn("AUTH_CONTEXT: Custom API login failed for Firebase user. Session might be invalid.");
+              console.warn("AUTH_CONTEXT: Custom API login failed for Firebase user. Session invalid, logging out Firebase user.");
+              await logoutFirebase(auth, toast); // This will trigger onAuthStateChanged again with user=null
+                                                 // which will then handle full cleanup.
+              // setCurrentUser(null) will be handled by the subsequent onAuthStateChanged(null)
+            } else {
+              setCurrentUser(loggedInUser); // Successfully logged in with custom tokens
             }
           }
-        } else {
+        } else { // No Firebase user
           console.log("AUTH_CONTEXT: No Firebase user. Clearing session.");
           clearCustomTokens();
           setAndStoreAccessToken(null);
@@ -227,11 +233,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setAndStoreRefreshToken(null);
         setCurrentUser(null);
       } finally {
-        if ((firebaseUser && processingUidRef.current === firebaseUser.uid) || !firebaseUser) {
+        // Only reset the processing flag if the current event's UID matches the one being processed.
+        // This prevents a rapid subsequent event (e.g., null after a user) from clearing the flag prematurely.
+        if (processingUidRef.current === currentEventUid) {
             isProcessingLoginRef.current = false;
-            if (!firebaseUser) {
-                processingUidRef.current = null;
-            }
         }
         setLoading(false);
       }
@@ -243,7 +248,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessageRef.current();
       }
     };
-  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken]); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken]); // fullLogoutSequence removed as it creates cycles, it's called by attemptTokenRefresh
 
 
   useEffect(() => {
@@ -264,9 +270,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         router.push('/login');
     } else if (currentUser && (!accessToken || !refreshToken) && isProtectedPath) {
         console.warn("AUTH_CONTEXT: Firebase user exists but custom tokens are missing on a protected path. Logging out.");
-        fullLogoutSequence();
+        // Don't call fullLogoutSequence directly here as it might create loops with onAuthStateChanged.
+        // The onAuthStateChanged logic should handle the state if handleCustomApiLogin fails.
+        // If tokens are missing, the next authedFetch will fail and trigger refresh/logout via apiUtils.
     }
-  }, [currentUser, loading, router, pathname, accessToken, refreshToken, fullLogoutSequence]);
+  }, [currentUser, loading, router, pathname, accessToken, refreshToken]);
 
   useEffect(() => {
     initializeAuthHelpers({
@@ -292,38 +300,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const signUpWithEmail = async (email: string, password: string, name: string): Promise<void> => {
-    // setLoading(true); // No longer needed here as onAuthStateChanged handles loading
     await signUpWithEmailFirebase(auth, email, password, name, toast);
-    // onAuthStateChanged will handle the rest
-    // setLoading(false);
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<void> => {
-    // setLoading(true);
     await signInWithEmailFirebase(auth, email, password, toast);
-    // onAuthStateChanged will handle the rest
-    // setLoading(false);
   };
 
   const signInWithGoogle = async (): Promise<void> => {
-    // setLoading(true);
     await signInWithGoogleFirebase(auth, toast);
-    // onAuthStateChanged will handle the rest
-    // setLoading(false);
   };
 
   const signInWithPhoneNumberFlow = async (phoneNumber: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
-    // setLoading(true);
-    const result = await signInWithPhoneNumberFirebase(auth, phoneNumber, appVerifier, toast);
-    // setLoading(false); // Loading is managed by onAuthStateChanged
-    return result;
+    return signInWithPhoneNumberFirebase(auth, phoneNumber, appVerifier, toast);
   };
 
   const confirmPhoneNumberCode = async (confirmationResult: ConfirmationResult, code: string): Promise<void> => {
-    // setLoading(true);
     await confirmPhoneNumberCodeFirebase(confirmationResult, code, toast);
-    // onAuthStateChanged will handle the rest
-    // setLoading(false);
   };
 
   const updateCourtlyUserRoles = (roles: UserRole[]) => {
