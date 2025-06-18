@@ -1,23 +1,23 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { Booking, Club } from "@/lib/types"; 
+import type { Booking, Club, Service, ClubAddress } from "@/lib/types"; 
 import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2, AlertTriangle } from "lucide-react"; 
 import Link from "next/link";
 import { ClubCard } from '@/components/features/clubs/ClubCard'; 
 import { ReviewForm } from '@/components/features/reviews/ReviewForm';
+import { BookingDetailsDialog } from '@/components/features/booking/BookingDetailsDialog';
 import {
   AlertDialog,
   AlertDialogContent,
-  // AlertDialogTrigger, // Not used if dialog opened programmatically
 } from "@/components/ui/alert-dialog";
-import { getAllClubs } from '@/services/clubService';
+import { getAllClubs, getClubById, getServiceById } from '@/services/clubService';
 import { getBookingsByUserId } from '@/services/bookingService'; 
 import { useAuth } from '@/contexts/AuthContext'; 
 import { useToast } from '@/hooks/use-toast';
@@ -35,7 +35,7 @@ const statusBadgeVariant = (status: Booking['status']) => {
 
 export default function UserDashboardPage() {
   const { currentUser, loading: authLoading } = useAuth();
-  const { toast } = useToast(); // Assuming useToast returns a stable toast function
+  const { toast } = useToast(); 
 
   const [userBookings, setUserBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
@@ -46,6 +46,14 @@ export default function UserDashboardPage() {
   
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
+
+  // State for BookingDetailsDialog
+  const [bookingForDialog, setBookingForDialog] = useState<Booking | null>(null);
+  const [clubForDialog, setClubForDialog] = useState<Club | null>(null);
+  const [serviceForDialog, setServiceForDialog] = useState<Service | null>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isLoadingDialogData, setIsLoadingDialogData] = useState(false);
+
 
   useEffect(() => {
     console.log("UserDashboard: useEffect[fetchBookings] - Triggered. AuthLoading:", authLoading, "CurrentUser:", !!currentUser);
@@ -91,8 +99,7 @@ export default function UserDashboardPage() {
       setUserBookings([]);
       setBookingsError(null);
     }
-  // Dependencies: authLoading and currentUser.
-  }, [currentUser, authLoading, toast]); // Kept toast as original
+  }, [currentUser, authLoading, toast]); 
 
 
   useEffect(() => {
@@ -123,44 +130,30 @@ export default function UserDashboardPage() {
   const handleReviewSubmitted = () => {
     setIsReviewDialogOpen(false);
     setSelectedBookingForReview(null);
-    // TODO: Potentially refresh bookings or mark booking as reviewed in a real app
   };
   
   const hasBeenReviewed = (bookingId: string) => {
-    // This is a mock check. In a real app, you'd check against actual review data.
-    // For example, if 'ub3' from mockUserBookings was reviewed.
-    return bookingId === 'ub3_mock_reviewed'; // Assuming 'ub3' is the ID of a reviewed booking for testing
+    return bookingId === 'ub3_mock_reviewed'; 
   };
 
-  const handleViewBookingDetails = (bookingId: string) => {
-    const booking = userBookings.find(b => b.id === bookingId);
-    if (!booking) {
-      toast({
-        variant: "destructive",
-        toastTitle: "Error",
-        toastDescription: "Booking details not found.",
-      });
-      return;
+  const handleOpenDetailsDialog = async (booking: Booking) => {
+    setBookingForDialog(booking); // Set immediately to show loading state on the correct button
+    setIsLoadingDialogData(true);
+    try {
+      const club = await getClubById(booking.clubId);
+      const service = await getServiceById(booking.serviceId);
+      setClubForDialog(club);
+      setServiceForDialog(service);
+      setIsDetailsDialogOpen(true);
+    } catch (error) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not load booking details." });
+      setBookingForDialog(null); 
+    } finally {
+      setIsLoadingDialogData(false);
     }
-    // In a real app, this would be a modal or a new page.
-    // For now, using alert for simplicity and consistency with OwnerDashboard placeholder.
-    alert(
-      `Booking Details (User View):\n\n` +
-      `ID: ${booking.id}\n` +
-      `Club ID: ${booking.clubId}\n` + 
-      `Service ID: ${booking.serviceId}\n` + 
-      `Date: ${new Date(booking.date).toLocaleDateString()}\n` +
-      `Time: ${booking.startTime} - ${booking.endTime}\n` +
-      `Status: ${booking.status}\n` +
-      `Price: $${booking.totalPrice.toFixed(2)}\n` +
-      `Created: ${new Date(booking.createdAt).toLocaleString()}\n` +
-      `${booking.notes ? `Notes: ${booking.notes}\n` : ''}` +
-      `\n(Placeholder: Full booking detail view not yet implemented)`
-    );
   };
 
 
-  // Combined initial loading state
   if (authLoading || (isLoadingBookings && !bookingsError && !currentUser)) {
     console.log("UserDashboard: Render - Initial Loading (Auth or Pre-User Booking Load).");
     return (
@@ -170,7 +163,6 @@ export default function UserDashboardPage() {
     );
   }
   
-  // If auth is done, currentUser exists, but bookings are still loading
   if (currentUser && isLoadingBookings) {
      console.log("UserDashboard: Render - Loading Bookings (User Authenticated).");
      return (
@@ -233,15 +225,24 @@ export default function UserDashboardPage() {
             <p className="text-destructive-foreground">{bookingsError}</p>
             <Button variant="outline" className="mt-3" onClick={() => {
                 if(currentUser) {
-                    // Manually trigger refetch
                     const reFetchBookings = async () => {
                       if (!currentUser) return;
                       setIsLoadingBookings(true); setBookingsError(null);
                       try {
                         const bookings = await getBookingsByUserId(currentUser.uid);
-                        bookings.sort((a,b) => { /* ... sort logic ... */ });
+                        bookings.sort((a,b) => { 
+                            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.date) >= new Date();
+                            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date();
+                            if (aIsUpcoming && !bIsUpcoming) return -1;
+                            if (!aIsUpcoming && bIsUpcoming) return 1;
+                            return new Date(b.date).getTime() - new Date(a.date).getTime(); 
+                         });
                         setUserBookings(bookings);
-                      } catch (err) { /* handle error */ } finally { setIsLoadingBookings(false); }
+                      } catch (err: any) { 
+                        const errorMessage = err instanceof Error ? err.message : "Could not re-load your bookings.";
+                        setBookingsError(errorMessage);
+                        toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
+                       } finally { setIsLoadingBookings(false); }
                     };
                     reFetchBookings();
                 } else {
@@ -288,7 +289,19 @@ export default function UserDashboardPage() {
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
                         <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                         <TableCell className="text-right space-x-1 p-2 sm:p-4">
-                          <Button variant="ghost" size="icon" title="View Details" onClick={() => handleViewBookingDetails(booking.id)}><Eye className="h-4 w-4" /></Button>
+                           <Button
+                              variant="ghost"
+                              size="icon"
+                              title="View Details"
+                              onClick={() => handleOpenDetailsDialog(booking)}
+                              disabled={isLoadingDialogData && bookingForDialog?.id === booking.id}
+                            >
+                              {isLoadingDialogData && bookingForDialog?.id === booking.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </Button>
                           {booking.status === 'pending' && <Button variant="ghost" size="icon" title="Cancel"><Trash2 className="h-4 w-4 text-destructive" /></Button>}
                         </TableCell>
                       </TableRow>
@@ -327,7 +340,19 @@ export default function UserDashboardPage() {
                       <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
                       <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
-                          <Button variant="ghost" size="icon" title="View Details" onClick={() => handleViewBookingDetails(booking.id)}><Eye className="h-4 w-4" /></Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="View Details"
+                            onClick={() => handleOpenDetailsDialog(booking)}
+                            disabled={isLoadingDialogData && bookingForDialog?.id === booking.id}
+                          >
+                            {isLoadingDialogData && bookingForDialog?.id === booking.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
                           {booking.status === 'completed' && (
                             !hasBeenReviewed(booking.id) ? (
                               <Button variant="outline" size="sm" onClick={() => handleOpenReviewDialog(booking)}>
@@ -393,7 +418,24 @@ export default function UserDashboardPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {bookingForDialog && (
+        <BookingDetailsDialog
+          isOpen={isDetailsDialogOpen}
+          onOpenChange={(open) => {
+            setIsDetailsDialogOpen(open);
+            if (!open) {
+              setBookingForDialog(null); // Clear dialog data when closed
+              setClubForDialog(null);
+              setServiceForDialog(null);
+            }
+          }}
+          booking={bookingForDialog}
+          club={clubForDialog}
+          service={serviceForDialog}
+          isLoading={isLoadingDialogData && !clubForDialog && !serviceForDialog} // Show general loading if data isn't ready
+        />
+      )}
     </div>
   );
 }
-

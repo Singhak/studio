@@ -8,14 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Booking, Club, Service } from "@/lib/types";
+import type { Booking, Club, Service, ClubAddress } from "@/lib/types";
 import { mockServices as allMockServices } from '@/lib/mockData';
 import Link from 'next/link';
 import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
-import { getLoggedInOwnerClubs } from '@/services/clubService';
+import { getLoggedInOwnerClubs, getClubById, getServiceById } from '@/services/clubService';
 import { getBookingsByClubId } from '@/services/bookingService';
+import { BookingDetailsDialog } from '@/components/features/booking/BookingDetailsDialog';
+
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -39,6 +41,14 @@ export default function OwnerDashboardPage() {
   const [clubBookings, setClubBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
+
+  // State for BookingDetailsDialog
+  const [bookingForDialog, setBookingForDialog] = useState<Booking | null>(null);
+  const [clubForDialog, setClubForDialog] = useState<Club | null>(null);
+  const [serviceForDialog, setServiceForDialog] = useState<Service | null>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isLoadingDialogData, setIsLoadingDialogData] = useState(false);
+
 
   useEffect(() => {
     console.log("OwnerDashboard: useEffect[fetchClubs] - Triggered. AuthLoading:", authLoading, "CurrentUser:", !!currentUser);
@@ -179,7 +189,7 @@ export default function OwnerDashboardPage() {
     addNotification(
         `Booking Confirmed: ${selectedClub.name}`,
         `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} has been confirmed by the club.`,
-        '/dashboard/user', // Link for the user
+        '/dashboard/user', 
         `booking_confirmed_${bookingId}`
     );
   };
@@ -197,15 +207,40 @@ export default function OwnerDashboardPage() {
     addNotification(
         `Booking Update: ${selectedClub.name}`,
         `Unfortunately, your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} could not be confirmed.`,
-        '/dashboard/user', // Link for the user
+        '/dashboard/user', 
         `booking_rejected_${bookingId}`
     );
   };
 
-  const handleViewBookingDetails = (bookingId: string) => {
-    const booking = clubBookings.find(b => b.id === bookingId);
-    if (!booking || !selectedClub) return;
-    alert(`View Details for Booking ID: ${bookingId}\nUser: ${booking.userId}\nService: ${getServiceName(booking.serviceId)}\nDate: ${booking.date} @ ${booking.startTime}\nStatus: ${booking.status}\n\n(Placeholder: Full booking detail view not yet implemented)`);
+  const handleOpenDetailsDialog = async (booking: Booking) => {
+    setBookingForDialog(booking); // Set immediately to show loading state on the correct button
+    setIsLoadingDialogData(true);
+    try {
+      let fetchedClub = null;
+      // If the booking's clubId matches the currently selected club, use that.
+      if (selectedClub && selectedClub._id === booking.clubId) {
+        fetchedClub = selectedClub;
+      } else {
+        fetchedClub = await getClubById(booking.clubId);
+      }
+      
+      let fetchedService = null;
+      if (fetchedClub && fetchedClub.services) {
+        fetchedService = fetchedClub.services.find(s => s._id === booking.serviceId) || null;
+      }
+      if (!fetchedService) { // Fallback if not in club.services or club not available
+        fetchedService = await getServiceById(booking.serviceId);
+      }
+
+      setClubForDialog(fetchedClub);
+      setServiceForDialog(fetchedService);
+      setIsDetailsDialogOpen(true);
+    } catch (error) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not load booking details." });
+      setBookingForDialog(null);
+    } finally {
+      setIsLoadingDialogData(false);
+    }
   };
 
 
@@ -230,6 +265,7 @@ export default function OwnerDashboardPage() {
       if (selectedClub && selectedClub.services && selectedClub.services.length > 0) {
           return selectedClub.services.length;
       }
+      // Fallback if selectedClub.services is not populated from getClubById (e.g. if getLoggedInOwnerClubs provides minimal data)
       const serviceIds = new Set(currentClubBookings.map(b => b.serviceId));
       return serviceIds.size;
   }, [selectedClub, currentClubBookings]);
@@ -278,7 +314,7 @@ export default function OwnerDashboardPage() {
                   const clubsForOwner = await getLoggedInOwnerClubs();
                   setOwnerClubs(clubsForOwner);
                   if (clubsForOwner.length > 0) setSelectedClub(clubsForOwner[0]); else setSelectedClub(null);
-                } catch (err) {
+                } catch (err: any) {
                     const errorMessage = err instanceof Error ? err.message : "An unknown error occurred while fetching clubs.";
                     setClubsError(errorMessage);
                     toast({ variant: "destructive", toastTitle: "Error Loading Clubs", toastDescription: errorMessage });
@@ -510,9 +546,14 @@ export default function OwnerDashboardPage() {
                              variant="ghost"
                              size="icon"
                              title="View Details"
-                             onClick={() => handleViewBookingDetails(booking.id)}
+                             onClick={() => handleOpenDetailsDialog(booking)}
+                             disabled={isLoadingDialogData && bookingForDialog?.id === booking.id}
                            >
-                             <Eye className="h-4 w-4" />
+                            {isLoadingDialogData && bookingForDialog?.id === booking.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Eye className="h-4 w-4" />
+                            )}
                            </Button>
                         </TableCell>
                       </TableRow>
@@ -565,9 +606,24 @@ export default function OwnerDashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
+       {bookingForDialog && (
+        <BookingDetailsDialog
+          isOpen={isDetailsDialogOpen}
+          onOpenChange={(open) => {
+            setIsDetailsDialogOpen(open);
+            if (!open) {
+              setBookingForDialog(null); // Clear dialog data when closed
+              setClubForDialog(null);
+              setServiceForDialog(null);
+            }
+          }}
+          booking={bookingForDialog}
+          club={clubForDialog}
+          service={serviceForDialog}
+          isLoading={isLoadingDialogData && !clubForDialog && !serviceForDialog}
+        />
+      )}
     </div>
   );
 }
-    
-
     
