@@ -140,8 +140,8 @@ export default function UserDashboardPage() {
     setBookingForDialog(booking); // Set immediately to show loading state on the correct button
     setIsLoadingDialogData(true);
     try {
-      const club = await getClubById(booking.clubId);
-      const service = await getServiceById(booking.serviceId);
+      const club = await getClubById(booking.club);
+      const service = await getServiceById(booking.service);
       setClubForDialog(club);
       setServiceForDialog(service);
       setIsDetailsDialogOpen(true);
@@ -231,11 +231,11 @@ export default function UserDashboardPage() {
                       try {
                         const bookings = await getBookingsByUserId(currentUser.uid);
                         bookings.sort((a,b) => { 
-                            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.date) >= new Date();
-                            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date();
+                            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.bookingDate) >= new Date();
+                            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date();
                             if (aIsUpcoming && !bIsUpcoming) return -1;
                             if (!aIsUpcoming && bIsUpcoming) return 1;
-                            return new Date(b.date).getTime() - new Date(a.date).getTime(); 
+                            return new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime(); 
                          });
                         setUserBookings(bookings);
                       } catch (err: any) { 
@@ -294,9 +294,9 @@ export default function UserDashboardPage() {
                               size="icon"
                               title="View Details"
                               onClick={() => handleOpenDetailsDialog(booking)}
-                              disabled={isLoadingDialogData && bookingForDialog?.id === booking.id}
+                              disabled={isLoadingDialogData && bookingForDialog?._id === booking._id}
                             >
-                              {isLoadingDialogData && bookingForDialog?.id === booking.id ? (
+                              {isLoadingDialogData && bookingForDialog?._id === booking._id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
                                 <Eye className="h-4 w-4" />
@@ -345,9 +345,9 @@ export default function UserDashboardPage() {
                             size="icon"
                             title="View Details"
                             onClick={() => handleOpenDetailsDialog(booking)}
-                            disabled={isLoadingDialogData && bookingForDialog?.id === booking.id}
+                            disabled={isLoadingDialogData && bookingForDialog?._id === booking._id}
                           >
-                            {isLoadingDialogData && bookingForDialog?.id === booking.id ? (
+                            {isLoadingDialogData && bookingForDialog?._id === booking._id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <Eye className="h-4 w-4" />
