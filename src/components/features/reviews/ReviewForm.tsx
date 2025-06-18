@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { Booking, Club, Service } from "@/lib/types";
+import type { Booking, BookingDetails, Club, Service } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -92,17 +92,17 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
     async function fetchDetails() {
       setIsLoadingDetails(true);
       try {
-        const fetchedClub = await getClubById(booking.clubId);
+        const fetchedClub = await getClubById(booking.club);
         setClubDetails(fetchedClub);
         if (fetchedClub && fetchedClub.services) {
-          const foundService = fetchedClub.services.find(s => s._id === booking.serviceId);
+          const foundService = fetchedClub.services.find(s => s._id === booking.service);
           setServiceDetails(foundService);
           if (!foundService) { // Fallback to general mockServices if not found in club's list
-            const fallbackService = mockServices.find(s => s._id === booking.serviceId);
+            const fallbackService = mockServices.find(s => s._id === booking.service);
             setServiceDetails(fallbackService);
           }
         } else if (fetchedClub) { // Club found but no services array
-            const fallbackService = mockServices.find(s => s._id === booking.serviceId);
+            const fallbackService = mockServices.find(s => s._id === booking.service);
             setServiceDetails(fallbackService);
         } else {
           setServiceDetails(null); // Club not found
@@ -119,7 +119,7 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
       }
     }
     fetchDetails();
-  }, [booking.clubId, booking.serviceId, toast]);
+  }, [booking.club, booking.service, toast]);
 
   const form = useForm<ReviewFormValues>({
     resolver: zodResolver(reviewFormSchema),
@@ -143,8 +143,8 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
       clubRating,
       serviceRating,
       bookingId: booking.id,
-      clubId: booking.clubId,
-      serviceId: booking.serviceId,
+      club: booking.club,
+      service: booking.service,
     };
     console.log("Review Submitted:", reviewData);
     toast({
@@ -187,7 +187,7 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
       <DialogHeader>
         <DialogTitle className="text-2xl">Leave a Review</DialogTitle>
         <DialogDescription>
-          Share your experience for your booking at {clubDetails.name} for the service: {serviceDetails.name} on {new Date(booking.date).toLocaleDateString()}.
+          Share your experience for your booking at {clubDetails.name} for the service: {serviceDetails.name} on {new Date(booking.bookingDate).toLocaleDateString()}.
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 py-4">

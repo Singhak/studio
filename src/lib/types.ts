@@ -93,9 +93,22 @@ export interface TimeSlot {
 
 export interface Booking {
   id: string;
+  customer: string; // Changed from 'customer' to 'userId' for consistency
+  club: string;
+  service: string; // Should map to Service._id
+  bookingDate: string;
+  startTime: string;
+  endTime: string;
+  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
+  totalPrice: number;
+  notes?: string;
+  createdAt: string;
+}
+export interface BookingDetails {
+  id: string;
   userId: string; // Changed from 'customer' to 'userId' for consistency
-  clubId: string;
-  serviceId: string; // Should map to Service._id
+  club: Club;
+  service: Service; // Should map to Service._id
   date: string;
   startTime: string;
   endTime: string;

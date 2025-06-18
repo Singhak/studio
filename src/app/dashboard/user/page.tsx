@@ -63,11 +63,11 @@ export default function UserDashboardPage() {
       try {
         const bookings = await getBookingsByUserId(currentUser.uid);
         bookings.sort((a, b) => {
-            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.date) >= new Date();
-            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date();
+            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.bookingDate) >= new Date();
+            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date();
             if (aIsUpcoming && !bIsUpcoming) return -1;
             if (!aIsUpcoming && bIsUpcoming) return 1;
-            return new Date(b.date).getTime() - new Date(a.date).getTime(); 
+            return new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime(); 
         });
         console.log("UserDashboard: useEffect[fetchBookings] - Bookings fetched:", bookings.length);
         setUserBookings(bookings);
@@ -110,7 +110,7 @@ export default function UserDashboardPage() {
     fetchFavoriteClubs();
   }, []);
 
-  const upcomingBookings = useMemo(() => userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date()), [userBookings]);
+  const upcomingBookings = useMemo(() => userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date()), [userBookings]);
   const pastBookings = useMemo(() => userBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id)), [userBookings, upcomingBookings]);
   const completedBookingsCount = useMemo(() => userBookings.filter(b => b.status === 'completed').length, [userBookings]);
 
@@ -209,7 +209,7 @@ export default function UserDashboardPage() {
                       setIsLoadingBookings(true); setBookingsError(null);
                       try {
                         const bookings = await getBookingsByUserId(currentUser.uid);
-                        bookings.sort((a,b) => { /* ... sort logic ... */ });
+                        bookings.sort();
                         setUserBookings(bookings);
                       } catch (err) { /* handle error */ } finally { setIsLoadingBookings(false); }
                     };
@@ -253,8 +253,8 @@ export default function UserDashboardPage() {
                   <TableBody>
                     {upcomingBookings.map((booking) => (
                       <TableRow key={booking.id}>
-                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-4)}</TableCell> 
-                        <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell> 
+                        <TableCell className="p-2 sm:p-4">{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
                         <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                         <TableCell className="text-right space-x-1 p-2 sm:p-4">
@@ -293,8 +293,8 @@ export default function UserDashboardPage() {
                 <TableBody>
                   {pastBookings.map((booking) => (
                     <TableRow key={booking.id}>
-                      <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-4)}</TableCell>
-                      <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
+                      <TableCell className="p-2 sm:p-4">{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
                       <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
                           <Button variant="ghost" size="icon" title="View Details"><Eye className="h-4 w-4" /></Button>
