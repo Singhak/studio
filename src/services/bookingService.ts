@@ -1,6 +1,6 @@
 
-import type { CreateBookingPayload, CreateBookingResponse, Booking } from '@/lib/types';
-import { getApiBaseUrl, authedFetch } from '@/lib/apiUtils';
+import type { CreateBookingPayload, CreateBookingResponse, Booking, BookingDetails } from '@/lib/types';
+import { getApiBaseUrl, authedFetch, getApiAuthHeaders } from '@/lib/apiUtils';
 
 export async function createBooking(payload: CreateBookingPayload): Promise<CreateBookingResponse> {
   const apiUrlPath = `/bookings`;
@@ -74,10 +74,12 @@ export async function getBookingsForServiceOnDate(serviceId: string, date: strin
 }
 
 export async function getBookingsByUserId(userId: string): Promise<Booking[]> {
-  const apiUrlPath = `/bookings?userId=${encodeURIComponent(userId)}`;
+  const apiUrlPath = `/bookings/my-bookings`;
+  const authheaders = await getApiAuthHeaders();
   try {
     const response = await authedFetch(apiUrlPath, {
       method: 'GET',
+      headers: authheaders,
     });
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({ message: `Failed to get user bookings: ${response.statusText}` }));
