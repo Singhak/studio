@@ -7,10 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { Booking, Club, Service, ClubAddress } from "@/lib/types"; 
-import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2, AlertTriangle, AlertCircle } from "lucide-react"; 
+import type { Booking, Club, Service, ClubAddress, BookingStatus } from "@/lib/types";
+import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { ClubCard } from '@/components/features/clubs/ClubCard'; 
+import { ClubCard } from '@/components/features/clubs/ClubCard';
 import { ReviewForm } from '@/components/features/reviews/ReviewForm';
 import { BookingDetailsDialog } from '@/components/features/booking/BookingDetailsDialog';
 import {
@@ -25,8 +25,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getAllClubs, getClubById, getServiceById } from '@/services/clubService';
-import { getBookingsByUserId } from '@/services/bookingService'; 
-import { useAuth } from '@/contexts/AuthContext'; 
+import { getBookingsByUserId, updateBookingStatus } from '@/services/bookingService';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -35,7 +35,8 @@ const statusBadgeVariant = (status: Booking['status']) => {
     case 'confirmed': return 'default';
     case 'pending': return 'secondary';
     case 'completed': return 'outline';
-    case 'cancelled': return 'destructive';
+    case 'cancelled_by_customer': return 'destructive';
+    case 'cancelled_by_customer': return 'destructive';
     case 'rejected': return 'destructive';
     default: return 'secondary';
   }
@@ -43,7 +44,7 @@ const statusBadgeVariant = (status: Booking['status']) => {
 
 export default function UserDashboardPage() {
   const { currentUser, loading: authLoading, addNotification } = useAuth();
-  const { toast } = useToast(); 
+  const { toast } = useToast();
 
   const [userBookings, setUserBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
@@ -51,7 +52,7 @@ export default function UserDashboardPage() {
 
   const [favoriteClubs, setFavoriteClubs] = useState<Club[]>([]);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(true);
-  
+
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
 
@@ -81,11 +82,11 @@ export default function UserDashboardPage() {
       try {
         const bookings = await getBookingsByUserId(currentUser.uid);
         bookings.sort((a, b) => {
-            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.bookingDate) >= new Date();
-            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date();
-            if (aIsUpcoming && !bIsUpcoming) return -1;
-            if (!aIsUpcoming && bIsUpcoming) return 1;
-            return new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime(); 
+          const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.bookingDate) >= new Date();
+          const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date();
+          if (aIsUpcoming && !bIsUpcoming) return -1;
+          if (!aIsUpcoming && bIsUpcoming) return 1;
+          return new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime();
         });
         console.log("UserDashboard: useEffect[fetchBookings] - Bookings fetched:", bookings.length);
         setUserBookings(bookings);
@@ -109,7 +110,7 @@ export default function UserDashboardPage() {
       setUserBookings([]);
       setBookingsError(null);
     }
-  }, [currentUser, authLoading, toast]); 
+  }, [currentUser, authLoading, toast]);
 
 
   useEffect(() => {
@@ -141,13 +142,13 @@ export default function UserDashboardPage() {
     setIsReviewDialogOpen(false);
     setSelectedBookingForReview(null);
   };
-  
+
   const hasBeenReviewed = (bookingId: string) => {
-    return bookingId === 'ub3_mock_reviewed'; 
+    return bookingId === 'ub3_mock_reviewed';
   };
 
   const handleOpenDetailsDialog = async (booking: Booking) => {
-    setBookingForDialog(booking); 
+    setBookingForDialog(booking);
     setIsLoadingDialogData(true);
     try {
       const club = await getClubById(booking.club);
@@ -157,7 +158,7 @@ export default function UserDashboardPage() {
       setIsDetailsDialogOpen(true);
     } catch (error) {
       toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not load booking details." });
-      setBookingForDialog(null); 
+      setBookingForDialog(null);
     } finally {
       setIsLoadingDialogData(false);
     }
@@ -175,35 +176,44 @@ export default function UserDashboardPage() {
     }
 
     const bookingId = bookingToCancelForDialog._id;
-    setUserBookings(prevBookings =>
-      prevBookings.map(b =>
-        b._id === bookingId ? { ...b, status: 'cancelled' } : b
-      )
-    );
-
-    // Fetch club and service details for notification if not already available
-    let tempClub = clubForDialog && clubForDialog._id === bookingToCancelForDialog.club ? clubForDialog : null;
-    let tempService = serviceForDialog && serviceForDialog._id === bookingToCancelForDialog.service ? serviceForDialog : null;
-
-    if (!tempClub) tempClub = await getClubById(bookingToCancelForDialog.club);
-    if (!tempService) tempService = await getServiceById(bookingToCancelForDialog.service);
-    
-    toast({
-      toastTitle: "Booking Cancelled",
-      toastDescription: `Your booking at ${tempClub?.name || 'the club'} for ${tempService?.name || 'the service'} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')} has been cancelled.`,
-    });
-
-    if (tempClub) {
-      addNotification(
-        `Booking Cancelled: ${tempClub.name}`,
-        `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.slice(-4)} cancelled their booking for ${tempService?.name || 'a service'} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`,
-        '/dashboard/owner',
-        `booking_cancelled_${bookingId}`
+    try {
+      const cancelledBooking = await updateBookingStatus(bookingId, 'cancelled_by_customer');
+      if (!cancelledBooking) {
+        toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not update booking status." });
+        return;
+      }
+      setUserBookings(prevBookings =>
+        prevBookings.map(b =>
+          b._id === bookingId ? { ...b, status: 'cancelled_by_customer' } : b
+        )
       );
+
+      // Fetch club and service details for notification if not already available
+      let tempClub = clubForDialog && clubForDialog._id === bookingToCancelForDialog.club ? clubForDialog : null;
+      let tempService = serviceForDialog && serviceForDialog._id === bookingToCancelForDialog.service ? serviceForDialog : null;
+
+      if (!tempClub) tempClub = await getClubById(bookingToCancelForDialog.club);
+      if (!tempService) tempService = await getServiceById(bookingToCancelForDialog.service);
+
+      toast({
+        toastTitle: "Booking Cancelled",
+        toastDescription: `Your booking at ${tempClub?.name || 'the club'} for ${tempService?.name || 'the service'} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')} has been cancelled.`,
+      });
+
+      // if (tempClub) {
+      //   addNotification(
+      //     `Booking Cancelled: ${tempClub.name}`,
+      //     `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.slice(-4)} cancelled their booking for ${tempService?.name || 'a service'} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`,
+      //     '/dashboard/owner',
+      //     `booking_cancelled_${bookingId}`
+      //   );
+      // }
+    } catch (error) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not update booking status." });
+    } finally {
+      setIsCancelConfirmOpen(false);
+      setBookingToCancelForDialog(null);
     }
-    
-    setIsCancelConfirmOpen(false);
-    setBookingToCancelForDialog(null);
     // In a real app, you'd also make an API call here to update the backend.
     // e.g., await cancelBookingApi(bookingId);
   };
@@ -217,13 +227,13 @@ export default function UserDashboardPage() {
       </div>
     );
   }
-  
+
   if (currentUser && isLoadingBookings) {
-     console.log("UserDashboard: Render - Loading Bookings (User Authenticated).");
-     return (
+    console.log("UserDashboard: Render - Loading Bookings (User Authenticated).");
+    return (
       <div className="flex items-center justify-center min-h-[calc(100vh-12rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-         <p className="ml-3 text-muted-foreground">Loading your bookings...</p>
+        <p className="ml-3 text-muted-foreground">Loading your bookings...</p>
       </div>
     );
   }
@@ -274,35 +284,35 @@ export default function UserDashboardPage() {
       {bookingsError && !isLoadingBookings && (
         <Card className="border-destructive bg-destructive/10">
           <CardHeader>
-            <CardTitle className="text-destructive flex items-center"><AlertTriangle className="mr-2"/>Error Loading Bookings</CardTitle>
+            <CardTitle className="text-destructive flex items-center"><AlertTriangle className="mr-2" />Error Loading Bookings</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-destructive-foreground">{bookingsError}</p>
             <Button variant="outline" className="mt-3" onClick={() => {
-                if(currentUser) {
-                    const reFetchBookings = async () => {
-                      if (!currentUser) return;
-                      setIsLoadingBookings(true); setBookingsError(null);
-                      try {
-                        const bookings = await getBookingsByUserId(currentUser.uid);
-                        bookings.sort((a,b) => { 
-                            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.bookingDate) >= new Date();
-                            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date();
-                            if (aIsUpcoming && !bIsUpcoming) return -1;
-                            if (!aIsUpcoming && bIsUpcoming) return 1;
-                            return new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime(); 
-                         });
-                        setUserBookings(bookings);
-                      } catch (err: any) { 
-                        const errorMessage = err instanceof Error ? err.message : "Could not re-load your bookings.";
-                        setBookingsError(errorMessage);
-                        toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
-                       } finally { setIsLoadingBookings(false); }
-                    };
-                    reFetchBookings();
-                } else {
-                     toast({toastDescription: "Please log in to retry."});
-                }
+              if (currentUser) {
+                const reFetchBookings = async () => {
+                  if (!currentUser) return;
+                  setIsLoadingBookings(true); setBookingsError(null);
+                  try {
+                    const bookings = await getBookingsByUserId(currentUser.uid);
+                    bookings.sort((a, b) => {
+                      const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.bookingDate) >= new Date();
+                      const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date();
+                      if (aIsUpcoming && !bIsUpcoming) return -1;
+                      if (!aIsUpcoming && bIsUpcoming) return 1;
+                      return new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime();
+                    });
+                    setUserBookings(bookings);
+                  } catch (err: any) {
+                    const errorMessage = err instanceof Error ? err.message : "Could not re-load your bookings.";
+                    setBookingsError(errorMessage);
+                    toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
+                  } finally { setIsLoadingBookings(false); }
+                };
+                reFetchBookings();
+              } else {
+                toast({ toastDescription: "Please log in to retry." });
+              }
             }}>Try Again</Button>
           </CardContent>
         </Card>
@@ -339,28 +349,28 @@ export default function UserDashboardPage() {
                   <TableBody>
                     {upcomingBookings.map((booking) => (
                       <TableRow key={booking._id}>
-                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell> 
+                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
                         <TableCell className="p-2 sm:p-4">{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
                         <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                         <TableCell className="text-right space-x-1 p-2 sm:p-4">
-                           <Button
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="View Details"
+                            onClick={() => handleOpenDetailsDialog(booking)}
+                            disabled={isLoadingDialogData && bookingForDialog?._id === booking._id}
+                          >
+                            {isLoadingDialogData && bookingForDialog?._id === booking._id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                          {(booking.status === 'pending' || booking.status === 'confirmed') && (
+                            <Button
                               variant="ghost"
                               size="icon"
-                              title="View Details"
-                              onClick={() => handleOpenDetailsDialog(booking)}
-                              disabled={isLoadingDialogData && bookingForDialog?._id === booking._id}
-                            >
-                              {isLoadingDialogData && bookingForDialog?._id === booking._id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
-                              )}
-                            </Button>
-                          {(booking.status === 'pending' || booking.status === 'confirmed') && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
                               title="Cancel Booking"
                               onClick={() => initiateCancelBooking(booking)}
                             >
@@ -385,25 +395,25 @@ export default function UserDashboardPage() {
               <CardDescription>Review your booking history and leave feedback.</CardDescription>
             </CardHeader>
             <CardContent>
-             {isLoadingBookings ? (
+              {isLoadingBookings ? (
                 <div className="text-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /></div>
               ) : pastBookings.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="px-2 sm:px-4">Club</TableHead>
-                    <TableHead className="px-2 sm:px-4">Date</TableHead>
-                    <TableHead className="px-2 sm:px-4">Status</TableHead>
-                    <TableHead className="text-right px-2 sm:px-4">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pastBookings.map((booking) => (
-                    <TableRow key={booking._id}>
-                      <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
-                      <TableCell className="p-2 sm:p-4">{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
-                      <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
-                       <TableCell className="text-right space-x-1 p-2 sm:p-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-2 sm:px-4">Club</TableHead>
+                      <TableHead className="px-2 sm:px-4">Date</TableHead>
+                      <TableHead className="px-2 sm:px-4">Status</TableHead>
+                      <TableHead className="text-right px-2 sm:px-4">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pastBookings.map((booking) => (
+                      <TableRow key={booking._id}>
+                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
+                        <TableCell className="p-2 sm:p-4">{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
+                        <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
+                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -427,10 +437,10 @@ export default function UserDashboardPage() {
                             )
                           )}
                         </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               ) : (
                 <p className="text-muted-foreground text-center py-8">No past bookings found.</p>
               )}
@@ -457,21 +467,21 @@ export default function UserDashboardPage() {
                 </div>
               ) : (
                 <div className="text-center py-12">
-                    <Heart className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-                    <h2 className="text-xl font-semibold text-foreground mb-2">No Favorite Clubs Yet</h2>
-                    <p className="text-muted-foreground mb-6">
+                  <Heart className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                  <h2 className="text-xl font-semibold text-foreground mb-2">No Favorite Clubs Yet</h2>
+                  <p className="text-muted-foreground mb-6">
                     Start exploring and tap the heart icon on any club to add it to your favorites!
-                    </p>
-                    <Button asChild>
-                        <Link href="/clubs">Find Clubs</Link>
-                    </Button>
+                  </p>
+                  <Button asChild>
+                    <Link href="/clubs">Find Clubs</Link>
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-      
+
       {selectedBookingForReview && (
         <AlertDialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
           <AlertDialogContent className="sm:max-w-lg">
@@ -489,7 +499,7 @@ export default function UserDashboardPage() {
           onOpenChange={(open) => {
             setIsDetailsDialogOpen(open);
             if (!open) {
-              setBookingForDialog(null); 
+              setBookingForDialog(null);
               setClubForDialog(null);
               setServiceForDialog(null);
             }

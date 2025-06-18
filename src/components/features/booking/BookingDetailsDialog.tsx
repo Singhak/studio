@@ -54,7 +54,8 @@ export function BookingDetailsDialog({
       case 'confirmed': return 'default';
       case 'pending': return 'secondary';
       case 'completed': return 'outline';
-      case 'cancelled': return 'destructive';
+      case 'cancelled_by_customer': return 'destructive';
+      case 'cancelled_by_club': return 'destructive';
       case 'rejected': return 'destructive';
       default: return 'secondary';
     }

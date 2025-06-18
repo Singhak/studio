@@ -110,3 +110,24 @@ export async function getBookingsByClubId(clubId: string): Promise<Booking[]> {
     throw new Error('An unexpected error occurred while fetching club bookings.');
   }
 }
+
+export async function updateBookingStatus(bookingId: string, status: string, notes?: string): Promise<Booking> {
+  const apiUrlPath = `/bookings/${bookingId}`;
+  const authheaders = await getApiAuthHeaders();
+  try {
+    const response = await authedFetch(apiUrlPath, {
+      method: 'POST',
+      headers: authheaders,
+      body: JSON.stringify({ status, notes }),
+    })
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: `Failed to update club bookings: ${response.statusText}` }));
+      throw new Error(errorBody.message);
+    }
+    return await response.json() as Booking;
+  } catch (error) {
+    console.error(`Error updating booking status for ${bookingId}:`, error);
+    if (error instanceof Error) throw error;
+    throw new Error('An unexpected error occurred while updating bookings status');
+  }
+}
