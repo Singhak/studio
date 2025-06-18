@@ -11,12 +11,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Booking, Club, Service, ClubAddress } from "@/lib/types";
 import { mockServices as allMockServices } from '@/lib/mockData';
 import Link from 'next/link';
-import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2, AlertTriangle } from "lucide-react";
+import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, Building, ClubIcon as ClubIconLucide, DollarSign, BellRing, ListChecks, Star, Package, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { getLoggedInOwnerClubs, getClubById, getServiceById } from '@/services/clubService';
 import { getBookingsByClubId } from '@/services/bookingService';
 import { BookingDetailsDialog } from '@/components/features/booking/BookingDetailsDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { format } from 'date-fns';
 
 
 const statusBadgeVariant = (status: Booking['status']) => {
@@ -42,12 +53,14 @@ export default function OwnerDashboardPage() {
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
 
-  // State for BookingDetailsDialog
   const [bookingForDialog, setBookingForDialog] = useState<Booking | null>(null);
   const [clubForDialog, setClubForDialog] = useState<Club | null>(null);
   const [serviceForDialog, setServiceForDialog] = useState<Service | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isLoadingDialogData, setIsLoadingDialogData] = useState(false);
+
+  const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
+  const [bookingToRejectForDialog, setBookingToRejectForDialog] = useState<Booking | null>(null);
 
 
   useEffect(() => {
@@ -188,36 +201,55 @@ export default function OwnerDashboardPage() {
     });
     addNotification(
         `Booking Confirmed: ${selectedClub.name}`,
-        `Your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} has been confirmed by the club.`,
+        `Your booking for ${getServiceName(booking.serviceId)} on ${format(new Date(booking.date), 'MMM d, yyyy')} has been confirmed by the club.`,
         '/dashboard/user', 
         `booking_confirmed_${bookingId}`
     );
   };
 
-  const handleRejectBooking = (bookingId: string) => {
-    const booking = clubBookings.find(b => b.id === bookingId);
-    if (!booking || !selectedClub) return;
+  const initiateRejectBooking = (booking: Booking) => {
+    setBookingToRejectForDialog(booking);
+    setIsRejectConfirmOpen(true);
+  };
+
+  const executeRejectBooking = async () => {
+    if (!bookingToRejectForDialog || !selectedClub) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "No booking selected for rejection or club context missing." });
+      return;
+    }
+    const bookingId = bookingToRejectForDialog.id;
 
     setClubBookings(prev => prev.map(b => b.id === bookingId ? {...b, status: 'rejected'} : b));
     toast({
         variant: "destructive",
         toastTitle: "Booking Rejected",
-        toastDescription: `Booking for User ${booking.userId.slice(-4)} at ${selectedClub.name} has been rejected.`,
+        toastDescription: `Booking for User ${bookingToRejectForDialog.userId.slice(-4)} at ${selectedClub.name} has been rejected.`,
     });
+    
+    let serviceName = 'a service';
+    if (selectedClub.services) {
+        const service = selectedClub.services.find(s => s._id === bookingToRejectForDialog.serviceId);
+        if (service) serviceName = service.name;
+        else serviceName = getServiceName(bookingToRejectForDialog.serviceId); // Fallback if not in current club.services
+    } else {
+        serviceName = getServiceName(bookingToRejectForDialog.serviceId);
+    }
+
     addNotification(
         `Booking Update: ${selectedClub.name}`,
-        `Unfortunately, your booking for ${getServiceName(booking.serviceId)} on ${new Date(booking.date).toLocaleDateString()} could not be confirmed.`,
+        `Unfortunately, your booking for ${serviceName} on ${format(new Date(bookingToRejectForDialog.date), 'MMM d, yyyy')} could not be confirmed.`,
         '/dashboard/user', 
         `booking_rejected_${bookingId}`
     );
+    setIsRejectConfirmOpen(false);
+    setBookingToRejectForDialog(null);
   };
 
   const handleOpenDetailsDialog = async (booking: Booking) => {
-    setBookingForDialog(booking); // Set immediately to show loading state on the correct button
+    setBookingForDialog(booking); 
     setIsLoadingDialogData(true);
     try {
       let fetchedClub = null;
-      // If the booking's clubId matches the currently selected club, use that.
       if (selectedClub && selectedClub._id === booking.clubId) {
         fetchedClub = selectedClub;
       } else {
@@ -228,7 +260,7 @@ export default function OwnerDashboardPage() {
       if (fetchedClub && fetchedClub.services) {
         fetchedService = fetchedClub.services.find(s => s._id === booking.serviceId) || null;
       }
-      if (!fetchedService) { // Fallback if not in club.services or club not available
+      if (!fetchedService) { 
         fetchedService = await getServiceById(booking.serviceId);
       }
 
@@ -265,7 +297,6 @@ export default function OwnerDashboardPage() {
       if (selectedClub && selectedClub.services && selectedClub.services.length > 0) {
           return selectedClub.services.length;
       }
-      // Fallback if selectedClub.services is not populated from getClubById (e.g. if getLoggedInOwnerClubs provides minimal data)
       const serviceIds = new Set(currentClubBookings.map(b => b.serviceId));
       return serviceIds.size;
   }, [selectedClub, currentClubBookings]);
@@ -516,7 +547,7 @@ export default function OwnerDashboardPage() {
                     {currentClubBookings.map((booking) => (
                       <TableRow key={booking.id}>
                         <TableCell className="font-medium">User {booking.userId.slice(-4)}</TableCell>
-                        <TableCell>{new Date(booking.date).toLocaleDateString()} at {booking.startTime}</TableCell>
+                        <TableCell>{format(new Date(booking.date), 'MMM d, yyyy')} at {booking.startTime}</TableCell>
                         <TableCell>{getServiceName(booking.serviceId)}</TableCell>
                         <TableCell><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                         <TableCell className="text-right space-x-1">
@@ -536,7 +567,7 @@ export default function OwnerDashboardPage() {
                                 size="icon"
                                 title="Reject Booking"
                                 className="text-red-600 hover:text-red-700"
-                                onClick={() => handleRejectBooking(booking.id)}
+                                onClick={() => initiateRejectBooking(booking)}
                               >
                                 <XCircle className="h-5 w-5" />
                               </Button>
@@ -612,7 +643,7 @@ export default function OwnerDashboardPage() {
           onOpenChange={(open) => {
             setIsDetailsDialogOpen(open);
             if (!open) {
-              setBookingForDialog(null); // Clear dialog data when closed
+              setBookingForDialog(null); 
               setClubForDialog(null);
               setServiceForDialog(null);
             }
@@ -622,6 +653,34 @@ export default function OwnerDashboardPage() {
           service={serviceForDialog}
           isLoading={isLoadingDialogData && !clubForDialog && !serviceForDialog}
         />
+      )}
+      {bookingToRejectForDialog && (
+        <AlertDialog open={isRejectConfirmOpen} onOpenChange={setIsRejectConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center">
+                <AlertCircle className="mr-2 h-6 w-6 text-destructive" />
+                Confirm Rejection
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to reject the booking for User{' '}
+                <strong>{bookingToRejectForDialog.userId.slice(-4)}</strong> for service{' '}
+                <strong>{getServiceName(bookingToRejectForDialog.serviceId)}</strong> on{' '}
+                <strong>{format(new Date(bookingToRejectForDialog.date), 'MMM d, yyyy')}</strong> at{' '}
+                <strong>{bookingToRejectForDialog.startTime}</strong>?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setBookingToRejectForDialog(null)}>Back</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={executeRejectBooking}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Confirm Reject
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );
