@@ -34,7 +34,7 @@ const statusBadgeVariant = (status: Booking['status']) => {
 };
 
 export default function UserDashboardPage() {
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, loading: authLoading, addNotification } = useAuth();
   const { toast } = useToast(); 
 
   const [userBookings, setUserBookings] = useState<Booking[]>([]);
@@ -133,7 +133,8 @@ export default function UserDashboardPage() {
   };
   
   const hasBeenReviewed = (bookingId: string) => {
-    return bookingId === 'ub3_mock_reviewed'; 
+    // Placeholder for actual review check logic
+    return bookingId === 'ub3_mock_reviewed'; // Example: one specific booking is marked as reviewed
   };
 
   const handleOpenDetailsDialog = async (booking: Booking) => {
@@ -151,6 +152,38 @@ export default function UserDashboardPage() {
     } finally {
       setIsLoadingDialogData(false);
     }
+  };
+
+  const handleCancelBooking = (bookingId: string) => {
+    const bookingToCancel = userBookings.find(b => b.id === bookingId);
+    if (!bookingToCancel) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Booking not found." });
+      return;
+    }
+
+    // Update local state
+    setUserBookings(prevBookings =>
+      prevBookings.map(b =>
+        b.id === bookingId ? { ...b, status: 'cancelled' } : b
+      )
+    );
+
+    toast({
+      toastTitle: "Booking Cancelled",
+      toastDescription: `Your booking for ${clubForDialog?.name || 'the club'} on ${new Date(bookingToCancel.date).toLocaleDateString()} has been cancelled.`,
+    });
+
+    // Simulate notifying the club owner
+    if (clubForDialog) {
+      addNotification(
+        `Booking Cancelled: ${clubForDialog.name}`,
+        `User ${currentUser?.displayName || currentUser?.email || bookingToCancel.userId.slice(-4)} cancelled their booking for ${serviceForDialog?.name || 'a service'} on ${new Date(bookingToCancel.date).toLocaleDateString()}.`,
+        '/dashboard/owner',
+        `booking_cancelled_${bookingId}`
+      );
+    }
+    // In a real app, you'd also make an API call here to update the backend.
+    // e.g., await cancelBookingApi(bookingId);
   };
 
 
@@ -302,7 +335,16 @@ export default function UserDashboardPage() {
                                 <Eye className="h-4 w-4" />
                               )}
                             </Button>
-                          {booking.status === 'pending' && <Button variant="ghost" size="icon" title="Cancel"><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+                          {(booking.status === 'pending' || booking.status === 'confirmed') && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              title="Cancel Booking"
+                              onClick={() => handleCancelBooking(booking.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -439,3 +481,4 @@ export default function UserDashboardPage() {
     </div>
   );
 }
+
