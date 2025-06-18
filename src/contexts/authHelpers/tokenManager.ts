@@ -5,6 +5,8 @@ import type { UserRole } from '@/lib/types';
 import type { ToastFn } from '@/hooks/use-toast';
 import { getStoredRoles } from './roleManager';
 import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX } from './constants';
+import { getApiAuthHeaders, getApiBaseUrl } from '@/lib/apiUtils';
+import { getApproximateLocationByIp } from '@/lib/locationUtils';
 
 interface HandleCustomApiLoginArgs {
   firebaseUser: FirebaseUser;
@@ -31,10 +33,13 @@ export const handleCustomApiLogin = async ({
 }: HandleCustomApiLoginArgs): Promise<CourtlyUser | null> => {
   try {
     const firebaseIdToken = await firebaseUser.getIdToken();
-    const response = await fetch('/api/auth/login', {
+    const apiUrl = `${getApiBaseUrl()}/auth/login`;
+    const currentCity = await getApproximateLocationByIp();
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken: firebaseIdToken }),
+      body: JSON.stringify({ idToken: firebaseIdToken, currentLocation: currentCity?.city }),
     });
 
     if (!response.ok) {
@@ -51,13 +56,13 @@ export const handleCustomApiLogin = async ({
     const userRoles = getStoredRoles(firebaseUser.uid);
     let finalRoles = userRoles.length > 0 ? userRoles : (['user'] as UserRole[]);
     if (userRoles.length === 0 && typeof window !== 'undefined') {
-        localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(finalRoles));
+      localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(finalRoles));
     }
-     // Ensure 'user' role is always present if others are defined
+    // Ensure 'user' role is always present if others are defined
     if (finalRoles.length > 0 && !finalRoles.includes('user')) {
-        finalRoles = ['user', ...finalRoles];
+      finalRoles = ['user', ...finalRoles];
     } else if (finalRoles.length === 0) {
-        finalRoles = ['user'];
+      finalRoles = ['user'];
     }
 
 
@@ -77,7 +82,7 @@ export const handleCustomApiLogin = async ({
       // To include all FirebaseUser properties and methods:
       ...(firebaseUser as any),
     };
-    
+
     await setupFcm(courtlyUser); // Setup FCM after successful login and user creation
     return courtlyUser;
 
@@ -116,9 +121,11 @@ export const attemptTokenRefresh = async ({
 
   console.log("TokenManager: Attempting to refresh token...");
   try {
-    const response = await fetch('/api/auth/refresh', {
+    const apiUrl = `${getApiBaseUrl()}/auth/refresh`;
+    const authHeaders = await getApiAuthHeaders()
+    const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({ refreshToken: tokenToUse }),
     });
 
@@ -162,11 +169,11 @@ export const clearCustomTokens = () => {
 };
 
 export const loadTokensFromStorage = (): { accessToken: string | null, refreshToken: string | null } => {
-    if (typeof window !== 'undefined') {
-        return {
-            accessToken: localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY),
-            refreshToken: localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY),
-        };
-    }
-    return { accessToken: null, refreshToken: null };
+  if (typeof window !== 'undefined') {
+    return {
+      accessToken: localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY),
+      refreshToken: localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY),
+    };
+  }
+  return { accessToken: null, refreshToken: null };
 };
