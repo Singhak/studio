@@ -155,7 +155,7 @@ export default function UserDashboardPage() {
   };
 
   const handleCancelBooking = (bookingId: string) => {
-    const bookingToCancel = userBookings.find(b => b.id === bookingId);
+    const bookingToCancel = userBookings.find(b => b._id === bookingId);
     if (!bookingToCancel) {
       toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Booking not found." });
       return;
@@ -164,20 +164,20 @@ export default function UserDashboardPage() {
     // Update local state
     setUserBookings(prevBookings =>
       prevBookings.map(b =>
-        b.id === bookingId ? { ...b, status: 'cancelled' } : b
+        b._id === bookingId ? { ...b, status: 'cancelled' } : b
       )
     );
 
     toast({
       toastTitle: "Booking Cancelled",
-      toastDescription: `Your booking for ${clubForDialog?.name || 'the club'} on ${new Date(bookingToCancel.date).toLocaleDateString()} has been cancelled.`,
+      toastDescription: `Your booking for ${clubForDialog?.name || 'the club'} on ${new Date(bookingToCancel.bookingDate).toLocaleDateString()} has been cancelled.`,
     });
 
     // Simulate notifying the club owner
     if (clubForDialog) {
       addNotification(
         `Booking Cancelled: ${clubForDialog.name}`,
-        `User ${currentUser?.displayName || currentUser?.email || bookingToCancel.userId.slice(-4)} cancelled their booking for ${serviceForDialog?.name || 'a service'} on ${new Date(bookingToCancel.date).toLocaleDateString()}.`,
+        `User ${currentUser?.displayName || currentUser?.email || bookingToCancel.customer.slice(-4)} cancelled their booking for ${serviceForDialog?.name || 'a service'} on ${new Date(bookingToCancel.bookingDate).toLocaleDateString()}.`,
         '/dashboard/owner',
         `booking_cancelled_${bookingId}`
       );
@@ -340,7 +340,7 @@ export default function UserDashboardPage() {
                               variant="ghost" 
                               size="icon" 
                               title="Cancel Booking"
-                              onClick={() => handleCancelBooking(booking.id)}
+                              onClick={() => handleCancelBooking(booking._id)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
