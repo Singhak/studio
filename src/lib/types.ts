@@ -92,7 +92,7 @@ export interface TimeSlot {
 }
 
 export interface Booking {
-  id: string;
+  _id: string;
   customer: string; // Changed from 'customer' to 'userId' for consistency
   club: string;
   service: string; // Should map to Service._id

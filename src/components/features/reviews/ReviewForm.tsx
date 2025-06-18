@@ -142,7 +142,7 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
       ...data,
       clubRating,
       serviceRating,
-      bookingId: booking.id,
+      bookingId: booking._id,
       club: booking.club,
       service: booking.service,
     };

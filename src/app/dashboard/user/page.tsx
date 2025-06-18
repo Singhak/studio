@@ -111,7 +111,7 @@ export default function UserDashboardPage() {
   }, []);
 
   const upcomingBookings = useMemo(() => userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date()), [userBookings]);
-  const pastBookings = useMemo(() => userBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id)), [userBookings, upcomingBookings]);
+  const pastBookings = useMemo(() => userBookings.filter(b => !upcomingBookings.map(ub => ub._id).includes(b._id)), [userBookings, upcomingBookings]);
   const completedBookingsCount = useMemo(() => userBookings.filter(b => b.status === 'completed').length, [userBookings]);
 
 
@@ -252,7 +252,7 @@ export default function UserDashboardPage() {
                   </TableHeader>
                   <TableBody>
                     {upcomingBookings.map((booking) => (
-                      <TableRow key={booking.id}>
+                      <TableRow key={booking._id}>
                         <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell> 
                         <TableCell className="p-2 sm:p-4">{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
@@ -292,14 +292,14 @@ export default function UserDashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {pastBookings.map((booking) => (
-                    <TableRow key={booking.id}>
+                    <TableRow key={booking._id}>
                       <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
                       <TableCell className="p-2 sm:p-4">{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
                       <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
                           <Button variant="ghost" size="icon" title="View Details"><Eye className="h-4 w-4" /></Button>
                           {booking.status === 'completed' && (
-                            !hasBeenReviewed(booking.id) ? (
+                            !hasBeenReviewed(booking._id) ? (
                               <Button variant="outline" size="sm" onClick={() => handleOpenReviewDialog(booking)}>
                                 <MessageSquarePlus className="mr-1.5 h-4 w-4" /> Leave Review
                               </Button>

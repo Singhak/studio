@@ -115,7 +115,7 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
 
           if (conflictingBooking) {
             if (conflictingBooking.status === 'pending') {
-              if (currentUser && conflictingBooking.userId === currentUser.uid) {
+              if (currentUser && conflictingBooking.customer === currentUser.uid) {
                 displayStatus = 'pending';
                 isCurrentUsersPendingBooking = true;
               } else {
