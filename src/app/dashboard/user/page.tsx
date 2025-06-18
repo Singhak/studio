@@ -8,19 +8,27 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Booking, Club, Service, ClubAddress } from "@/lib/types"; 
-import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2, AlertTriangle } from "lucide-react"; 
+import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2, AlertTriangle, AlertCircle } from "lucide-react"; 
 import Link from "next/link";
 import { ClubCard } from '@/components/features/clubs/ClubCard'; 
 import { ReviewForm } from '@/components/features/reviews/ReviewForm';
 import { BookingDetailsDialog } from '@/components/features/booking/BookingDetailsDialog';
 import {
   AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getAllClubs, getClubById, getServiceById } from '@/services/clubService';
 import { getBookingsByUserId } from '@/services/bookingService'; 
 import { useAuth } from '@/contexts/AuthContext'; 
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -47,12 +55,14 @@ export default function UserDashboardPage() {
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
 
-  // State for BookingDetailsDialog
   const [bookingForDialog, setBookingForDialog] = useState<Booking | null>(null);
   const [clubForDialog, setClubForDialog] = useState<Club | null>(null);
   const [serviceForDialog, setServiceForDialog] = useState<Service | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isLoadingDialogData, setIsLoadingDialogData] = useState(false);
+
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [bookingToCancelForDialog, setBookingToCancelForDialog] = useState<Booking | null>(null);
 
 
   useEffect(() => {
@@ -133,12 +143,11 @@ export default function UserDashboardPage() {
   };
   
   const hasBeenReviewed = (bookingId: string) => {
-    // Placeholder for actual review check logic
-    return bookingId === 'ub3_mock_reviewed'; // Example: one specific booking is marked as reviewed
+    return bookingId === 'ub3_mock_reviewed'; 
   };
 
   const handleOpenDetailsDialog = async (booking: Booking) => {
-    setBookingForDialog(booking); // Set immediately to show loading state on the correct button
+    setBookingForDialog(booking); 
     setIsLoadingDialogData(true);
     try {
       const club = await getClubById(booking.club);
@@ -154,34 +163,47 @@ export default function UserDashboardPage() {
     }
   };
 
-  const handleCancelBooking = (bookingId: string) => {
-    const bookingToCancel = userBookings.find(b => b._id === bookingId);
-    if (!bookingToCancel) {
-      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Booking not found." });
+  const initiateCancelBooking = (booking: Booking) => {
+    setBookingToCancelForDialog(booking);
+    setIsCancelConfirmOpen(true);
+  };
+
+  const executeCancelBooking = async () => {
+    if (!bookingToCancelForDialog) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "No booking selected for cancellation." });
       return;
     }
 
-    // Update local state
+    const bookingId = bookingToCancelForDialog._id;
     setUserBookings(prevBookings =>
       prevBookings.map(b =>
         b._id === bookingId ? { ...b, status: 'cancelled' } : b
       )
     );
 
+    // Fetch club and service details for notification if not already available
+    let tempClub = clubForDialog && clubForDialog._id === bookingToCancelForDialog.club ? clubForDialog : null;
+    let tempService = serviceForDialog && serviceForDialog._id === bookingToCancelForDialog.service ? serviceForDialog : null;
+
+    if (!tempClub) tempClub = await getClubById(bookingToCancelForDialog.club);
+    if (!tempService) tempService = await getServiceById(bookingToCancelForDialog.service);
+    
     toast({
       toastTitle: "Booking Cancelled",
-      toastDescription: `Your booking for ${clubForDialog?.name || 'the club'} on ${new Date(bookingToCancel.bookingDate).toLocaleDateString()} has been cancelled.`,
+      toastDescription: `Your booking at ${tempClub?.name || 'the club'} for ${tempService?.name || 'the service'} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')} has been cancelled.`,
     });
 
-    // Simulate notifying the club owner
-    if (clubForDialog) {
+    if (tempClub) {
       addNotification(
-        `Booking Cancelled: ${clubForDialog.name}`,
-        `User ${currentUser?.displayName || currentUser?.email || bookingToCancel.customer.slice(-4)} cancelled their booking for ${serviceForDialog?.name || 'a service'} on ${new Date(bookingToCancel.bookingDate).toLocaleDateString()}.`,
+        `Booking Cancelled: ${tempClub.name}`,
+        `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.slice(-4)} cancelled their booking for ${tempService?.name || 'a service'} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`,
         '/dashboard/owner',
         `booking_cancelled_${bookingId}`
       );
     }
+    
+    setIsCancelConfirmOpen(false);
+    setBookingToCancelForDialog(null);
     // In a real app, you'd also make an API call here to update the backend.
     // e.g., await cancelBookingApi(bookingId);
   };
@@ -340,7 +362,7 @@ export default function UserDashboardPage() {
                               variant="ghost" 
                               size="icon" 
                               title="Cancel Booking"
-                              onClick={() => handleCancelBooking(booking._id)}
+                              onClick={() => initiateCancelBooking(booking)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -467,7 +489,7 @@ export default function UserDashboardPage() {
           onOpenChange={(open) => {
             setIsDetailsDialogOpen(open);
             if (!open) {
-              setBookingForDialog(null); // Clear dialog data when closed
+              setBookingForDialog(null); 
               setClubForDialog(null);
               setServiceForDialog(null);
             }
@@ -475,10 +497,38 @@ export default function UserDashboardPage() {
           booking={bookingForDialog}
           club={clubForDialog}
           service={serviceForDialog}
-          isLoading={isLoadingDialogData && !clubForDialog && !serviceForDialog} // Show general loading if data isn't ready
+          isLoading={isLoadingDialogData && !clubForDialog && !serviceForDialog}
         />
+      )}
+
+      {bookingToCancelForDialog && (
+        <AlertDialog open={isCancelConfirmOpen} onOpenChange={setIsCancelConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center">
+                <AlertCircle className="mr-2 h-6 w-6 text-destructive" />
+                Confirm Cancellation
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to cancel your booking for{' '}
+                <strong>{serviceForDialog?.name || bookingToCancelForDialog.service}</strong> at{' '}
+                <strong>{clubForDialog?.name || bookingToCancelForDialog.club}</strong> on{' '}
+                <strong>{format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}</strong> at{' '}
+                <strong>{bookingToCancelForDialog.startTime}</strong>? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setBookingToCancelForDialog(null)}>Back</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={executeCancelBooking}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Confirm Cancel
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );
 }
-
