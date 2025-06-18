@@ -127,8 +127,38 @@ export default function UserDashboardPage() {
   };
   
   const hasBeenReviewed = (bookingId: string) => {
-    return bookingId === 'ub3_mock_reviewed'; 
+    // This is a mock check. In a real app, you'd check against actual review data.
+    // For example, if 'ub3' from mockUserBookings was reviewed.
+    return bookingId === 'ub3_mock_reviewed'; // Assuming 'ub3' is the ID of a reviewed booking for testing
   };
+
+  const handleViewBookingDetails = (bookingId: string) => {
+    const booking = userBookings.find(b => b.id === bookingId);
+    if (!booking) {
+      toast({
+        variant: "destructive",
+        toastTitle: "Error",
+        toastDescription: "Booking details not found.",
+      });
+      return;
+    }
+    // In a real app, this would be a modal or a new page.
+    // For now, using alert for simplicity and consistency with OwnerDashboard placeholder.
+    alert(
+      `Booking Details (User View):\n\n` +
+      `ID: ${booking.id}\n` +
+      `Club ID: ${booking.clubId}\n` + 
+      `Service ID: ${booking.serviceId}\n` + 
+      `Date: ${new Date(booking.date).toLocaleDateString()}\n` +
+      `Time: ${booking.startTime} - ${booking.endTime}\n` +
+      `Status: ${booking.status}\n` +
+      `Price: $${booking.totalPrice.toFixed(2)}\n` +
+      `Created: ${new Date(booking.createdAt).toLocaleString()}\n` +
+      `${booking.notes ? `Notes: ${booking.notes}\n` : ''}` +
+      `\n(Placeholder: Full booking detail view not yet implemented)`
+    );
+  };
+
 
   // Combined initial loading state
   if (authLoading || (isLoadingBookings && !bookingsError && !currentUser)) {
@@ -258,7 +288,7 @@ export default function UserDashboardPage() {
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
                         <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                         <TableCell className="text-right space-x-1 p-2 sm:p-4">
-                          <Button variant="ghost" size="icon" title="View Details"><Eye className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" title="View Details" onClick={() => handleViewBookingDetails(booking.id)}><Eye className="h-4 w-4" /></Button>
                           {booking.status === 'pending' && <Button variant="ghost" size="icon" title="Cancel"><Trash2 className="h-4 w-4 text-destructive" /></Button>}
                         </TableCell>
                       </TableRow>
@@ -297,7 +327,7 @@ export default function UserDashboardPage() {
                       <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
                       <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
-                          <Button variant="ghost" size="icon" title="View Details"><Eye className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" title="View Details" onClick={() => handleViewBookingDetails(booking.id)}><Eye className="h-4 w-4" /></Button>
                           {booking.status === 'completed' && (
                             !hasBeenReviewed(booking.id) ? (
                               <Button variant="outline" size="sm" onClick={() => handleOpenReviewDialog(booking)}>
