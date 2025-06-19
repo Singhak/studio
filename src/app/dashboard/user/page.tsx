@@ -87,11 +87,14 @@ export default function UserDashboardPage() {
       try {
         const bookings = await getBookingsByUserId(currentUser.uid);
         bookings.sort((a, b) => {
-          const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.bookingDate) >= new Date();
-          const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date();
-          if (aIsUpcoming && !bIsUpcoming) return -1;
-          if (!aIsUpcoming && bIsUpcoming) return 1;
-          return new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime();
+            const aDate = parseISO(a.bookingDate);
+            const bDate = parseISO(b.bookingDate);
+            const today = new Date(new Date().setHours(0,0,0,0));
+            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && aDate >= today;
+            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && bDate >= today;
+            if (aIsUpcoming && !bIsUpcoming) return -1;
+            if (!aIsUpcoming && bIsUpcoming) return 1;
+            return bDate.getTime() - aDate.getTime();
         });
         console.log("UserDashboard: useEffect[fetchBookings] - Bookings fetched:", bookings.length);
         setUserBookings(bookings);
@@ -149,7 +152,8 @@ export default function UserDashboardPage() {
   };
 
   const hasBeenReviewed = (bookingId: string) => {
-    return bookingId === 'ub3_mock_reviewed';
+    // This is a mock, in real app, check against actual review data
+    return bookingId === 'ub3_mock_reviewed'; // Example booking ID that has been reviewed
   };
 
   const handleOpenDetailsDialog = async (booking: Booking) => {
@@ -170,24 +174,24 @@ export default function UserDashboardPage() {
   };
 
   const initiateCancelBooking = async (booking: Booking) => {
-    setBookingForDialog(booking); 
-    setIsLoadingDialogData(true);
+    setBookingForDialog(booking); // Used to show loader on the correct button
+    setIsLoadingDialogData(true); // Reuse this flag for generic detail loading before dialog
     try {
-      // Fetch club and service details for the dialog message
+      // Pre-fetch details for the confirmation dialog
       let tempClub = clubForDialog && clubForDialog._id === booking.club ? clubForDialog : null;
       let tempService = serviceForDialog && serviceForDialog._id === booking.service ? serviceForDialog : null;
 
       if (!tempClub) tempClub = await getClubById(booking.club);
       if (!tempService) tempService = await getServiceById(booking.service);
 
-      setClubForDialog(tempClub); 
-      setServiceForDialog(tempService); 
-      setBookingToCancelForDialog(booking); 
+      setClubForDialog(tempClub); // Store fetched club for dialog
+      setServiceForDialog(tempService); // Store fetched service for dialog
+      setBookingToCancelForDialog(booking); // Set the specific booking for cancellation
       setIsCancelConfirmOpen(true);
     } catch (error) {
       toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not load details for cancellation confirmation." });
     } finally {
-      setIsLoadingDialogData(false);
+        setIsLoadingDialogData(false); // Reset loading state
     }
   };
 
@@ -209,22 +213,22 @@ export default function UserDashboardPage() {
 
     toast({
       toastTitle: "Booking Cancelled",
-      toastDescription: `Your booking at ${clubNameForToast} for ${serviceNameForToast} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')} has been cancelled.`,
+      toastDescription: `Your booking at ${clubNameForToast} for ${serviceNameForToast} on ${format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')} has been cancelled.`,
     });
 
     if (clubForDialog && currentUser) {
       addNotification(
         `Booking Cancelled: ${clubForDialog.name}`,
-        `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.slice(-4)} cancelled their booking for ${serviceNameForToast} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`,
-        '/dashboard/owner', // Link to owner dashboard
+        `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.slice(-4)} cancelled their booking for ${serviceNameForToast} on ${format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`,
+        '/dashboard/owner',
         `booking_cancelled_${bookingId}`
       );
     }
 
     setIsCancelConfirmOpen(false);
     setBookingToCancelForDialog(null);
-    setClubForDialog(null); 
-    setServiceForDialog(null); 
+    setClubForDialog(null); // Clear temporary dialog data
+    setServiceForDialog(null); // Clear temporary dialog data
   };
 
  const canReschedule = (booking: Booking): boolean => {
@@ -233,7 +237,8 @@ export default function UserDashboardPage() {
     }
     try {
       // booking.bookingDate is expected to be in "YYYY-MM-DD" format
-      const dateParts = booking.bookingDate.split('T')[0].split('-'); // Handle potential ISO string, take bookingDate part
+      const datePart = booking.bookingDate.split('T')[0]; // Ensure we only use the date part
+      const dateParts = datePart.split('-');
       const timeParts = booking.startTime.split(':');
 
       if (dateParts.length !== 3 || timeParts.length !== 2) {
@@ -269,7 +274,7 @@ export default function UserDashboardPage() {
   };
 
   const initiateRescheduleBooking = async (booking: Booking) => {
-    setBookingForDialog(booking); 
+    setBookingForDialog(booking); // For loader on button
     setIsLoadingDialogData(true);
     try {
       const club = await getClubById(booking.club);
@@ -421,11 +426,14 @@ export default function UserDashboardPage() {
                       try {
                         const bookings = await getBookingsByUserId(currentUser.uid);
                         bookings.sort((a,b) => {
-                            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && parseISO(a.bookingDate) >= new Date(new Date().setHours(0,0,0,0));
-                            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && parseISO(b.bookingDate) >= new Date(new Date().setHours(0,0,0,0));
+                            const aDate = parseISO(a.bookingDate);
+                            const bDate = parseISO(b.bookingDate);
+                            const today = new Date(new Date().setHours(0,0,0,0));
+                            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && aDate >= today;
+                            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && bDate >= today;
                             if (aIsUpcoming && !bIsUpcoming) return -1;
                             if (!aIsUpcoming && bIsUpcoming) return 1;
-                            return parseISO(b.bookingDate).getTime() - parseISO(a.bookingDate).getTime();
+                            return bDate.getTime() - aDate.getTime();
                          });
                         setUserBookings(bookings);
                       } catch (err: any) {
@@ -706,3 +714,4 @@ export default function UserDashboardPage() {
   );
 }
 
+    

@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { BookingCalendar } from '@/components/features/booking/BookingCalendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, Calendar, Clock, Edit, Loader2, Package } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
 interface RescheduleBookingDialogProps {
@@ -37,7 +37,14 @@ export function RescheduleBookingDialog({
   onRescheduleConfirm,
 }: RescheduleBookingDialogProps) {
   const { toast } = useToast();
-  const [selectedNewDate, setSelectedNewDate] = useState<Date | undefined>(new Date(booking.date)); // Initialize with current booking date
+  const [selectedNewDate, setSelectedNewDate] = useState<Date | undefined>(() => {
+    try {
+      return parseISO(booking.bookingDate); // Initialize with current booking date
+    } catch (e) {
+      console.error("Error parsing initial booking date for reschedule dialog:", booking.bookingDate, e);
+      return new Date(); // Fallback to current date if parsing fails
+    }
+  });
   const [selectedNewSlot, setSelectedNewSlot] = useState<TimeSlot | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
 
@@ -57,7 +64,7 @@ export function RescheduleBookingDialog({
     }
 
     // Optional: Add a check to prevent rescheduling to the exact same slot
-    if (format(selectedNewDate, 'yyyy-MM-dd') === booking.date && selectedNewSlot.startTime === booking.startTime) {
+    if (format(selectedNewDate, 'yyyy-MM-dd') === booking.bookingDate && selectedNewSlot.startTime === booking.startTime) {
         toast({
             variant: "default", // Or "destructive" if you want to forbid it
             toastTitle: "Same Slot Selected",
@@ -107,7 +114,7 @@ export function RescheduleBookingDialog({
               <CardContent className="space-y-1 text-sm">
                 <p><strong>Service:</strong> {service.name}</p>
                 <p><strong>Club:</strong> {club.name}</p>
-                <p className="flex items-center"><Calendar className="w-4 h-4 mr-2 text-muted-foreground"/><strong>Date:</strong> {format(new Date(booking.date), 'EEEE, MMM d, yyyy')}</p>
+                <p className="flex items-center"><Calendar className="w-4 h-4 mr-2 text-muted-foreground"/><strong>Date:</strong> {format(parseISO(booking.bookingDate), 'EEEE, MMM d, yyyy')}</p>
                 <p className="flex items-center"><Clock className="w-4 h-4 mr-2 text-muted-foreground"/><strong>Time:</strong> {booking.startTime} - {booking.endTime}</p>
               </CardContent>
             </Card>
@@ -145,3 +152,4 @@ export function RescheduleBookingDialog({
   );
 }
 
+    
