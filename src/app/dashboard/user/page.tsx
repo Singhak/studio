@@ -28,7 +28,7 @@ import { getAllClubs, getClubById, getServiceById } from '@/services/clubService
 import { getBookingsByUserId } from '@/services/bookingService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { format, parse, isAfter, subHours } from 'date-fns';
+import { format, subHours, isAfter, parseISO } from 'date-fns';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -132,7 +132,7 @@ export default function UserDashboardPage() {
     fetchFavoriteClubs();
   }, []);
 
-  const upcomingBookings = useMemo(() => userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date()), [userBookings]);
+  const upcomingBookings = useMemo(() => userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && parseISO(b.date) >= new Date(new Date().setHours(0,0,0,0))), [userBookings]);
   const pastBookings = useMemo(() => userBookings.filter(b => !upcomingBookings.map(ub => ub.id).includes(b.id)), [userBookings, upcomingBookings]);
   const completedBookingsCount = useMemo(() => userBookings.filter(b => b.status === 'completed').length, [userBookings]);
 
@@ -225,26 +225,44 @@ export default function UserDashboardPage() {
     setServiceForDialog(null); 
   };
 
-  const canReschedule = (booking: Booking): boolean => {
+ const canReschedule = (booking: Booking): boolean => {
     if (booking.status !== 'confirmed' && booking.status !== 'pending') {
       return false;
     }
     try {
-      // Ensure booking.date is treated as YYYY-MM-DD
-      const datePart = booking.date.split('T')[0];
-      const bookingDateTimeString = `${datePart}T${booking.startTime}`;
+      // booking.date is expected to be in "YYYY-MM-DD" format
+      const dateParts = booking.date.split('T')[0].split('-'); // Handle potential ISO string, take date part
+      const timeParts = booking.startTime.split(':');
+
+      if (dateParts.length !== 3 || timeParts.length !== 2) {
+        console.error("Invalid date or time string format for reschedule check.", booking.date, booking.startTime);
+        return false;
+      }
+
+      const year = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed in JavaScript Date
+      const day = parseInt(dateParts[2], 10);
+      const hours = parseInt(timeParts[0], 10);
+      const minutes = parseInt(timeParts[1], 10);
+
+      if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) {
+        console.error("Failed to parse date/time components for reschedule check.");
+        return false;
+      }
       
-      const bookingStartDateTime = parse(bookingDateTimeString, "yyyy-MM-dd'T'HH:mm", new Date());
+      const bookingStartDateTime = new Date(year, month, day, hours, minutes);
 
       if (isNaN(bookingStartDateTime.getTime())) {
-          console.error("Invalid date/time for rescheduling check:", bookingDateTimeString, "Original booking.date:", booking.date, "Original booking.startTime:", booking.startTime);
-          return false;
+        console.error("Constructed bookingStartDateTime is invalid for reschedule check.");
+        return false;
       }
+
       const oneHourBeforeBooking = subHours(bookingStartDateTime, 1);
       return isAfter(oneHourBeforeBooking, new Date());
+
     } catch (e) {
-        console.error("Error parsing booking date/time for reschedule check:", e, "Booking date:", booking.date, "Booking startTime:", booking.startTime);
-        return false;
+      console.error("Error in canReschedule logic:", e, "Booking date:", booking.date, "Booking startTime:", booking.startTime);
+      return false;
     }
   };
 
@@ -277,7 +295,7 @@ export default function UserDashboardPage() {
       return;
     }
     const bookingId = bookingForRescheduleDialog.id;
-    const originalDate = format(new Date(bookingForRescheduleDialog.date), 'MMM d, yyyy');
+    const originalDate = format(parseISO(bookingForRescheduleDialog.date), 'MMM d, yyyy');
     const originalTime = `${bookingForRescheduleDialog.startTime}-${bookingForRescheduleDialog.endTime}`;
     const newDateFormatted = format(newDate, 'yyyy-MM-dd');
 
@@ -401,11 +419,11 @@ export default function UserDashboardPage() {
                       try {
                         const bookings = await getBookingsByUserId(currentUser.uid);
                         bookings.sort((a,b) => {
-                            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.date) >= new Date();
-                            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.date) >= new Date();
+                            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && parseISO(a.date) >= new Date(new Date().setHours(0,0,0,0));
+                            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && parseISO(b.date) >= new Date(new Date().setHours(0,0,0,0));
                             if (aIsUpcoming && !bIsUpcoming) return -1;
                             if (!aIsUpcoming && bIsUpcoming) return 1;
-                            return new Date(b.date).getTime() - new Date(a.date).getTime();
+                            return parseISO(b.date).getTime() - parseISO(a.date).getTime();
                          });
                         setUserBookings(bookings);
                       } catch (err: any) {
@@ -455,7 +473,7 @@ export default function UserDashboardPage() {
                     {upcomingBookings.map((booking) => (
                       <TableRow key={booking.id}>
                         <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-4)}</TableCell>
-                        <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="p-2 sm:p-4">{format(parseISO(booking.date), 'MMM d, yyyy')}</TableCell>
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
                         <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                         <TableCell className="text-right space-x-1 p-2 sm:p-4">
@@ -536,7 +554,7 @@ export default function UserDashboardPage() {
                   {pastBookings.map((booking) => (
                     <TableRow key={booking.id}>
                       <TableCell className="font-medium p-2 sm:p-4">Club {booking.clubId.slice(-4)}</TableCell>
-                      <TableCell className="p-2 sm:p-4">{new Date(booking.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="p-2 sm:p-4">{format(parseISO(booking.date), 'MMM d, yyyy')}</TableCell>
                       <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
                           <Button
@@ -648,7 +666,7 @@ export default function UserDashboardPage() {
                 Are you sure you want to cancel your booking for{' '}
                 <strong>{serviceForDialog?.name || bookingToCancelForDialog.serviceId.slice(-6)}</strong> at{' '}
                 <strong>{clubForDialog?.name || bookingToCancelForDialog.clubId.slice(-6)}</strong> on{' '}
-                <strong>{format(new Date(bookingToCancelForDialog.date), 'MMM d, yyyy')}</strong> at{' '}
+                <strong>{format(parseISO(bookingToCancelForDialog.date), 'MMM d, yyyy')}</strong> at{' '}
                 <strong>{bookingToCancelForDialog.startTime}</strong>? This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
