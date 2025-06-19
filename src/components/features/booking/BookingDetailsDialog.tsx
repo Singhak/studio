@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertTriangle, Calendar, Clock, DollarSign, Hash, Home, Info, MapPin, Package, User, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 interface BookingDetailsDialogProps {
   isOpen: boolean;
@@ -90,7 +90,7 @@ export function BookingDetailsDialog({
               <dl className="divide-y divide-border">
                 <DetailItem label="Booking ID" value={booking.id} />
                 <DetailItem label="Status" value={<Badge variant={getStatusBadgeVariant(booking.status)}>{booking.status}</Badge>} />
-                <DetailItem label="Booked On" value={format(new Date(booking.createdAt), "MMM d, yyyy 'at' h:mm a")} />
+                <DetailItem label="Booked On" value={format(parseISO(booking.createdAt), "MMM d, yyyy 'at' h:mm a")} />
                  <DetailItem label="User ID" value={booking.userId} />
               </dl>
             </Card>
@@ -108,7 +108,7 @@ export function BookingDetailsDialog({
             <Card className="p-4">
                 <h3 className="text-lg font-semibold mb-2 flex items-center"><Calendar className="w-5 h-5 mr-2 text-primary"/>Date & Time</h3>
                 <dl className="divide-y divide-border">
-                    <DetailItem label="Date" value={format(new Date(booking.date), "EEEE, MMMM d, yyyy")} icon={Calendar}/>
+                    <DetailItem label="Date" value={format(parseISO(booking.date), "EEEE, MMMM d, yyyy")} icon={Calendar}/>
                     <DetailItem label="Time" value={`${booking.startTime} - ${booking.endTime}`} icon={Clock}/>
                 </dl>
             </Card>
@@ -134,3 +134,4 @@ export function BookingDetailsDialog({
     </Dialog>
   );
 }
+
