@@ -146,9 +146,7 @@ export default function UserDashboardPage() {
   };
 
   const hasBeenReviewed = (bookingId: string) => {
-    // This is a mock check. In a real app, you'd check against actual review data.
-    // For example, if the booking object itself had a `hasReview: true` property.
-    return bookingId === 'ub3_mock_reviewed'; // Assuming 'ub3_mock_reviewed' is an ID of a booking that's been reviewed
+    return bookingId === 'ub3_mock_reviewed';
   };
 
   const handleOpenDetailsDialog = async (booking: Booking) => {
@@ -169,7 +167,7 @@ export default function UserDashboardPage() {
   };
 
   const initiateCancelBooking = async (booking: Booking) => {
-    setBookingForDialog(booking); // Re-using for dialog data
+    setBookingForDialog(booking);
     setIsLoadingDialogData(true);
     try {
       // Fetch club and service details for the dialog message
@@ -211,7 +209,7 @@ export default function UserDashboardPage() {
       toastDescription: `Your booking at ${clubNameForToast} for ${serviceNameForToast} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')} has been cancelled.`,
     });
 
-    if (clubForDialog) {
+    if (clubForDialog && currentUser) {
       addNotification(
         `Booking Cancelled: ${clubForDialog.name}`,
         `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.slice(-4)} cancelled their booking for ${serviceNameForToast} on ${format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`,
@@ -224,8 +222,6 @@ export default function UserDashboardPage() {
     setBookingToCancelForDialog(null);
     setClubForDialog(null);
     setServiceForDialog(null);
-    // In a real app, you'd also make an API call here to update the backend.
-    // e.g., await cancelBookingApi(bookingId);
   };
 
   const canReschedule = (booking: Booking): boolean => {
@@ -251,7 +247,7 @@ export default function UserDashboardPage() {
   };
 
   const initiateRescheduleBooking = async (booking: Booking) => {
-    setBookingForDialog(booking); // Re-use for dialog loading state
+    setBookingForDialog(booking);
     setIsLoadingDialogData(true);
     try {
       const club = await getClubById(booking.club);

@@ -15,6 +15,7 @@ interface HandleCustomApiLoginArgs {
   setupFcm: SetupFcmFn;
   setAndStoreAccessToken: (token: string | null) => void;
   setAndStoreRefreshToken: (token: string | null) => void;
+  clientInstanceId: string; // Added this line
 }
 
 interface CustomApiLoginResult {
@@ -30,6 +31,7 @@ export const handleCustomApiLogin = async ({
   setupFcm,
   setAndStoreAccessToken,
   setAndStoreRefreshToken,
+  clientInstanceId, // Added this line
 }: HandleCustomApiLoginArgs): Promise<CourtlyUser | null> => {
   try {
     const firebaseIdToken = await firebaseUser.getIdToken();
@@ -39,13 +41,16 @@ export const handleCustomApiLogin = async ({
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken: firebaseIdToken, currentLocation: currentCity?.city }),
+      body: JSON.stringify({ 
+        idToken: firebaseIdToken,
+        currentLocation: currentCity?.city,
+        clientInstanceId: clientInstanceId, // Send the client instance ID
+      }),
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: "Custom login failed after Firebase sign-in." }));
       toast({ variant: "destructive", toastTitle: "Custom Login Failed", toastDescription: errorData.message || `Error ${response.status}` });
-      // Don't signOut from Firebase here, onAuthStateChanged will handle null user if this fails critically
       return null;
     }
 
@@ -58,13 +63,11 @@ export const handleCustomApiLogin = async ({
     if (userRoles.length === 0 && typeof window !== 'undefined') {
       localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(finalRoles));
     }
-    // Ensure 'user' role is always present if others are defined
     if (finalRoles.length > 0 && !finalRoles.includes('user')) {
       finalRoles = ['user', ...finalRoles];
     } else if (finalRoles.length === 0) {
       finalRoles = ['user'];
     }
-
 
     const courtlyUser: CourtlyUser = {
       displayName: firebaseUser.displayName,
@@ -73,23 +76,15 @@ export const handleCustomApiLogin = async ({
       photoURL: firebaseUser.photoURL,
       uid: firebaseUser.uid,
       roles: finalRoles,
-      // Spread FirebaseUser to retain its methods/props if CourtlyUser extends it.
-      // This part depends on CourtlyUser definition. If it's a standalone interface, map fields.
-      // For simplicity, assuming CourtlyUser has all FirebaseUser fields explicitly or via extension.
-      // If CourtlyUser is NOT an extension of FirebaseUser, map necessary fields like:
-      // metadata: firebaseUser.metadata, etc.
-      // As currently defined, CourtlyUser directly lists the needed properties.
-      // To include all FirebaseUser properties and methods:
       ...(firebaseUser as any),
     };
-
-    await setupFcm(courtlyUser); // Setup FCM after successful login and user creation
+    
+    await setupFcm(courtlyUser);
     return courtlyUser;
 
   } catch (error) {
     console.error("Error during custom API login:", error);
     toast({ variant: "destructive", toastTitle: "Login Error", toastDescription: "Failed to communicate with authentication server." });
-    // Don't signOut from Firebase here
     return null;
   }
 };
@@ -99,7 +94,7 @@ interface AttemptTokenRefreshArgs {
   toast: ToastFn;
   setAndStoreAccessToken: (token: string | null) => void;
   setAndStoreRefreshToken: (token: string | null) => void;
-  performLogout: () => Promise<void>; // Function to call full logout sequence
+  performLogout: () => Promise<void>; 
 }
 
 export const attemptTokenRefresh = async ({

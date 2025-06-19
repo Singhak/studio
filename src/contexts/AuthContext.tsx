@@ -12,7 +12,7 @@ import { useToast, type ToastFn } from "@/hooks/use-toast";
 import { Button } from '@/components/ui/button';
 import type { UserRole, AppNotification } from '@/lib/types';
 
-import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX, NOTIFICATION_STORAGE_PREFIX } from './authHelpers/constants';
+import { CLIENT_INSTANCE_ID_KEY, CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX, NOTIFICATION_STORAGE_PREFIX } from './authHelpers/constants';
 import {
   signUpWithEmailFirebase,
   signInWithEmailFirebase,
@@ -69,6 +69,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const getOrCreateClientInstanceId = (): string => {
+  if (typeof window !== 'undefined') {
+    let instanceId = localStorage.getItem(CLIENT_INSTANCE_ID_KEY);
+    if (!instanceId) {
+      instanceId = crypto.randomUUID();
+      localStorage.setItem(CLIENT_INSTANCE_ID_KEY, instanceId);
+      console.log("AUTH_CONTEXT: New client instance ID created:", instanceId);
+    }
+    return instanceId;
+  }
+  // This fallback should ideally not be hit in a client-side context where login occurs.
+  return 'client-id-unavailable-ssr-or-no-window';
+};
+
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<CourtlyUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,9 +97,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const unsubscribeFcmOnMessageRef = useRef<(() => void) | null>(null);
   
-  // Re-entrancy guards for onAuthStateChanged
   const isProcessingLoginRef = useRef(false);
-  const processingUidRef = useRef<string | null>(null); // Stores UID of the event being processed or 'null_user_event'
+  const processingUidRef = useRef<string | null>(null); 
 
 
   const setAndStoreAccessToken = useCallback((token: string | null) => {
@@ -124,10 +138,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fullLogoutSequence = useCallback(async () => {
     console.log("AUTH_CONTEXT: fullLogoutSequence initiated.");
     const uidBeforeLogout = auth.currentUser?.uid;
-    await logoutFirebase(auth, toast); // This will trigger onAuthStateChanged(null)
+    await logoutFirebase(auth, toast); 
 
-    // The following state updates will happen, but onAuthStateChanged(null) will also handle them
-    // This is for immediate UI feedback if onAuthStateChanged is delayed
     clearCustomTokens();
     setAndStoreAccessToken(null);
     setAndStoreRefreshToken(null);
@@ -161,7 +173,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      const eventUid = firebaseUser?.uid || 'null_user_event'; // Unique ID for the event, including null user events
+      const eventUid = firebaseUser?.uid || 'null_user_event';
       console.log(`AUTH_CONTEXT: [EVENT START] onAuthStateChanged. Firebase UID: ${eventUid}. Current isProcessing: ${isProcessingLoginRef.current}, for UID: ${processingUidRef.current}`);
 
       if (isProcessingLoginRef.current && processingUidRef.current === eventUid) {
@@ -170,13 +182,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       isProcessingLoginRef.current = true;
-      processingUidRef.current = eventUid; // Mark this event UID as being processed
+      processingUidRef.current = eventUid; 
       console.log(`AUTH_CONTEXT: [PROCESSING] Event for UID: ${eventUid}. Setting loading = true.`);
       setLoading(true);
 
       try {
         if (firebaseUser) {
           console.log(`AUTH_CONTEXT: [USER DETECTED] Firebase user ${firebaseUser.uid}. Attempting custom session.`);
+          const clientInstanceId = getOrCreateClientInstanceId();
+          console.log(`AUTH_CONTEXT: [DEVICE_ID] Using clientInstanceId: ${clientInstanceId} for login API call.`);
           const loggedInCourtlyUser = await handleCustomApiLogin({
             firebaseUser,
             auth,
@@ -184,30 +198,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setupFcm,
             setAndStoreAccessToken,
             setAndStoreRefreshToken,
+            clientInstanceId, // Pass the ID here
           });
 
           if (!loggedInCourtlyUser) {
             console.warn(`AUTH_CONTEXT: [CUSTOM LOGIN FAILED] For Firebase UID ${firebaseUser.uid}. Forcing Firebase logout.`);
-            await logoutFirebase(auth, toast); // This triggers onAuthStateChanged(null) with a new eventUid
-            // State clearing will be handled by the subsequent onAuthStateChanged(null) event.
+            await logoutFirebase(auth, toast); 
           } else {
             console.log(`AUTH_CONTEXT: [CUSTOM LOGIN SUCCESS] For ${loggedInCourtlyUser.uid}. Roles: ${loggedInCourtlyUser.roles.join(', ')}. Setting currentUser.`);
             setCurrentUser(loggedInCourtlyUser);
           }
-        } else { // No Firebase user (firebaseUser is null)
-          console.log("AUTH_CONTEXT: [NO FIREBASE USER] Event.");
-          // Check current app state to see if cleanup is needed
-          const appStateHadUser = currentUser !== null || accessToken !== null || refreshToken !== null;
-          if (appStateHadUser) {
-            console.log("AUTH_CONTEXT: [CLEANING SESSION] App state had user/tokens. Clearing.");
+        } else { 
+          if (currentUser !== null || accessToken !== null || refreshToken !== null) {
+            console.log("AUTH_CONTEXT: No Firebase user detected by onAuthStateChanged. Current app state indicates an active session. Clearing session.");
             clearCustomTokens();
             setAndStoreAccessToken(null);
             setAndStoreRefreshToken(null);
-            setCurrentUser(null);
+            setCurrentUser(null); 
             setNotifications([]);
             setUnreadCount(0);
           } else {
-            console.log("AUTH_CONTEXT: [ALREADY CLEAN] App state already clean (no user/tokens). No session state changes needed.");
+            console.log("AUTH_CONTEXT: No Firebase user detected, and app state is already clean (no user, no tokens). No session state changes needed.");
           }
           
           if (unsubscribeFcmOnMessageRef.current) {
@@ -215,7 +226,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             unsubscribeFcmOnMessageRef.current();
             unsubscribeFcmOnMessageRef.current = null;
           }
-          await setupFcm(null); // Reset FCM for no user
+          await setupFcm(null); 
         }
       } catch (e) {
         console.error(`AUTH_CONTEXT: [CRITICAL ERROR] During onAuthStateChanged for UID ${eventUid}:`, e);
@@ -223,22 +234,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.error("AUTH_CONTEXT: [CRITICAL ERROR] Firebase user still present. Forcing logout to reset state.");
             await logoutFirebase(auth, toast);
         } else {
-            // Ensure cleanup even if Firebase user is already gone after error
             console.error("AUTH_CONTEXT: [CRITICAL ERROR] Firebase user already null. Ensuring local cleanup.");
             clearCustomTokens();
             setAndStoreAccessToken(null); setAndStoreRefreshToken(null); setCurrentUser(null);
             setNotifications([]); setUnreadCount(0);
         }
       } finally {
-        // Only allow the event that was *actually* processed to clear the processing flag and loading state.
         if (processingUidRef.current === eventUid) {
             isProcessingLoginRef.current = false;
-            processingUidRef.current = null; // Clear the UID that was being processed
-            setLoading(false); // This event is done, set loading to false.
+            processingUidRef.current = null; 
+            setLoading(false); 
             console.log(`AUTH_CONTEXT: [EVENT END] For UID: ${eventUid}. loading=false, isProcessingLoginRef=false.`);
         } else {
-            // This 'finally' block is for an event that was superseded by a newer one.
-            // Do not change isProcessingLoginRef or setLoading. The newer event will manage them.
             console.warn(`AUTH_CONTEXT: [FINALLY SUPERSEDED] For event UID ${eventUid}. Current processing is for ${processingUidRef.current}. No changes to flags/loading by this old event.`);
         }
       }
@@ -252,11 +259,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessageRef.current();
       }
     };
-  // Dependency array is kept minimal; this effect primarily reacts to Firebase's own auth changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken]); 
+  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken, accessToken, currentUser, refreshToken]); // Added accessToken, currentUser, refreshToken to deps for the "else" block check
 
-  // Redirection logic effect
   useEffect(() => {
     console.log(`AUTH_CONTEXT: [REDIRECTION CHECK] Loading: ${loading}, Path: ${pathname}, CurrentUser: ${!!currentUser}, AccessToken: ${!!accessToken}`);
 
@@ -286,7 +290,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser, loading, router, pathname, accessToken, refreshToken, fullLogoutSequence]);
 
-  // Initialization for apiUtils
   useEffect(() => {
     initializeAuthHelpers({
       getAccessToken: () => accessToken,
@@ -295,7 +298,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [accessToken, attemptTokenRefresh, fullLogoutSequence]);
 
-  // Fetch initial notifications
   useEffect(() => {
     if (currentUser?.uid) {
       fetchAndSetWeeklyAppNotifications(currentUser, setNotifications, setUnreadCount);
@@ -305,7 +307,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentUser?.uid]);
 
-  // Show notification permission reminder
   useEffect(() => {
     if (loading) return;
     showNotificationPermissionReminder(toast, Button);
