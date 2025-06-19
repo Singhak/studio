@@ -35,7 +35,7 @@ import {
   setupFcmMessaging,
   showNotificationPermissionReminder,
   getNotificationStorageKey
-} from './authHelpers/notificationManager.tsx';
+} from './authHelpers/notificationManager'; // Corrected import path
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 
 
@@ -264,7 +264,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessageRef.current();
       }
     };
-  }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken]); // Removed setupFcm, fullLogoutSequence from deps
+  }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
 
   useEffect(() => {
     console.log(`AUTH_CONTEXT: [REDIRECTION CHECK] Loading: ${loading}, Path: ${pathname}, CurrentUser: ${!!currentUser}, AccessToken: ${!!accessToken}`);
