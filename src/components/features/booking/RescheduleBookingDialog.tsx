@@ -95,7 +95,7 @@ export function RescheduleBookingDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl md:max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-3xl md:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center">
             <Edit className="w-6 h-6 mr-2 text-primary" /> Reschedule Booking
@@ -151,5 +151,3 @@ export function RescheduleBookingDialog({
     </Dialog>
   );
 }
-
-    
