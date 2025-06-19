@@ -169,7 +169,7 @@ export default function UserDashboardPage() {
   };
 
   const initiateCancelBooking = async (booking: Booking) => {
-    setBookingForDialog(booking); // Keep for potential use in dialog if details are fetched
+    setBookingForDialog(booking); 
     setIsLoadingDialogData(true);
     try {
       let tempClub = clubForDialog && clubForDialog._id === booking.clubId ? clubForDialog : null;
@@ -178,9 +178,9 @@ export default function UserDashboardPage() {
       if (!tempClub) tempClub = await getClubById(booking.clubId);
       if (!tempService) tempService = await getServiceById(booking.serviceId);
 
-      setClubForDialog(tempClub); // For dialog display
-      setServiceForDialog(tempService); // For dialog display
-      setBookingToCancelForDialog(booking); // The actual booking to cancel
+      setClubForDialog(tempClub); 
+      setServiceForDialog(tempService); 
+      setBookingToCancelForDialog(booking); 
       setIsCancelConfirmOpen(true);
     } catch (error) {
        toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not load details for cancellation confirmation." });
@@ -221,8 +221,8 @@ export default function UserDashboardPage() {
 
     setIsCancelConfirmOpen(false);
     setBookingToCancelForDialog(null);
-    setClubForDialog(null); // Clear dialog context
-    setServiceForDialog(null); // Clear dialog context
+    setClubForDialog(null); 
+    setServiceForDialog(null); 
   };
 
   const canReschedule = (booking: Booking): boolean => {
@@ -230,23 +230,26 @@ export default function UserDashboardPage() {
       return false;
     }
     try {
-      const bookingDateTimeString = `${booking.date}T${booking.startTime}`;
+      // Ensure booking.date is treated as YYYY-MM-DD
+      const datePart = booking.date.split('T')[0];
+      const bookingDateTimeString = `${datePart}T${booking.startTime}`;
+      
       const bookingStartDateTime = parse(bookingDateTimeString, "yyyy-MM-dd'T'HH:mm", new Date());
 
       if (isNaN(bookingStartDateTime.getTime())) {
-          console.error("Invalid date/time for rescheduling check:", bookingDateTimeString);
+          console.error("Invalid date/time for rescheduling check:", bookingDateTimeString, "Original booking.date:", booking.date, "Original booking.startTime:", booking.startTime);
           return false;
       }
       const oneHourBeforeBooking = subHours(bookingStartDateTime, 1);
       return isAfter(oneHourBeforeBooking, new Date());
     } catch (e) {
-        console.error("Error parsing booking date/time for reschedule check:", e);
+        console.error("Error parsing booking date/time for reschedule check:", e, "Booking date:", booking.date, "Booking startTime:", booking.startTime);
         return false;
     }
   };
 
   const initiateRescheduleBooking = async (booking: Booking) => {
-    setBookingForDialog(booking); // General context for loaders
+    setBookingForDialog(booking); 
     setIsLoadingDialogData(true);
     try {
         const club = await getClubById(booking.clubId);
@@ -682,3 +685,4 @@ export default function UserDashboardPage() {
     </div>
   );
 }
+
