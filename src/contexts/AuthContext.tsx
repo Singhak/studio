@@ -79,7 +79,6 @@ const getOrCreateClientInstanceId = (): string => {
     }
     return instanceId;
   }
-  // This fallback should ideally not be hit in a client-side context where login occurs.
   return 'client-id-unavailable-ssr-or-no-window';
 };
 
@@ -87,8 +86,14 @@ const getOrCreateClientInstanceId = (): string => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<CourtlyUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [accessToken, setAccessTokenState] = useState<string | null>(null);
-  const [refreshToken, setRefreshTokenState] = useState<string | null>(null);
+  const [accessToken, setAccessTokenState] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY);
+    return null;
+  });
+  const [refreshToken, setRefreshTokenState] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem(CUSTOM_REFRESH_TOKEN_KEY);
+    return null;
+  });
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
@@ -121,13 +126,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     addNotificationManager(title, body, href, id, notifications, currentUser?.uid, setNotifications, setUnreadCount);
   }, [notifications, currentUser?.uid]);
 
-  const setupFcm: SetupFcmFn = useCallback(async (user: CourtlyUser | null): Promise<(() => void) | null> => {
+  const setupFcm: SetupFcmFn = useCallback(async (userForFcmSetup: CourtlyUser | null): Promise<(() => void) | null> => {
       if (unsubscribeFcmOnMessageRef.current) {
           unsubscribeFcmOnMessageRef.current();
           unsubscribeFcmOnMessageRef.current = null;
       }
-      if (user) {
-          const unsubscribe = await setupFcmMessaging(user, toast, addNotificationCb);
+      if (userForFcmSetup) {
+          const unsubscribe = await setupFcmMessaging(userForFcmSetup, toast, addNotificationCb);
           unsubscribeFcmOnMessageRef.current = unsubscribe;
           return unsubscribe;
       }
@@ -173,7 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      const eventUid = firebaseUser?.uid || 'null_user_event';
+      const eventUid = firebaseUser?.uid || `null_user_event_${Date.now()}`;
       console.log(`AUTH_CONTEXT: [EVENT START] onAuthStateChanged. Firebase UID: ${eventUid}. Current isProcessing: ${isProcessingLoginRef.current}, for UID: ${processingUidRef.current}`);
 
       if (isProcessingLoginRef.current && processingUidRef.current === eventUid) {
@@ -195,10 +200,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             firebaseUser,
             auth,
             toast,
-            setupFcm,
+            setupFcm, // Pass setupFcm directly
             setAndStoreAccessToken,
             setAndStoreRefreshToken,
-            clientInstanceId, // Pass the ID here
+            clientInstanceId,
           });
 
           if (!loggedInCourtlyUser) {
@@ -259,7 +264,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessageRef.current();
       }
     };
-  }, [toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken, accessToken, currentUser, refreshToken]); // Added accessToken, currentUser, refreshToken to deps for the "else" block check
+  // Removed setupFcm from dependency array to break potential loop
+  }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken, fullLogoutSequence]); 
 
   useEffect(() => {
     console.log(`AUTH_CONTEXT: [REDIRECTION CHECK] Loading: ${loading}, Path: ${pathname}, CurrentUser: ${!!currentUser}, AccessToken: ${!!accessToken}`);
