@@ -1,6 +1,7 @@
+
 // src/contexts/authHelpers/notificationManager.ts
-import type { AppNotification, ApiNotification } from '@/lib/types'; // Corrected import path
-import type { CourtlyUser } from '@/contexts/AuthContext'; // CourtlyUser is fine from AuthContext
+import type { AppNotification, ApiNotification } from '@/lib/types';
+import type { CourtlyUser } from '@/contexts/AuthContext';
 import { getMessaging, onMessage, type MessagePayload } from 'firebase/messaging';
 import { initializeFirebaseMessaging, requestNotificationPermission } from '@/lib/firebase/messaging';
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
