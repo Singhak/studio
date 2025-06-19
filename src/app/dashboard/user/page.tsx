@@ -7,12 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { Booking, Club, Service, ClubAddress } from "@/lib/types";
-import { Eye, Edit, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
+import type { Booking, Club, Service, TimeSlot } from "@/lib/types";
+import { Edit, Eye, Trash2, CalendarPlus, Heart, BookCopy, CalendarClock, History as HistoryIcon, MessageSquarePlus, Loader2, AlertTriangle, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { ClubCard } from '@/components/features/clubs/ClubCard';
 import { ReviewForm } from '@/components/features/reviews/ReviewForm';
 import { BookingDetailsDialog } from '@/components/features/booking/BookingDetailsDialog';
+import { RescheduleBookingDialog } from '@/components/features/booking/RescheduleBookingDialog'; // New Dialog
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +28,7 @@ import { getAllClubs, getClubById, getServiceById } from '@/services/clubService
 import { getBookingsByUserId } from '@/services/bookingService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { format, parse, isAfter, addHours, subHours } from 'date-fns';
+import { format, parse, isAfter, subHours } from 'date-fns';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -64,8 +65,10 @@ export default function UserDashboardPage() {
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [bookingToCancelForDialog, setBookingToCancelForDialog] = useState<Booking | null>(null);
 
-  const [isRescheduleConfirmOpen, setIsRescheduleConfirmOpen] = useState(false);
-  const [bookingToRescheduleForDialog, setBookingToRescheduleForDialog] = useState<Booking | null>(null);
+  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
+  const [bookingForRescheduleDialog, setBookingForRescheduleDialog] = useState<Booking | null>(null);
+  const [clubForRescheduleDialog, setClubForRescheduleDialog] = useState<Club | null>(null);
+  const [serviceForRescheduleDialog, setServiceForRescheduleDialog] = useState<Service | null>(null);
 
 
   useEffect(() => {
@@ -167,7 +170,7 @@ export default function UserDashboardPage() {
   };
 
   const initiateCancelBooking = async (booking: Booking) => {
-    setBookingForDialog(booking);
+    setBookingForDialog(booking); // Keep for potential use in dialog if details are fetched
     setIsLoadingDialogData(true);
     try {
       // Fetch club and service details for the dialog message
@@ -177,9 +180,9 @@ export default function UserDashboardPage() {
       if (!tempClub) tempClub = await getClubById(booking.club);
       if (!tempService) tempService = await getServiceById(booking.service);
 
-      setClubForDialog(tempClub);
-      setServiceForDialog(tempService);
-      setBookingToCancelForDialog(booking);
+      setClubForDialog(tempClub); // For dialog display
+      setServiceForDialog(tempService); // For dialog display
+      setBookingToCancelForDialog(booking); // The actual booking to cancel
       setIsCancelConfirmOpen(true);
     } catch (error) {
       toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not load details for cancellation confirmation." });
@@ -220,8 +223,8 @@ export default function UserDashboardPage() {
 
     setIsCancelConfirmOpen(false);
     setBookingToCancelForDialog(null);
-    setClubForDialog(null);
-    setServiceForDialog(null);
+    setClubForDialog(null); // Clear dialog context
+    setServiceForDialog(null); // Clear dialog context
   };
 
   const canReschedule = (booking: Booking): boolean => {
@@ -247,15 +250,21 @@ export default function UserDashboardPage() {
   };
 
   const initiateRescheduleBooking = async (booking: Booking) => {
-    setBookingForDialog(booking);
+    setBookingForDialog(booking); // General context for loaders
     setIsLoadingDialogData(true);
     try {
       const club = await getClubById(booking.club);
       const service = await getServiceById(booking.service);
-      setClubForDialog(club);
-      setServiceForDialog(service);
-      setBookingToRescheduleForDialog(booking);
-      setIsRescheduleConfirmOpen(true);
+
+      if (!club || !service) {
+        toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not load essential club/service details for rescheduling." });
+        setIsLoadingDialogData(false);
+        return;
+      }
+      setClubForRescheduleDialog(club);
+      setServiceForRescheduleDialog(service);
+      setBookingForRescheduleDialog(booking);
+      setIsRescheduleDialogOpen(true);
     } catch (error) {
       toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not load booking details for reschedule request." });
     } finally {
@@ -263,52 +272,56 @@ export default function UserDashboardPage() {
     }
   };
 
-  const executeRescheduleBooking = async () => {
-    if (!bookingToRescheduleForDialog) {
-      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "No booking selected for reschedule." });
+  const handleConfirmReschedule = async (newDate: Date, newSlot: TimeSlot) => {
+    if (!bookingForRescheduleDialog || !clubForRescheduleDialog || !serviceForRescheduleDialog) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Reschedule context is missing." });
       return;
     }
-    const bookingId = bookingToRescheduleForDialog._id;
-    const originalDate = format(new Date(bookingToRescheduleForDialog.bookingDate), 'MMM d, yyyy');
-    const originalTime = `${bookingToRescheduleForDialog.startTime}-${bookingToRescheduleForDialog.endTime}`;
+    const bookingId = bookingForRescheduleDialog._id;
+    const originalDate = format(new Date(bookingForRescheduleDialog.bookingDate), 'MMM d, yyyy');
+    const originalTime = `${bookingForRescheduleDialog.startTime}-${bookingForRescheduleDialog.endTime}`;
+    const newDateFormatted = format(newDate, 'yyyy-MM-dd');
 
     setUserBookings(prevBookings =>
       prevBookings.map(b =>
         b._id === bookingId ? {
           ...b,
-          status: 'pending', // Always set to pending for owner approval
-          notes: (b.notes ? b.notes + "\n" : "") + `Reschedule requested by user on ${format(new Date(), 'MMM d, yyyy HH:mm')}. Original: ${originalDate} ${originalTime}. New time pending owner confirmation.`
+          date: newDateFormatted,
+          startTime: newSlot.startTime,
+          endTime: newSlot.endTime,
+          status: 'pending',
+          notes: (b.notes ? b.notes + "\n" : "") + `User requested reschedule on ${format(new Date(), 'MMM d, yyyy HH:mm')}. Original: ${originalDate} ${originalTime}. New Proposed: ${format(newDate, 'MMM d, yyyy')} ${newSlot.startTime}-${newSlot.endTime}. Awaiting owner confirmation.`
         } : b
       )
     );
 
-    const clubNameForToast = clubForDialog?.name || 'the club';
-    const serviceNameForToast = serviceForDialog?.name || 'the service';
+    const clubNameForToast = clubForRescheduleDialog.name;
+    const serviceNameForToast = serviceForRescheduleDialog.name;
 
     toast({
       toastTitle: "Reschedule Request Submitted",
-      toastDescription: `Your request to reschedule booking for ${serviceNameForToast} at ${clubNameForToast} is pending owner confirmation.`,
+      toastDescription: `Your request to reschedule booking for ${serviceNameForToast} at ${clubNameForToast} to ${format(newDate, 'MMM d, yyyy')} ${newSlot.startTime} is pending owner confirmation.`,
     });
 
-    if (clubForDialog && currentUser) {
+    if (currentUser) {
       addNotification(
-        `Reschedule Request: ${clubForDialog.name}`,
-        `User ${currentUser?.displayName || currentUser?.email || 'ID: ' + currentUser.uid.slice(-4)} requested to reschedule their booking for ${serviceNameForToast} (originally ${originalDate} ${originalTime}). Please review.`,
-        '/dashboard/owner', // Link to owner dashboard
+        `Reschedule Request: ${clubNameForToast}`,
+        `User ${currentUser?.displayName || currentUser?.email || 'ID: ' + currentUser.uid.slice(-4)} requested to reschedule their booking for ${serviceNameForToast} (originally ${originalDate} ${originalTime}) to ${format(newDate, 'MMM d, yyyy')} ${newSlot.startTime}. Please review.`,
+        '/dashboard/owner',
         `booking_reschedule_request_${bookingId}`
       );
       addNotification(
         `Reschedule for ${serviceNameForToast} Pending`,
-        `Your reschedule request for ${clubNameForToast} is pending owner confirmation.`,
+        `Your reschedule request for ${clubNameForToast} to ${format(newDate, 'MMM d, yyyy')} ${newSlot.startTime} is pending owner confirmation.`,
         '/dashboard/user',
         `booking_reschedule_user_pending_${bookingId}`
       );
     }
 
-    setIsRescheduleConfirmOpen(false);
-    setBookingToRescheduleForDialog(null);
-    setClubForDialog(null);
-    setServiceForDialog(null);
+    setIsRescheduleDialogOpen(false);
+    setBookingForRescheduleDialog(null);
+    setClubForRescheduleDialog(null);
+    setServiceForRescheduleDialog(null);
   };
 
 
@@ -454,7 +467,7 @@ export default function UserDashboardPage() {
                             onClick={() => handleOpenDetailsDialog(booking)}
                             disabled={isLoadingDialogData && bookingForDialog?._id === booking._id}
                           >
-                            {isLoadingDialogData && bookingForDialog?._id === booking._id && (!isCancelConfirmOpen && !isRescheduleConfirmOpen) ? (
+                            {isLoadingDialogData && bookingForDialog?._id === booking._id && (!isCancelConfirmOpen && !isRescheduleDialogOpen) ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <Eye className="h-4 w-4" />
@@ -469,7 +482,7 @@ export default function UserDashboardPage() {
                                 onClick={() => initiateRescheduleBooking(booking)}
                                 disabled={!canReschedule(booking) || (isLoadingDialogData && bookingForDialog?._id === booking._id)}
                               >
-                                {isLoadingDialogData && bookingForDialog?._id === booking._id && isRescheduleConfirmOpen ? (
+                                {isLoadingDialogData && bookingForDialog?._id === booking._id && isRescheduleDialogOpen ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <Edit className={`h-4 w-4 ${!canReschedule(booking) ? 'text-muted-foreground/50' : ''}`} />
@@ -653,35 +666,22 @@ export default function UserDashboardPage() {
         </AlertDialog>
       )}
 
-      {bookingToRescheduleForDialog && clubForDialog && serviceForDialog && (
-        <AlertDialog open={isRescheduleConfirmOpen} onOpenChange={setIsRescheduleConfirmOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center">
-                <Edit className="mr-2 h-6 w-6 text-primary" />
-                Request to Reschedule Booking
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                You are requesting to reschedule your booking for{' '}
-                <strong>{serviceForDialog.name}</strong> at <strong>{clubForDialog.name}</strong>,
-                originally on{' '}
-                <strong>{format(new Date(bookingToRescheduleForDialog.bookingDate), 'MMM d, yyyy')}</strong> from{' '}
-                <strong>{bookingToRescheduleForDialog.startTime} to {bookingToRescheduleForDialog.endTime}</strong>.
-                <br /><br />
-                This will send a request to the club owner. Your booking status will be 'pending' until the owner confirms a new time.
-                (Note: Actual new time selection UI will be added in a future update.)
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => { setBookingToRescheduleForDialog(null); setClubForDialog(null); setServiceForDialog(null); }}>Back</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={executeRescheduleBooking}
-              >
-                Request Reschedule
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+      {bookingForRescheduleDialog && clubForRescheduleDialog && serviceForRescheduleDialog && (
+        <RescheduleBookingDialog
+          isOpen={isRescheduleDialogOpen}
+          onOpenChange={(open) => {
+            setIsRescheduleDialogOpen(open);
+            if (!open) {
+              setBookingForRescheduleDialog(null);
+              setClubForRescheduleDialog(null);
+              setServiceForRescheduleDialog(null);
+            }
+          }}
+          booking={bookingForRescheduleDialog}
+          club={clubForRescheduleDialog}
+          service={serviceForRescheduleDialog}
+          onRescheduleConfirm={handleConfirmReschedule}
+        />
       )}
     </div>
   );
