@@ -28,7 +28,7 @@ import { getAllClubs, getClubById, getServiceById } from '@/services/clubService
 import { getBookingsByUserId } from '@/services/bookingService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { format, parse, isAfter, subHours } from 'date-fns';
+import { format, subHours, isAfter, parseISO } from 'date-fns';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -133,7 +133,7 @@ export default function UserDashboardPage() {
     fetchFavoriteClubs();
   }, []);
 
-  const upcomingBookings = useMemo(() => userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date()), [userBookings]);
+  const upcomingBookings = useMemo(() => userBookings.filter(b => ['confirmed', 'pending'].includes(b.status) && parseISO(b.bookingDate) >= new Date(new Date().setHours(0,0,0,0))), [userBookings]);
   const pastBookings = useMemo(() => userBookings.filter(b => !upcomingBookings.map(ub => ub._id).includes(b._id)), [userBookings, upcomingBookings]);
   const completedBookingsCount = useMemo(() => userBookings.filter(b => b.status === 'completed').length, [userBookings]);
 
@@ -227,26 +227,44 @@ export default function UserDashboardPage() {
     setServiceForDialog(null); 
   };
 
-  const canReschedule = (booking: Booking): boolean => {
+ const canReschedule = (booking: Booking): boolean => {
     if (booking.status !== 'confirmed' && booking.status !== 'pending') {
       return false;
     }
     try {
-      // Ensure booking.date is treated as YYYY-MM-DD
-      const datePart = booking.bookingDate.split('T')[0];
-      const bookingDateTimeString = `${datePart}T${booking.startTime}`;
+      // booking.bookingDate is expected to be in "YYYY-MM-DD" format
+      const dateParts = booking.bookingDate.split('T')[0].split('-'); // Handle potential ISO string, take bookingDate part
+      const timeParts = booking.startTime.split(':');
+
+      if (dateParts.length !== 3 || timeParts.length !== 2) {
+        console.error("Invalid bookingDate or time string format for reschedule check.", booking.bookingDate, booking.startTime);
+        return false;
+      }
+
+      const year = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed in JavaScript Date
+      const day = parseInt(dateParts[2], 10);
+      const hours = parseInt(timeParts[0], 10);
+      const minutes = parseInt(timeParts[1], 10);
+
+      if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) {
+        console.error("Failed to parse date/time components for reschedule check.");
+        return false;
+      }
       
-      const bookingStartDateTime = parse(bookingDateTimeString, "yyyy-MM-dd'T'HH:mm", new Date());
+      const bookingStartDateTime = new Date(year, month, day, hours, minutes);
 
       if (isNaN(bookingStartDateTime.getTime())) {
-          console.error("Invalid date/time for rescheduling check:", bookingDateTimeString, "Original booking.date:", booking.bookingDate, "Original booking.startTime:", booking.startTime);
-          return false;
+        console.error("Constructed bookingStartDateTime is invalid for reschedule check.");
+        return false;
       }
+
       const oneHourBeforeBooking = subHours(bookingStartDateTime, 1);
       return isAfter(oneHourBeforeBooking, new Date());
+
     } catch (e) {
-        console.error("Error parsing booking date/time for reschedule check:", e, "Booking date:", booking.bookingDate, "Booking startTime:", booking.startTime);
-        return false;
+      console.error("Error in canReschedule logic:", e, "Booking date:", booking.bookingDate, "Booking startTime:", booking.startTime);
+      return false;
     }
   };
 
@@ -279,7 +297,7 @@ export default function UserDashboardPage() {
       return;
     }
     const bookingId = bookingForRescheduleDialog._id;
-    const originalDate = format(new Date(bookingForRescheduleDialog.bookingDate), 'MMM d, yyyy');
+    const originalDate = format(parseISO(bookingForRescheduleDialog.bookingDate), 'MMM d, yyyy');
     const originalTime = `${bookingForRescheduleDialog.startTime}-${bookingForRescheduleDialog.endTime}`;
     const newDateFormatted = format(newDate, 'yyyy-MM-dd');
 
@@ -396,30 +414,30 @@ export default function UserDashboardPage() {
           <CardContent>
             <p className="text-destructive-foreground">{bookingsError}</p>
             <Button variant="outline" className="mt-3" onClick={() => {
-              if (currentUser) {
-                const reFetchBookings = async () => {
-                  if (!currentUser) return;
-                  setIsLoadingBookings(true); setBookingsError(null);
-                  try {
-                    const bookings = await getBookingsByUserId(currentUser.uid);
-                    bookings.sort((a, b) => {
-                      const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && new Date(a.bookingDate) >= new Date();
-                      const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && new Date(b.bookingDate) >= new Date();
-                      if (aIsUpcoming && !bIsUpcoming) return -1;
-                      if (!aIsUpcoming && bIsUpcoming) return 1;
-                      return new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime();
-                    });
-                    setUserBookings(bookings);
-                  } catch (err: any) {
-                    const errorMessage = err instanceof Error ? err.message : "Could not re-load your bookings.";
-                    setBookingsError(errorMessage);
-                    toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
-                  } finally { setIsLoadingBookings(false); }
-                };
-                reFetchBookings();
-              } else {
-                toast({ toastDescription: "Please log in to retry." });
-              }
+                if(currentUser) {
+                    const reFetchBookings = async () => {
+                      if (!currentUser) return;
+                      setIsLoadingBookings(true); setBookingsError(null);
+                      try {
+                        const bookings = await getBookingsByUserId(currentUser.uid);
+                        bookings.sort((a,b) => {
+                            const aIsUpcoming = ['confirmed', 'pending'].includes(a.status) && parseISO(a.bookingDate) >= new Date(new Date().setHours(0,0,0,0));
+                            const bIsUpcoming = ['confirmed', 'pending'].includes(b.status) && parseISO(b.bookingDate) >= new Date(new Date().setHours(0,0,0,0));
+                            if (aIsUpcoming && !bIsUpcoming) return -1;
+                            if (!aIsUpcoming && bIsUpcoming) return 1;
+                            return parseISO(b.bookingDate).getTime() - parseISO(a.bookingDate).getTime();
+                         });
+                        setUserBookings(bookings);
+                      } catch (err: any) {
+                        const errorMessage = err instanceof Error ? err.message : "Could not re-load your bookings.";
+                        setBookingsError(errorMessage);
+                        toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
+                       } finally { setIsLoadingBookings(false); }
+                    };
+                    reFetchBookings();
+                } else {
+                     toast({toastDescription: "Please log in to retry."});
+                }
             }}>Try Again</Button>
           </CardContent>
         </Card>
@@ -457,7 +475,7 @@ export default function UserDashboardPage() {
                     {upcomingBookings.map((booking) => (
                       <TableRow key={booking._id}>
                         <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
-                        <TableCell className="p-2 sm:p-4">{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
+                        <TableCell className="p-2 sm:p-4">{format(parseISO(booking.bookingDate), 'MMM d, yyyy')}</TableCell>
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
                         <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                         <TableCell className="text-right space-x-1 p-2 sm:p-4">
@@ -525,22 +543,22 @@ export default function UserDashboardPage() {
               {isLoadingBookings ? (
                 <div className="text-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /></div>
               ) : pastBookings.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="px-2 sm:px-4">Club</TableHead>
-                      <TableHead className="px-2 sm:px-4">Date</TableHead>
-                      <TableHead className="px-2 sm:px-4">Status</TableHead>
-                      <TableHead className="text-right px-2 sm:px-4">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pastBookings.map((booking) => (
-                      <TableRow key={booking._id}>
-                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
-                        <TableCell className="p-2 sm:p-4">{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
-                        <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
-                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="px-2 sm:px-4">Club</TableHead>
+                    <TableHead className="px-2 sm:px-4">Date</TableHead>
+                    <TableHead className="px-2 sm:px-4">Status</TableHead>
+                    <TableHead className="text-right px-2 sm:px-4">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pastBookings.map((booking) => (
+                    <TableRow key={booking._id}>
+                      <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
+                      <TableCell className="p-2 sm:p-4">{format(parseISO(booking.bookingDate), 'MMM d, yyyy')}</TableCell>
+                      <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
+                       <TableCell className="text-right space-x-1 p-2 sm:p-4">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -650,7 +668,7 @@ export default function UserDashboardPage() {
                 Are you sure you want to cancel your booking for{' '}
                 <strong>{serviceForDialog?.name || bookingToCancelForDialog.service.slice(-6)}</strong> at{' '}
                 <strong>{clubForDialog?.name || bookingToCancelForDialog.club.slice(-6)}</strong> on{' '}
-                <strong>{format(new Date(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}</strong> at{' '}
+                <strong>{format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}</strong> at{' '}
                 <strong>{bookingToCancelForDialog.startTime}</strong>? This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
