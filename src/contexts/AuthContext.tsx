@@ -10,7 +10,7 @@ import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast, type ToastFn } from "@/hooks/use-toast";
 import { Button } from '@/components/ui/button';
-import type { UserRole, AppNotification } from '@/lib/types';
+import type { UserRole, AppNotification } from '@/lib/types'; // Import AppNotification from lib/types
 
 import { CLIENT_INSTANCE_ID_KEY, CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX, NOTIFICATION_STORAGE_PREFIX } from './authHelpers/constants';
 import {
@@ -35,7 +35,7 @@ import {
   setupFcmMessaging,
   showNotificationPermissionReminder,
   getNotificationStorageKey
-} from './authHelpers/notificationManager.tsx';
+} from './authHelpers/notificationManager'; // Corrected import path
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 
 
@@ -264,8 +264,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         unsubscribeFcmOnMessageRef.current();
       }
     };
-  // Removed setupFcm from dependency array to break potential loop
-  }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken, fullLogoutSequence]); 
+  }, [toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
 
   useEffect(() => {
     console.log(`AUTH_CONTEXT: [REDIRECTION CHECK] Loading: ${loading}, Path: ${pathname}, CurrentUser: ${!!currentUser}, AccessToken: ${!!accessToken}`);
