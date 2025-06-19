@@ -52,7 +52,7 @@ export async function getBookingStatus(bookingId: string): Promise<{ status: Boo
 }
 
 export async function getBookingsForServiceOnDate(serviceId: string, date: string): Promise<Booking[]> {
-  const apiUrlPath = `/bookings?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`;
+  const apiUrlPath = `/bookings/service/${encodeURIComponent(serviceId)}/date/${encodeURIComponent(date)}`;
   try {
     const response = await authedFetch(apiUrlPath, {
       method: 'GET',
