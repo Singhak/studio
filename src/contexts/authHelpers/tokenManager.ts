@@ -1,11 +1,11 @@
 // src/contexts/authHelpers/tokenManager.ts
 import type { User as FirebaseUser, Auth } from 'firebase/auth';
 import type { CourtlyUser, SetupFcmFn } from '@/contexts/AuthContext';
-import type { UserRole } from '@/lib/types';
+import type { CourtlyUserBase, UserRole } from '@/lib/types';
 import type { ToastFn } from '@/hooks/use-toast';
-import { getStoredRoles } from './roleManager';
+import { getStoredRoles, updateCurrentUserRoles } from './roleManager';
 import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX } from './constants';
-import { getApiAuthHeaders, getApiBaseUrl } from '@/lib/apiUtils';
+import { authedFetch, getApiAuthHeaders, getApiBaseUrl } from '@/lib/apiUtils';
 import { getApproximateLocationByIp } from '@/lib/locationUtils';
 
 interface HandleCustomApiLoginArgs {
@@ -41,7 +41,7 @@ export const handleCustomApiLogin = async ({
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         idToken: firebaseIdToken,
         currentLocation: currentCity?.city,
         clientInstanceId: clientInstanceId, // Send the client instance ID
@@ -57,8 +57,11 @@ export const handleCustomApiLogin = async ({
     const customTokenData = await response.json();
     setAndStoreAccessToken(customTokenData.accessToken);
     setAndStoreRefreshToken(customTokenData.refreshToken);
+    // this setAndStoreAccessToken will invoke after some time but I need access token 
+    localStorage.setItem(CUSTOM_ACCESS_TOKEN_KEY, customTokenData.accessToken);
+    const aboutMe = await fetchAboutMe() as CourtlyUserBase
 
-    const userRoles = getStoredRoles(firebaseUser.uid);
+    const userRoles = aboutMe?.roles || getStoredRoles(firebaseUser.uid);
     let finalRoles = userRoles.length > 0 ? userRoles : (['user'] as UserRole[]);
     if (userRoles.length === 0 && typeof window !== 'undefined') {
       localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(finalRoles));
@@ -77,8 +80,9 @@ export const handleCustomApiLogin = async ({
       uid: firebaseUser.uid,
       roles: finalRoles,
       ...(firebaseUser as any),
+      id: aboutMe?.id
     };
-    
+
     await setupFcm(courtlyUser);
     return courtlyUser;
 
@@ -94,7 +98,7 @@ interface AttemptTokenRefreshArgs {
   toast: ToastFn;
   setAndStoreAccessToken: (token: string | null) => void;
   setAndStoreRefreshToken: (token: string | null) => void;
-  performLogout: () => Promise<void>; 
+  performLogout: () => Promise<void>;
 }
 
 export const attemptTokenRefresh = async ({
@@ -172,3 +176,30 @@ export const loadTokensFromStorage = (): { accessToken: string | null, refreshTo
   }
   return { accessToken: null, refreshToken: null };
 };
+
+const fetchAboutMe = async (): Promise<CourtlyUserBase | null> => {
+  const apiUrlPath = `/users/my-info`;
+
+  try {
+    const response = await authedFetch(apiUrlPath, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: `Failed to User details: ${response.statusText} (${response.status})` }));
+      console.error(errorBody.message);
+      // throw new Error(errorBody.message);
+      return null;
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching User detail API:', error);
+    if (error instanceof Error) {
+      return null;
+      // throw error;
+    } else {
+      // throw new Error('An unexpected error occurred while fetching User Details.');
+      return null;
+    }
+  }
+}
