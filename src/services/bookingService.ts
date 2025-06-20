@@ -94,7 +94,7 @@ export async function getBookingsByUserId(userId: string): Promise<Booking[]> {
 }
 
 export async function getBookingsByClubId(clubId: string): Promise<Booking[]> {
-  const apiUrlPath = `/bookings?clubId=${encodeURIComponent(clubId)}`;
+  const apiUrlPath = `bookings/club/${encodeURIComponent(clubId)}`;
   try {
     const response = await authedFetch(apiUrlPath, {
       method: 'GET',
