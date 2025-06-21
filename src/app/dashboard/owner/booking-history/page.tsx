@@ -249,9 +249,9 @@ export default function OwnerBookingHistoryPage() {
           <CardTitle>Filters</CardTitle>
           <CardDescription>Select a club and apply filters to view booking history.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
-            <div className="space-y-1.5">
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-1.5 flex-1 min-w-[180px]">
               <label htmlFor="club-selector-history" className="text-sm font-medium text-muted-foreground">Select Club</label>
               <Select
                 value={selectedClubId || ""}
@@ -268,7 +268,7 @@ export default function OwnerBookingHistoryPage() {
               </Select>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 flex-1 min-w-[250px]">
                 <label htmlFor="date-range-picker" className="text-sm font-medium text-muted-foreground">Date Range</label>
                 <Popover>
                     <PopoverTrigger asChild>
@@ -302,7 +302,7 @@ export default function OwnerBookingHistoryPage() {
                 </Popover>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 flex-1 min-w-[150px]">
               <label htmlFor="status-filter" className="text-sm font-medium text-muted-foreground">Booking Status</label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger id="status-filter">
@@ -317,8 +317,8 @@ export default function OwnerBookingHistoryPage() {
               </Select>
             </div>
             
-            <div className="space-y-1.5">
-                 <label htmlFor="search-term-history" className="text-sm font-medium text-muted-foreground">Search (User ID, Service, Booking ID)</label>
+            <div className="space-y-1.5 flex-1 min-w-[200px]">
+                 <label htmlFor="search-term-history" className="text-sm font-medium text-muted-foreground">Search</label>
                 <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -331,16 +331,16 @@ export default function OwnerBookingHistoryPage() {
                     />
                 </div>
             </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-4 border-t mt-4">
-            <Button variant="outline" onClick={handleResetFilters}>
-                <RefreshCw className="mr-2 h-4 w-4"/>
-                Reset
-            </Button>
-            <Button onClick={handleApplyFilters}>
-                <Search className="mr-2 h-4 w-4"/>
-                Apply Filters
-            </Button>
+            <div className="flex gap-2">
+                <Button variant="outline" onClick={handleResetFilters}>
+                    <RefreshCw className="mr-2 h-4 w-4"/>
+                    Reset
+                </Button>
+                <Button onClick={handleApplyFilters}>
+                    <Search className="mr-2 h-4 w-4"/>
+                    Apply Filters
+                </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
