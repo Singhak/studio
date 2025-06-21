@@ -1,5 +1,5 @@
 
-import type { CreateBookingPayload, CreateBookingResponse, Booking, BookingDetails } from '@/lib/types';
+import type { CreateBookingPayload, CreateBookingResponse, Booking } from '@/lib/types';
 import { getApiBaseUrl, authedFetch, getApiAuthHeaders } from '@/lib/apiUtils';
 
 export async function createBooking(payload: CreateBookingPayload): Promise<CreateBookingResponse> {

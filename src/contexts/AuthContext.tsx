@@ -297,7 +297,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     initializeAuthHelpers({
-      getAccessToken: () => accessToken,
+      getAccessToken: () => accessToken ? accessToken : localStorage.getItem(CUSTOM_ACCESS_TOKEN_KEY),
       attemptTokenRefresh,
       logoutUser: fullLogoutSequence,
     });
