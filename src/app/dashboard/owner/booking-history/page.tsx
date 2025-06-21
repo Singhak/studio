@@ -250,96 +250,102 @@ export default function OwnerBookingHistoryPage() {
           <CardDescription>Select a club and apply filters to view booking history.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="space-y-1.5 flex-1 min-w-[180px]">
-              <label htmlFor="club-selector-history" className="text-sm font-medium text-muted-foreground">Select Club</label>
-              <Select
-                value={selectedClubId || ""}
-                onValueChange={(value) => setSelectedClubId(value)}
-              >
-                <SelectTrigger id="club-selector-history">
-                  <SelectValue placeholder="Select a club..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {ownerClubs.map(club => (
-                    <SelectItem key={club._id} value={club._id}>{club.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="space-y-4">
+            {/* Row 1 */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <label htmlFor="club-selector-history" className="text-sm font-medium text-muted-foreground">Select Club</label>
+                <Select
+                  value={selectedClubId || ""}
+                  onValueChange={(value) => setSelectedClubId(value)}
+                >
+                  <SelectTrigger id="club-selector-history">
+                    <SelectValue placeholder="Select a club..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ownerClubs.map(club => (
+                      <SelectItem key={club._id} value={club._id}>{club.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                  <label htmlFor="date-range-picker" className="text-sm font-medium text-muted-foreground">Date Range</label>
+                  <Popover>
+                      <PopoverTrigger asChild>
+                      <Button
+                          id="date-range-picker"
+                          variant={"outline"}
+                          className={`w-full justify-start text-left font-normal ${!dateRange && "text-muted-foreground"}`}
+                      >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateRange?.from ? (
+                          dateRange.to ? (
+                              <>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>
+                          ) : (
+                              format(dateRange.from, "LLL dd, y")
+                          )
+                          ) : (
+                          <span>Pick a date range</span>
+                          )}
+                      </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                          initialFocus
+                          mode="range"
+                          defaultMonth={dateRange?.from}
+                          selected={dateRange}
+                          onSelect={setDateRange}
+                          numberOfMonths={2}
+                      />
+                      </PopoverContent>
+                  </Popover>
+              </div>
             </div>
 
-            <div className="space-y-1.5 flex-1 min-w-[250px]">
-                <label htmlFor="date-range-picker" className="text-sm font-medium text-muted-foreground">Date Range</label>
-                <Popover>
-                    <PopoverTrigger asChild>
-                    <Button
-                        id="date-range-picker"
-                        variant={"outline"}
-                        className={`w-full justify-start text-left font-normal ${!dateRange && "text-muted-foreground"}`}
-                    >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dateRange?.from ? (
-                        dateRange.to ? (
-                            <>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>
-                        ) : (
-                            format(dateRange.from, "LLL dd, y")
-                        )
-                        ) : (
-                        <span>Pick a date range</span>
-                        )}
-                    </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={dateRange?.from}
-                        selected={dateRange}
-                        onSelect={setDateRange}
-                        numberOfMonths={2}
-                    />
-                    </PopoverContent>
-                </Popover>
-            </div>
-
-            <div className="space-y-1.5 flex-1 min-w-[150px]">
-              <label htmlFor="status-filter" className="text-sm font-medium text-muted-foreground">Booking Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger id="status-filter">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  {BOOKING_STATUSES.map(status => (
-                    <SelectItem key={status} value={status} className="capitalize">{status}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-1.5 flex-1 min-w-[200px]">
-                 <label htmlFor="search-term-history" className="text-sm font-medium text-muted-foreground">Search</label>
-                <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        id="search-term-history"
-                        type="search"
-                        placeholder="Search bookings..."
-                        className="pl-8 w-full"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-            </div>
-            <div className="flex gap-2">
-                <Button variant="outline" onClick={handleResetFilters}>
-                    <RefreshCw className="mr-2 h-4 w-4"/>
-                    Reset
-                </Button>
-                <Button onClick={handleApplyFilters}>
-                    <Search className="mr-2 h-4 w-4"/>
-                    Apply Filters
-                </Button>
+            {/* Row 2 */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div className="space-y-1.5 sm:flex-1">
+                <label htmlFor="status-filter" className="text-sm font-medium text-muted-foreground">Booking Status</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger id="status-filter">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    {BOOKING_STATUSES.map(status => (
+                      <SelectItem key={status} value={status} className="capitalize">{status}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-1.5 sm:flex-1">
+                   <label htmlFor="search-term-history" className="text-sm font-medium text-muted-foreground">Search</label>
+                  <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                          id="search-term-history"
+                          type="search"
+                          placeholder="Search bookings..."
+                          className="pl-8 w-full"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                  </div>
+              </div>
+              <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleResetFilters}>
+                      <RefreshCw className="h-4 w-4" />
+                      <span className="hidden sm:inline">Reset</span>
+                  </Button>
+                  <Button onClick={handleApplyFilters}>
+                      <Search className="h-4 w-4" />
+                      <span className="hidden sm:inline">Apply Filters</span>
+                  </Button>
+              </div>
             </div>
           </div>
         </CardContent>
