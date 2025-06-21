@@ -252,8 +252,8 @@ export default function OwnerBookingHistoryPage() {
         <CardContent>
           <div className="space-y-4">
             {/* Row 1 */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-1.5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="space-y-1.5 xl:col-span-2">
                 <label htmlFor="club-selector-history" className="text-sm font-medium text-muted-foreground">Select Club</label>
                 <Select
                   value={selectedClubId || ""}
@@ -270,7 +270,7 @@ export default function OwnerBookingHistoryPage() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 xl:col-span-2">
                   <label htmlFor="date-range-picker" className="text-sm font-medium text-muted-foreground">Date Range</label>
                   <Popover>
                       <PopoverTrigger asChild>
@@ -306,8 +306,8 @@ export default function OwnerBookingHistoryPage() {
             </div>
 
             {/* Row 2 */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-              <div className="space-y-1.5 sm:flex-1">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex-grow min-w-48 space-y-1.5">
                 <label htmlFor="status-filter" className="text-sm font-medium text-muted-foreground">Booking Status</label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger id="status-filter">
@@ -322,7 +322,7 @@ export default function OwnerBookingHistoryPage() {
                 </Select>
               </div>
               
-              <div className="space-y-1.5 sm:flex-1">
+              <div className="flex-grow min-w-48 space-y-1.5">
                    <label htmlFor="search-term-history" className="text-sm font-medium text-muted-foreground">Search</label>
                   <div className="relative">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -336,14 +336,14 @@ export default function OwnerBookingHistoryPage() {
                       />
                   </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 ml-auto">
                   <Button variant="outline" onClick={handleResetFilters}>
-                      <RefreshCw className="h-4 w-4" />
-                      <span className="hidden sm:inline">Reset</span>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Reset
                   </Button>
                   <Button onClick={handleApplyFilters}>
-                      <Search className="h-4 w-4" />
-                      <span className="hidden sm:inline">Apply Filters</span>
+                      <Search className="mr-2 h-4 w-4" />
+                      Apply Filters
                   </Button>
               </div>
             </div>
