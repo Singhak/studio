@@ -17,7 +17,7 @@ import type { Booking, Club, Service } from '@/lib/types';
 import { getLoggedInOwnerClubs } from '@/services/clubService';
 import { getBookingsByClubId } from '@/services/bookingService';
 import { mockServices as allMockServices } from '@/lib/mockData';
-import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { format, parseISO, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import {
   Loader2,
@@ -32,7 +32,9 @@ import {
   DollarSign,
   User,
   Settings,
-  Package
+  Package,
+  PlusCircle,
+  RefreshCw
 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
@@ -51,9 +53,20 @@ export default function OwnerBookingHistoryPage() {
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  // States for the filter input components
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => ({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  }));
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  
+  // State for the filters that have been applied
+  const [appliedFilters, setAppliedFilters] = useState({
+    dateRange,
+    statusFilter,
+    searchTerm,
+  });
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -116,6 +129,29 @@ export default function OwnerBookingHistoryPage() {
     }
     setCurrentPage(1); // Reset page on club change
   }, [selectedClubId, fetchBookingsForClub]);
+  
+  const handleApplyFilters = () => {
+    setAppliedFilters({
+      dateRange,
+      statusFilter,
+      searchTerm,
+    });
+    setCurrentPage(1);
+    toast({ toastTitle: "Filters Applied", toastDescription: "Booking history has been updated." });
+  };
+  
+  const handleResetFilters = () => {
+    const defaultDateRange = { from: subDays(new Date(), 30), to: new Date() };
+    setDateRange(defaultDateRange);
+    setStatusFilter("all");
+    setSearchTerm("");
+    setAppliedFilters({
+      dateRange: defaultDateRange,
+      statusFilter: "all",
+      searchTerm: "",
+    });
+    setCurrentPage(1);
+  };
 
   const getServiceName = useCallback((serviceId: string): string => {
     if (selectedClub && selectedClub.services) {
@@ -129,21 +165,21 @@ export default function OwnerBookingHistoryPage() {
   const filteredAndSearchedBookings = useMemo(() => {
     let bookings = allBookingsForClub;
 
-    if (dateRange?.from) {
-      const fromDate = startOfDay(dateRange.from);
-      const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from); // If only 'from' is selected, filter for that day
+    if (appliedFilters.dateRange?.from) {
+      const fromDate = startOfDay(appliedFilters.dateRange.from);
+      const toDate = appliedFilters.dateRange.to ? endOfDay(appliedFilters.dateRange.to) : endOfDay(appliedFilters.dateRange.from);
       bookings = bookings.filter(booking => {
         const bookingDate = parseISO(booking.date);
         return isWithinInterval(bookingDate, { start: fromDate, end: toDate });
       });
     }
 
-    if (statusFilter !== "all") {
-      bookings = bookings.filter(booking => booking.status === statusFilter);
+    if (appliedFilters.statusFilter !== "all") {
+      bookings = bookings.filter(booking => booking.status === appliedFilters.statusFilter);
     }
 
-    if (searchTerm.trim() !== "") {
-      const lowerSearchTerm = searchTerm.toLowerCase();
+    if (appliedFilters.searchTerm.trim() !== "") {
+      const lowerSearchTerm = appliedFilters.searchTerm.toLowerCase();
       bookings = bookings.filter(booking =>
         booking.userId.toLowerCase().includes(lowerSearchTerm) ||
         getServiceName(booking.serviceId).toLowerCase().includes(lowerSearchTerm) ||
@@ -151,7 +187,7 @@ export default function OwnerBookingHistoryPage() {
       );
     }
     return bookings;
-  }, [allBookingsForClub, dateRange, statusFilter, searchTerm, getServiceName]);
+  }, [allBookingsForClub, appliedFilters, getServiceName]);
 
   const paginatedBookings = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -295,6 +331,16 @@ export default function OwnerBookingHistoryPage() {
                     />
                 </div>
             </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+            <Button variant="outline" onClick={handleResetFilters}>
+                <RefreshCw className="mr-2 h-4 w-4"/>
+                Reset
+            </Button>
+            <Button onClick={handleApplyFilters}>
+                <Search className="mr-2 h-4 w-4"/>
+                Apply Filters
+            </Button>
           </div>
         </CardContent>
       </Card>
