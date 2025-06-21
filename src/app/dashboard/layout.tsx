@@ -53,7 +53,7 @@ const ownerNavItems = [
 const commonBottomNavItems = [
 ];
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logoutUser, currentUser, loading: authLoading } = useAuth(); 
