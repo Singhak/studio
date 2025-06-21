@@ -120,11 +120,9 @@ export const attemptTokenRefresh = async ({
 
   console.log("TokenManager: Attempting to refresh token...");
   try {
-    const apiUrl = `${getApiBaseUrl()}/auth/refresh`;
-    const authHeaders = await getApiAuthHeaders()
-    const response = await fetch(apiUrl, {
+    const apiUrl = `/auth/refresh-access-token`;
+    const response = await authedFetch(apiUrl, {
       method: 'POST',
-      headers: authHeaders,
       body: JSON.stringify({ refreshToken: tokenToUse }),
     });
 
