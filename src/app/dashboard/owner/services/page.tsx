@@ -3,94 +3,102 @@
 
 import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, PlusCircle, Edit, Trash2, ListChecks, Loader2, AlertTriangle, ShoppingBag, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Edit, Trash2, ListChecks, Loader2, AlertTriangle, ShoppingBag, CheckCircle, XCircle, ClubIcon } from 'lucide-react';
 import type { Club, Service } from '@/lib/types';
-import { getClubById, getServicesByClubId } from '@/services/clubService'; // Added getServicesByClubId
+import { getLoggedInOwnerClubs, getServicesByClubId } from '@/services/clubService';
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { AddServiceForm } from '@/components/features/services/AddServiceForm';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from '@/hooks/use-toast';
 
 function ManageServicesContent() {
-  const searchParams = useSearchParams();
-  const clubId = searchParams.get('clubId');
+  const { toast } = useToast();
+  const [ownerClubs, setOwnerClubs] = useState<Club[]>([]);
+  const [selectedClubId, setSelectedClubId] = useState<string>('');
+  const [isLoadingClubs, setIsLoadingClubs] = useState(true);
+  const [clubsError, setClubsError] = useState<string | null>(null);
 
-  const [club, setClub] = useState<Club | null | undefined>(undefined);
   const [services, setServices] = useState<Service[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoadingServices, setIsLoadingServices] = useState(false);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+
   const [isAddServiceDialogOpen, setIsAddServiceDialogOpen] = useState(false);
 
-  const fetchClubAndServiceData = useCallback(async () => {
-    if (!clubId) {
-      setError('No club selected. Please select a club from the owner dashboard to manage its services.');
-      setIsLoading(false);
-      setClub(null);
+  // 1. Fetch the list of clubs the owner manages
+  useEffect(() => {
+    const fetchOwnerClubs = async () => {
+      setIsLoadingClubs(true);
+      setClubsError(null);
+      try {
+        const clubs = await getLoggedInOwnerClubs();
+        setOwnerClubs(clubs);
+        if (clubs.length > 0) {
+          setSelectedClubId(clubs[0]._id);
+        } else {
+          setClubsError("You do not own any clubs. Please register one first.");
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load your clubs.";
+        setClubsError(msg);
+        toast({ variant: "destructive", toastTitle: "Error Loading Clubs", toastDescription: msg });
+      } finally {
+        setIsLoadingClubs(false);
+      }
+    };
+    fetchOwnerClubs();
+  }, [toast]);
+
+  // 2. Fetch services for the currently selected club
+  const fetchServicesForClub = useCallback(async () => {
+    if (!selectedClubId) {
       setServices([]);
       return;
     }
-    setIsLoading(true);
-    setError(null);
+    setIsLoadingServices(true);
+    setServicesError(null);
     try {
-      const foundClub = await getClubById(clubId);
-      if (foundClub) {
-        setClub(foundClub);
-        // Fetch services separately
-        const fetchedServices = await getServicesByClubId(clubId);
-        setServices(fetchedServices || []); // Ensure services is an array
-      } else {
-        setClub(null);
-        setServices([]);
-        setError(`Could not find details for a club with ID: ${clubId}.`);
-      }
+      const fetchedServices = await getServicesByClubId(selectedClubId);
+      setServices(fetchedServices || []);
     } catch (err) {
-      console.error("Failed to fetch club or services:", err);
-      setClub(null);
-      setServices([]);
-      setError(err instanceof Error ? err.message : "An unknown error occurred.");
+      setServicesError(err instanceof Error ? err.message : "Failed to load services for this club.");
     } finally {
-      setIsLoading(false);
+      setIsLoadingServices(false);
     }
-  }, [clubId]);
+  }, [selectedClubId]);
 
   useEffect(() => {
-    fetchClubAndServiceData();
-  }, [fetchClubAndServiceData]);
+    fetchServicesForClub();
+  }, [fetchServicesForClub]);
 
   const handleServiceAdded = (newService: Service) => {
-    // Optimistically update UI or re-fetch
     setServices(prevServices => [...prevServices, newService]);
-    setIsAddServiceDialogOpen(false); // Close dialog
-    // Or better: fetchClubAndServiceData(); to get the latest list from server
+    setIsAddServiceDialogOpen(false);
   };
+  
+  const selectedClub = ownerClubs.find(c => c._id === selectedClubId);
 
-
-  if (isLoading) {
+  if (isLoadingClubs) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">Loading club services...</p>
+        <p className="text-muted-foreground">Loading your clubs...</p>
       </div>
     );
   }
 
-  if (error || !club) {
+  if (clubsError || ownerClubs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-        <h2 className="text-2xl font-semibold text-foreground mb-2">
-          {clubId && !club && !error ? 'Club Not Found' : 'Error Loading Services'}
-        </h2>
-        <p className="text-muted-foreground mb-6">
-          {error || 'The requested club could not be loaded or does not exist.'}
-        </p>
+        <h2 className="text-2xl font-semibold text-foreground mb-2">Error</h2>
+        <p className="text-muted-foreground mb-6 max-w-md">{clubsError || 'No clubs found.'}</p>
         <Button asChild variant="outline">
           <Link href="/dashboard/owner">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Owner Dashboard
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
           </Link>
         </Button>
       </div>
@@ -101,88 +109,114 @@ function ManageServicesContent() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Manage Services for {club.name}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Manage Services</h1>
           <p className="text-muted-foreground">Add, edit, or remove services offered at your club.</p>
         </div>
         <Button asChild variant="outline">
           <Link href="/dashboard/owner">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
           </Link>
         </Button>
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <CardTitle className="flex items-center">
               <ListChecks className="mr-2 h-5 w-5 text-primary" />
-              {club.name}'s Services
+              Services for {selectedClub?.name}
             </CardTitle>
             <CardDescription>
               Define the services your club offers, such as court rentals, coaching, etc.
             </CardDescription>
           </div>
-          <Dialog open={isAddServiceDialogOpen} onOpenChange={setIsAddServiceDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setIsAddServiceDialogOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add New Service
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
-              <AddServiceForm
-                clubId={club._id}
-                onServiceAdded={handleServiceAdded}
-                onClose={() => setIsAddServiceDialogOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
+          {ownerClubs.length > 1 && (
+             <div className="w-full sm:w-auto sm:min-w-[200px]">
+                <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+                    <SelectTrigger id="club-selector-services" aria-label="Select club to manage services for">
+                        <SelectValue placeholder="Select a club..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {ownerClubs.map((club) => (
+                            <SelectItem key={club._id} value={club._id}>{club.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
-          {services.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Service Name</TableHead>
-                  <TableHead>Sport</TableHead>
-                  <TableHead className="text-right">Price/Hour</TableHead>
-                  <TableHead className="text-right">Duration (min)</TableHead>
-                  <TableHead className="text-center">Active</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {services.map((service) => (
-                  <TableRow key={service._id}>
-                    <TableCell className="font-medium">{service.name}</TableCell>
-                    <TableCell><Badge variant="secondary">{service.sportType}</Badge></TableCell>
-                    <TableCell className="text-right">${service.hourlyPrice.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{service.slotDurationMinutes || 'N/A'}</TableCell>
-                    <TableCell className="text-center">
-                      {service.isActive ? <CheckCircle className="h-5 w-5 text-green-500 mx-auto" /> : <XCircle className="h-5 w-5 text-muted-foreground mx-auto" />}
-                    </TableCell>
-                    <TableCell className="text-right space-x-1">
-                      <Button variant="ghost" size="icon" title="Edit Service" onClick={() => alert(`Placeholder: Edit service ${service.name}`)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" title="Delete Service" className="text-destructive hover:text-destructive/90" onClick={() => alert(`Placeholder: Delete service ${service.name}`)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="p-8 text-center border-2 border-dashed rounded-lg">
-              <ShoppingBag className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-              <p className="text-lg font-semibold text-muted-foreground">
-                No Services Configured Yet
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Add the first service for {club.name} to get started!
-              </p>
+          {isLoadingServices ? (
+             <div className="text-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /></div>
+          ) : servicesError ? (
+             <div className="py-8 text-center text-destructive">
+                <AlertTriangle className="mx-auto h-8 w-8 mb-2" />
+                <p>{servicesError}</p>
             </div>
+          ): (
+            <>
+              <div className="flex justify-end mb-4">
+                  <Dialog open={isAddServiceDialogOpen} onOpenChange={setIsAddServiceDialogOpen}>
+                      <DialogTrigger asChild>
+                          <Button onClick={() => setIsAddServiceDialogOpen(true)}>
+                              <PlusCircle className="mr-2 h-4 w-4" /> Add New Service
+                          </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-2xl">
+                          <AddServiceForm
+                              clubId={selectedClubId}
+                              onServiceAdded={handleServiceAdded}
+                              onClose={() => setIsAddServiceDialogOpen(false)}
+                          />
+                      </DialogContent>
+                  </Dialog>
+              </div>
+              {services.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Service Name</TableHead>
+                      <TableHead>Sport</TableHead>
+                      <TableHead className="text-right">Price/Hour</TableHead>
+                      <TableHead className="text-right">Duration (min)</TableHead>
+                      <TableHead className="text-center">Active</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {services.map((service) => (
+                      <TableRow key={service._id}>
+                        <TableCell className="font-medium">{service.name}</TableCell>
+                        <TableCell><Badge variant="secondary">{service.sportType}</Badge></TableCell>
+                        <TableCell className="text-right">${service.hourlyPrice.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{service.slotDurationMinutes || 'N/A'}</TableCell>
+                        <TableCell className="text-center">
+                          {service.isActive ? <CheckCircle className="h-5 w-5 text-green-500 mx-auto" /> : <XCircle className="h-5 w-5 text-muted-foreground mx-auto" />}
+                        </TableCell>
+                        <TableCell className="text-right space-x-1">
+                          <Button variant="ghost" size="icon" title="Edit Service" onClick={() => alert(`Placeholder: Edit service ${service.name}`)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" title="Delete Service" className="text-destructive hover:text-destructive/90" onClick={() => alert(`Placeholder: Delete service ${service.name}`)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="p-8 text-center border-2 border-dashed rounded-lg">
+                  <ShoppingBag className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                  <p className="text-lg font-semibold text-muted-foreground">
+                    No Services Configured Yet for {selectedClub?.name}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Add the first service for this club to get started!
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
         {services.length > 0 && (
@@ -194,7 +228,6 @@ function ManageServicesContent() {
     </div>
   );
 }
-
 
 export default function ManageServicesPage() {
   return (
