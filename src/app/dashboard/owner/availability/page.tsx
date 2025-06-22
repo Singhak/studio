@@ -122,22 +122,22 @@ export default function ManageAvailabilityPage() {
           
           const conflictingBooking = relevantBookings.find(b => b.startTime === startTimeFormatted);
 
-          if (conflictingBooking) {
-            generatedSlots.push({
-              id: conflictingBooking._id,
-              startTime: startTimeFormatted,
-              endTime: endTimeFormatted,
-              status: conflictingBooking.status,
-              displayStatus: conflictingBooking.status === 'blocked' ? 'blocked' : (conflictingBooking.status === 'pending' ? 'pending' : 'booked'),
-            });
-          } else {
-            generatedSlots.push({
-              startTime: startTimeFormatted,
-              endTime: endTimeFormatted,
-              status: 'pending', // Placeholder
-              displayStatus: 'available',
-            });
-          }
+          // if (conflictingBooking) {
+          //   generatedSlots.push({
+          //     id: conflictingBooking._id,
+          //     startTime: startTimeFormatted,
+          //     endTime: endTimeFormatted,
+          //     status: conflictingBooking.status,
+          //     displayStatus: conflictingBooking.status === 'blocked' ? 'blocked' : (conflictingBooking.status === 'pending' ? 'pending' : 'booked'),
+          //   });
+          // } else {
+          //   generatedSlots.push({
+          //     startTime: startTimeFormatted,
+          //     endTime: endTimeFormatted,
+          //     status: 'pending', // Placeholder
+          //     displayStatus: 'available',
+          //   });
+          // }
         }
         currentTime = addMinutes(currentTime, slotDuration);
       }
