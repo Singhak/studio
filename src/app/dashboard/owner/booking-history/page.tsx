@@ -39,7 +39,7 @@ import {
 import { getCachedClubEntry } from '@/lib/cacheUtils';
 
 const ITEMS_PER_PAGE = 10;
-const BOOKING_STATUSES: BookingStatus[] = ['confirmed', 'pending', 'completed', 'cancelled_by_customer', 'cancelled_by_club', 'rejected'];
+const BOOKING_STATUSES: BookingStatus[] = ['confirmed', 'pending', 'completed', 'cancelled_by_customer', 'cancelled_by_club', 'rejected','blocked'];
 
 export default function OwnerBookingHistoryPage() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -212,6 +212,7 @@ export default function OwnerBookingHistoryPage() {
       case 'cancelled_by_customer': return 'destructive';
       case 'cancelled_by_club': return 'destructive';
       case 'rejected': return 'destructive';
+      case 'blocked': return 'destructive';
       default: return 'secondary';
     }
   };
@@ -259,8 +260,8 @@ export default function OwnerBookingHistoryPage() {
         <CardContent>
           <div className="space-y-4">
             {/* Row 1 */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="space-y-1.5 xl:col-span-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
                 <label htmlFor="club-selector-history" className="text-sm font-medium text-muted-foreground">Select Club</label>
                 <Select
                   value={selectedClubId || ""}
@@ -277,38 +278,38 @@ export default function OwnerBookingHistoryPage() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5 xl:col-span-2">
-                <label htmlFor="date-range-picker" className="text-sm font-medium text-muted-foreground">Date Range</label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="date-range-picker"
-                      variant={"outline"}
-                      className={`w-full justify-start text-left font-normal ${!dateRange && "text-muted-foreground"}`}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange?.from ? (
-                        dateRange.to ? (
-                          <>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>
-                        ) : (
-                          format(dateRange.from, "LLL dd, y")
-                        )
-                      ) : (
-                        <span>Pick a date range</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      initialFocus
-                      mode="range"
-                      defaultMonth={dateRange?.from}
-                      selected={dateRange}
-                      onSelect={setDateRange}
-                      numberOfMonths={2}
-                    />
-                  </PopoverContent>
-                </Popover>
+              <div className="space-y-1.5">
+                  <label htmlFor="date-range-picker" className="text-sm font-medium text-muted-foreground">Date Range</label>
+                  <Popover>
+                      <PopoverTrigger asChild>
+                      <Button
+                          id="date-range-picker"
+                          variant={"outline"}
+                          className={`w-full justify-start text-left font-normal ${!dateRange && "text-muted-foreground"}`}
+                      >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateRange?.from ? (
+                          dateRange.to ? (
+                              <>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>
+                          ) : (
+                              format(dateRange.from, "LLL dd, y")
+                          )
+                          ) : (
+                          <span>Pick a date range</span>
+                          )}
+                      </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                          initialFocus
+                          mode="range"
+                          defaultMonth={dateRange?.from}
+                          selected={dateRange}
+                          onSelect={setDateRange}
+                          numberOfMonths={2}
+                      />
+                      </PopoverContent>
+                  </Popover>
               </div>
             </div>
 

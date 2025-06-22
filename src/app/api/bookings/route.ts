@@ -5,7 +5,10 @@ import type { Booking, CreateBookingPayload } from '@/lib/types';
 import { mockServices, mockUserBookings, baseMockOwnerBookings } from '@/lib/mockData';
 
 // In-memory store for mock bookings (for demonstration purposes)
-let bookingsStore: Booking[] = [];
+// NOTE: This store resets on every server restart/code change in dev mode.
+// It's a simple way to handle dynamic data without a database.
+let bookingsStore: Booking[] = [...mockUserBookings, ...baseMockOwnerBookings];
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,23 +44,26 @@ export async function POST(request: NextRequest) {
     const durationHours = Math.max(1, endHour - startHour); 
     const totalPrice = service.hourlyPrice * durationHours;
 
+    const finalUserId = body.userId ? body.userId : `user_mock_${Math.random().toString(36).substring(2, 7)}`;
+    const finalStatus = body.status ? body.status : 'pending';
+
 
     const newBookingEntry: Booking = {
       id: newBookingId,
-      userId: `user_mock_${Math.random().toString(36).substring(2, 7)}`, // Mock user ID for now, real app would get from auth
+      userId: finalUserId,
       clubId: service.club, 
       serviceId: body.serviceId,
       date: body.bookingDate,
       startTime: body.startTime,
       endTime: body.endTime,
-      status: 'pending',
-      totalPrice: totalPrice,
+      status: finalStatus,
+      totalPrice: finalStatus === 'blocked' ? 0 : totalPrice, // Price is 0 for blocked slots
       notes: body.notes,
       createdAt: new Date().toISOString(),
     };
 
     bookingsStore.push(newBookingEntry);
-    console.log("New booking created (mock):", newBookingEntry);
+    console.log("New booking/block created (mock):", newBookingEntry);
     console.log("Current bookingsStore count:", bookingsStore.length);
 
 
@@ -65,7 +71,8 @@ export async function POST(request: NextRequest) {
       {
         message: 'Booking request submitted successfully. Awaiting club owner confirmation.',
         bookingId: newBookingId,
-        status: 'pending',
+        status: finalStatus,
+        booking: newBookingEntry, // Return the full object for blocking scenario
       },
       { status: 201 }
     );
@@ -94,19 +101,12 @@ export async function GET(request: NextRequest) {
   const serviceId = searchParams.get('serviceId');
   const date = searchParams.get('date'); // Expected format YYYY-MM-DD
 
-  let allBookings = [...bookingsStore, ...mockUserBookings, ...baseMockOwnerBookings];
-
-  const uniqueBookingsMap = new Map<string, Booking>();
-  allBookings.forEach(booking => {
-    if (!uniqueBookingsMap.has(booking.id) || bookingsStore.some(b => b.id === booking.id)) {
-      uniqueBookingsMap.set(booking.id, booking);
-    }
-  });
-  allBookings = Array.from(uniqueBookingsMap.values());
+  // Use a copy of the store to avoid race conditions if needed, but for now direct access is fine for mock.
+  let allBookings = [...bookingsStore];
 
   // Priority 1: Filter by userId if provided
   if (userId) {
-    const userBookings = allBookings.filter(booking => booking.userId === userId);
+    const userBookings = allBookings.filter(booking => booking.userId === userId && !booking.userId.startsWith('owner_block_'));
     return NextResponse.json(userBookings);
   }
 
@@ -134,4 +134,25 @@ export async function GET(request: NextRequest) {
 
   // Default: If no specific filters, return all (consider implications for large datasets)
   return NextResponse.json(allBookings);
+}
+
+// This function will handle the deletion of a booking (used for unblocking)
+export async function DELETE(request: NextRequest) {
+    const { searchParams } = new URL(request.url);
+    const bookingId = searchParams.get('bookingId');
+
+    if (!bookingId) {
+        return NextResponse.json({ message: 'Booking ID is required for deletion' }, { status: 400 });
+    }
+
+    const initialLength = bookingsStore.length;
+    bookingsStore = bookingsStore.filter(b => b.id !== bookingId);
+
+    if (bookingsStore.length < initialLength) {
+        console.log(`Booking ${bookingId} deleted from mock store.`);
+        return new NextResponse(null, { status: 204 }); // No Content
+    } else {
+        console.log(`Booking ${bookingId} not found in mock store for deletion.`);
+        return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
+    }
 }

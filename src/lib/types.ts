@@ -113,7 +113,7 @@ export interface BookingDetails {
   date: string;
   startTime: string;
   endTime: string;
-  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed';
+  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed' | 'blocked';
   totalPrice: number;
   notes?: string;
   createdAt: string;
@@ -174,6 +174,9 @@ export interface CreateBookingPayload {
   startTime: string; // "HH:MM"
   endTime: string; // "HH:MM"
   notes?: string;
+  // Optional fields for special cases like blocking
+  status?: Booking['status'];
+  userId?: string;
 }
 
 // Response from creating a booking
