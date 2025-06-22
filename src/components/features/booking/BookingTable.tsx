@@ -16,7 +16,9 @@ const getStatusBadgeVariant = (status: Booking['status']): StatusBadgeVariant =>
         case 'confirmed': return 'default';
         case 'pending': return 'secondary';
         case 'completed': return 'outline';
-        case 'cancelled': return 'destructive';
+        case 'cancelled_by_customer':
+        case 'cancelled_by_club':
+            return 'destructive';
         case 'rejected': return 'destructive';
         default: return 'secondary';
     }
@@ -77,10 +79,10 @@ export function BookingTable({
                         </TableHeader>
                         <TableBody>
                             {bookings.map((booking) => (
-                                <TableRow key={booking.id}>
-                                    <TableCell className="font-medium">User {booking.userId.slice(-4)}</TableCell>
-                                    <TableCell>{format(new Date(booking.date), 'MMM d, yyyy')} at {booking.startTime}</TableCell>
-                                    <TableCell>{getServiceName(booking.serviceId)}</TableCell>
+                                <TableRow key={booking._id}>
+                                    <TableCell className="font-medium">User {booking.customer.slice(-4)}</TableCell>
+                                    <TableCell>{format(new Date(booking.bookingDate), 'MMM d, yyyy')} at {booking.startTime}</TableCell>
+                                    <TableCell>{getServiceName(booking.service)}</TableCell>
                                     <TableCell><Badge variant={getStatusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                                     <TableCell className="text-right space-x-1">
                                         {renderActions(booking)}
