@@ -84,7 +84,7 @@ export interface Service {
 }
 
 export type TimeSlotStatus = 'available' | 'pending' | 'confirmed' | 'in-progress' | 'unavailable';
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled_by_customer' | 'cancelled_by_club' | 'completed' | 'no_show' | 'rescheduled' | 'rejected';
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled_by_customer' | 'cancelled_by_club' | 'completed' | 'no_show' | 'rescheduled' | 'rejected' | 'blocked';
 
 export interface TimeSlot {
   startTime: string;
@@ -94,7 +94,7 @@ export interface TimeSlot {
 
 export interface Booking {
   _id: string;
-  customer: {_id:string, name:string, email:string, phone:string}; // Changed from 'customer' to 'userId' for consistency
+  customer: {_id:string, uid:string, name:string, email:string, phone:string}; // Changed from 'customer' to 'userId' for consistency
   club: {_id:string, name:string};
   service: {_id:string, name:string, price:number}; // Should map to Service._id
   bookingDate: string;

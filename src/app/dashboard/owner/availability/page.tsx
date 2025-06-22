@@ -19,7 +19,7 @@ import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/comp
 import { format, parse, addMinutes, isBefore, isEqual, getDay, startOfToday } from 'date-fns';
 import type { Matcher } from 'react-day-picker';
 
-import { ArrowLeft, CalendarClock, Loader2, AlertTriangle, RefreshCw, Club as ClubIcon, Package, Lock, Unlock, XCircle } from "lucide-react";
+import { ArrowLeft, CalendarClock, Loader2, AlertTriangle, RefreshCw, Club as ClubIcon, Package, Lock, Unlock, XCircle, CheckCircle, Clock } from "lucide-react";
 
 interface TimeSlotForOwner extends Omit<Booking, 'id' | 'userId' | 'clubId' | 'serviceId' | 'date' | 'totalPrice' | 'createdAt'> {
   id?: string; // Optional id if it's an existing booking/block
@@ -102,7 +102,7 @@ export default function ManageAvailabilityPage() {
     try {
       const dateString = format(selectedDate, 'yyyy-MM-dd');
       const existingBookings = await getBookingsByClubId(selectedClubId);
-      const relevantBookings = existingBookings.filter(b => b.serviceId === selectedService._id && b.date === dateString);
+      const relevantBookings = existingBookings.filter(b => b.service._id === selectedService._id && b.bookingDate === dateString);
 
       const openingTimeStr = selectedService.openingTime || "00:00";
       const closingTimeStr = selectedService.closingTime || "23:59";
@@ -124,7 +124,7 @@ export default function ManageAvailabilityPage() {
 
           if (conflictingBooking) {
             generatedSlots.push({
-              id: conflictingBooking.id,
+              id: conflictingBooking._id,
               startTime: startTimeFormatted,
               endTime: endTimeFormatted,
               status: conflictingBooking.status,
