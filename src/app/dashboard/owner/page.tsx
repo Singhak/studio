@@ -5,8 +5,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Booking, Club, Service, ClubAddress } from "@/lib/types";
 import { mockServices as allMockServices } from '@/lib/mockData';
@@ -17,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getLoggedInOwnerClubs, getClubById, getServiceById, getServicesByClubId } from '@/services/clubService';
 import { getBookingsByClubId } from '@/services/bookingService';
 import { BookingDetailsDialog } from '@/components/features/booking/BookingDetailsDialog';
+import { BookingTable } from '@/components/features/booking/BookingTable';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,19 +28,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from 'date-fns';
 import { getCachedClubEntry } from '@/lib/cacheUtils';
-
-
-const statusBadgeVariant = (status: Booking['status']) => {
-  switch (status) {
-    case 'confirmed': return 'default';
-    case 'pending': return 'secondary';
-    case 'completed': return 'outline';
-    case 'cancelled_by_customer': return 'destructive';
-    case 'cancelled_by_club': return 'destructive';
-    case 'rejected': return 'destructive';
-    default: return 'secondary';
-  }
-};
 
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
@@ -376,7 +362,7 @@ export default function OwnerDashboardPage() {
         <ClubIconLucide className="w-24 h-24 text-muted-foreground mb-6" />
         <h1 className="text-3xl font-bold mb-2">No Clubs Registered Yet</h1>
         <p className="text-muted-foreground mb-6 max-w-md">
-          It looks like you haven&apos;t registered any clubs with Courtly yet.
+          It looks like you haven't registered any clubs with Courtly yet.
           Register your club to start managing bookings and reaching new players!
         </p>
         <Button size="lg" asChild>
@@ -524,85 +510,55 @@ export default function OwnerDashboardPage() {
           <TabsTrigger value="manage">Manage Club</TabsTrigger>
         </TabsList>
         <TabsContent value="bookings">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Booking Requests for {selectedClub.name}</CardTitle>
-              <CardDescription>Approve or reject new booking requests for this club.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingBookings ? (
-                <div className="text-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /></div>
-              ) : bookingsError ? (
-                <div className="text-center py-8 text-destructive">
-                  <AlertTriangle className="mx-auto h-10 w-10 mb-2" />
-                  <p className="font-semibold">Could not load bookings</p>
-                  <p className="text-sm">{bookingsError}</p>
-                  <Button variant="outline" className="mt-3" onClick={() => { selectedClub?._id && fetchBookingsForClub(selectedClub._id) }}>Try Again</Button>
-                </div>
-              ) : currentClubBookings.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>User</TableHead>
-                      <TableHead>Date & Time</TableHead>
-                      <TableHead>Service</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {currentClubBookings.map((booking) => (
-                      <TableRow key={booking._id}>
-                        <TableCell className="font-medium">User {booking.customer.slice(-4)}</TableCell>
-                        <TableCell>{format(new Date(booking.bookingDate), 'MMM d, yyyy')} at {booking.startTime}</TableCell>
-                        <TableCell>{getServiceName(booking.service)}</TableCell>
-                        <TableCell><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
-                        <TableCell className="text-right space-x-1">
-                          {booking.status === 'pending' && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Accept Booking"
-                                className="text-green-600 hover:text-green-700"
-                                onClick={() => handleAcceptBooking(booking._id)}
-                              >
-                                <CheckCircle className="h-5 w-5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Reject Booking"
-                                className="text-red-600 hover:text-red-700"
-                                onClick={() => initiateRejectBooking(booking)}
-                              >
-                                <XCircle className="h-5 w-5" />
-                              </Button>
-                            </>
-                          )}
-                          <Button
+          <BookingTable
+            title={`Recent Booking Requests for ${selectedClub.name}`}
+            description="Approve or reject new booking requests for this club."
+            bookings={currentClubBookings}
+            isLoading={isLoadingBookings}
+            error={bookingsError}
+            emptyStateMessage={`No booking requests for ${selectedClub.name} at this time.`}
+            onRetry={() => { selectedClub?._id && fetchBookingsForClub(selectedClub._id)}}
+            getServiceName={getServiceName}
+            renderActions={(booking) => (
+                <>
+                    {booking.status === 'pending' && (
+                        <>
+                        <Button
                             variant="ghost"
                             size="icon"
-                            title="View Details"
-                            onClick={() => handleOpenDetailsDialog(booking)}
-                            disabled={isLoadingDialogData && bookingForDialog?._id === booking._id}
-                          >
-                            {isLoadingDialogData && bookingForDialog?._id === booking._id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">No booking requests for {selectedClub.name} at this time.</p>
-              )}
-            </CardContent>
-          </Card>
+                            title="Accept Booking"
+                            className="text-green-600 hover:text-green-700"
+                            onClick={() => handleAcceptBooking(booking._id)}
+                        >
+                            <CheckCircle className="h-5 w-5" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Reject Booking"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => initiateRejectBooking(booking)}
+                        >
+                            <XCircle className="h-5 w-5" />
+                        </Button>
+                        </>
+                    )}
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        title="View Details"
+                        onClick={() => handleOpenDetailsDialog(booking)}
+                        disabled={isLoadingDialogData && bookingForDialog?._id === booking._id}
+                    >
+                    {isLoadingDialogData && bookingForDialog?._id === booking._id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                        <Eye className="h-4 w-4" />
+                    )}
+                    </Button>
+                </>
+            )}
+          />
         </TabsContent>
         <TabsContent value="manage">
           <Card>
