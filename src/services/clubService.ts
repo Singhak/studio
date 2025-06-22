@@ -1,7 +1,7 @@
 
 import type { Club, ClubAddress, ClubLocationGeo, Service } from '@/lib/types';
 import { getApiBaseUrl, authedFetch } from '@/lib/apiUtils';
-import { getCachedClubEntry, setCachedClubEntry, isCacheEntryValid } from '@/lib/cacheUtils';
+import { getCachedClubEntry, setCachedClubEntry, isCacheEntryValid, clearClubCache } from '@/lib/cacheUtils';
 
 export async function getAllClubs(): Promise<Club[]> {
   const apiUrlPath = `/clubs`;
@@ -116,6 +116,37 @@ export async function registerClub(clubData: RegisterClubPayload): Promise<Club>
     }
   }
 }
+
+export type UpdateClubPayload = Pick<Club, 'name' | 'address' | 'location' | 'description' | 'images' | 'amenities' | 'contactEmail' | 'contactPhone'>;
+
+export async function updateClub(clubId: string, payload: UpdateClubPayload): Promise<Club> {
+    const apiUrlPath = `/clubs/${clubId}`;
+    try {
+        const response = await authedFetch(apiUrlPath, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+
+        const responseBody = await response.json();
+        if (!response.ok) {
+            const errorMessage = responseBody?.message || `Club update failed: ${response.statusText} (${response.status})`;
+            throw new Error(errorMessage);
+        }
+        
+        // Invalidate cache after successful update
+        clearClubCache(clubId);
+        
+        return responseBody as Club;
+    } catch (error) {
+        console.error(`Error updating club ${clubId} in service:`, error);
+        if (error instanceof Error) {
+            throw error;
+        } else {
+            throw new Error('An unexpected error occurred during club update.');
+        }
+    }
+}
+
 
 export type AddServicePayload = Omit<Service, '_id' | 'createdAt' | 'updatedAt' | '__v'>;
 
