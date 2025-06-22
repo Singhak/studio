@@ -200,11 +200,11 @@ export default function OwnerDashboardPage() {
     setClubBookings(prev => prev.map(b => b._id === bookingId ? { ...b, status: 'confirmed' } : b));
     toast({
         toastTitle: "Booking Accepted",
-        toastDescription: `Booking for User ${bookingToAcceptForDialog.customer.slice(-4)} at ${selectedClub.name} has been confirmed.`,
+        toastDescription: `Booking for User ${bookingToAcceptForDialog.customer.name} at ${selectedClub.name} has been confirmed.`,
     });
     addNotification(
         `Booking Confirmed: ${selectedClub.name}`,
-        `Your booking for ${getServiceName(bookingToAcceptForDialog.service)} on ${format(new Date(bookingToAcceptForDialog.bookingDate), 'MMM d, yyyy')} has been confirmed by the club.`,
+        `Your booking for ${getServiceName(bookingToAcceptForDialog.service._id)} on ${format(new Date(bookingToAcceptForDialog.bookingDate), 'MMM d, yyyy')} has been confirmed by the club.`,
         '/dashboard/user', 
         `booking_confirmed_${bookingId}`
     );
@@ -228,16 +228,16 @@ export default function OwnerDashboardPage() {
     toast({
       variant: "destructive",
       toastTitle: "Booking Rejected",
-      toastDescription: `Booking for User ${bookingToRejectForDialog.customer.slice(-4)} at ${selectedClub.name} has been rejected.`,
+      toastDescription: `Booking for User ${bookingToRejectForDialog.customer.name} at ${selectedClub.name} has been rejected.`,
     });
 
     let serviceName = 'a service';
     if (selectedClub.services) {
-      const service = selectedClub.services.find(s => s._id === bookingToRejectForDialog.service);
+      const service = selectedClub.services.find(s => s._id === bookingToRejectForDialog.service._id);
       if (service) serviceName = service.name;
-      else serviceName = getServiceName(bookingToRejectForDialog.service); // Fallback if not in current club.services
+      else serviceName = getServiceName(bookingToRejectForDialog.service._id); // Fallback if not in current club.services
     } else {
-      serviceName = getServiceName(bookingToRejectForDialog.service);
+      serviceName = getServiceName(bookingToRejectForDialog.service._id);
     }
 
     addNotification(
@@ -255,18 +255,18 @@ export default function OwnerDashboardPage() {
     setIsLoadingDialogData(true);
     try {
       let fetchedClub = null;
-      if (selectedClub && selectedClub._id === booking.club) {
+      if (selectedClub && selectedClub._id === booking.club._id) {
         fetchedClub = selectedClub;
       } else {
-        fetchedClub = await getClubById(booking.club);
+        fetchedClub = await getClubById(booking.club._id);
       }
 
       let fetchedService = null;
       if (fetchedClub && fetchedClub.services) {
-        fetchedService = fetchedClub.services.find(s => s._id === booking.service) || null;
+        fetchedService = fetchedClub.services.find(s => s._id === booking.service._id) || null;
       }
       if (!fetchedService) {
-        fetchedService = await getServiceById(booking.service);
+        fetchedService = await getServiceById(booking.service._id);
       }
 
       setClubForDialog(fetchedClub);
@@ -639,8 +639,8 @@ export default function OwnerDashboardPage() {
               </AlertDialogTitle>
               <AlertDialogDescription>
                 Are you sure you want to accept the booking for User{' '}
-                <strong>{bookingToAcceptForDialog.customer.slice(-4)}</strong> for service{' '}
-                <strong>{getServiceName(bookingToAcceptForDialog.service)}</strong> on{' '}
+                <strong>{bookingToAcceptForDialog.customer.name}</strong> for service{' '}
+                <strong>{getServiceName(bookingToAcceptForDialog.service._id)}</strong> on{' '}
                 <strong>{format(new Date(bookingToAcceptForDialog.bookingDate), 'MMM d, yyyy')}</strong> at{' '}
                 <strong>{bookingToAcceptForDialog.startTime}</strong>?
               </AlertDialogDescription>
@@ -667,8 +667,8 @@ export default function OwnerDashboardPage() {
               </AlertDialogTitle>
               <AlertDialogDescription>
                 Are you sure you want to reject the booking for User{' '}
-                <strong>{bookingToRejectForDialog.customer.slice(-4)}</strong> for service{' '}
-                <strong>{getServiceName(bookingToRejectForDialog.service)}</strong> on{' '}
+                <strong>{bookingToRejectForDialog.customer.name}</strong> for service{' '}
+                <strong>{getServiceName(bookingToRejectForDialog.service._id)}</strong> on{' '}
                 <strong>{format(new Date(bookingToRejectForDialog.bookingDate), 'MMM d, yyyy')}</strong> at{' '}
                 <strong>{bookingToRejectForDialog.startTime}</strong>?
               </AlertDialogDescription>

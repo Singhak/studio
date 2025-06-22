@@ -187,8 +187,8 @@ export default function OwnerBookingHistoryPage() {
     if (appliedFilters.searchTerm.trim() !== "") {
       const lowerSearchTerm = appliedFilters.searchTerm.toLowerCase();
       bookings = bookings.filter(booking =>
-        booking.customer.toLowerCase().includes(lowerSearchTerm) ||
-        getServiceName(booking.service).toLowerCase().includes(lowerSearchTerm) ||
+        booking.customer.name.toLowerCase().includes(lowerSearchTerm) ||
+        getServiceName(booking.service._id).toLowerCase().includes(lowerSearchTerm) ||
         booking._id.toLowerCase().includes(lowerSearchTerm)
       );
     }
@@ -395,10 +395,10 @@ export default function OwnerBookingHistoryPage() {
                     <TableBody>
                       {paginatedBookings.map(booking => (
                         <TableRow key={booking._id}>
-                          <TableCell className="font-medium flex items-center gap-2"><User className="h-4 w-4 text-muted-foreground" /> {booking.customer.slice(-6)}</TableCell>
+                          <TableCell className="font-medium flex items-center gap-2"><User className="h-4 w-4 text-muted-foreground" /> {booking.customer.name}</TableCell>
                           <TableCell><CalendarIcon className="h-4 w-4 text-muted-foreground inline mr-1.5" />{format(parseISO(booking.bookingDate), 'MMM d, yyyy')}</TableCell>
                           <TableCell>{booking.startTime} - {booking.endTime}</TableCell>
-                          <TableCell><Package className="h-4 w-4 text-muted-foreground inline mr-1.5" />{getServiceName(booking.service)}</TableCell>
+                          <TableCell><Package className="h-4 w-4 text-muted-foreground inline mr-1.5" />{getServiceName(booking.service._id)}</TableCell>
                           <TableCell><Badge variant={statusBadgeVariant(booking.status)} className="capitalize">{booking.status}</Badge></TableCell>
                           <TableCell className="text-right"><DollarSign className="h-4 w-4 text-muted-foreground inline mr-0.5" />{booking.totalPrice.toFixed(2)}</TableCell>
                         </TableRow>

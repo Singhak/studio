@@ -94,9 +94,9 @@ export interface TimeSlot {
 
 export interface Booking {
   _id: string;
-  customer: string; // Changed from 'customer' to 'userId' for consistency
-  club: string;
-  service: string; // Should map to Service._id
+  customer: {_id:string, name:string, email:string, phone:string}; // Changed from 'customer' to 'userId' for consistency
+  club: {_id:string, name:string};
+  service: {_id:string, name:string, price:number}; // Should map to Service._id
   bookingDate: string;
   startTime: string;
   endTime: string;

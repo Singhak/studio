@@ -88,39 +88,41 @@ export function BookingDetailsDialog({
         ) : (
           <div className="space-y-4 py-4 overflow-y-auto flex-grow pr-2">
             <Card className="p-4">
-              <h3 className="text-lg font-semibold mb-2 flex items-center"><Hash className="w-5 h-5 mr-2 text-primary"/>General</h3>
+              <h3 className="text-lg font-semibold mb-2 flex items-center"><Hash className="w-5 h-5 mr-2 text-primary" />General</h3>
               <dl className="divide-y divide-border">
                 <DetailItem label="Booking ID" value={booking._id} />
                 <DetailItem label="Status" value={<Badge variant={getStatusBadgeVariant(booking.status)}>{booking.status}</Badge>} />
                 <DetailItem label="Booked On" value={format(parseISO(booking.createdAt), "MMM d, yyyy 'at' h:mm a")} />
-                 <DetailItem label="User ID" value={booking.customer} />
+                <DetailItem label="User Name" value={booking.customer.name} />
+                <DetailItem label="User Email" value={booking.customer.email} />
+                <DetailItem label="User Phone" value={booking.customer.phone} />
               </dl>
             </Card>
 
             <Card className="p-4">
-              <h3 className="text-lg font-semibold mb-2 flex items-center"><Package className="w-5 h-5 mr-2 text-primary"/>Service & Club</h3>
+              <h3 className="text-lg font-semibold mb-2 flex items-center"><Package className="w-5 h-5 mr-2 text-primary" />Service & Club</h3>
               <dl className="divide-y divide-border">
-                <DetailItem label="Club" value={club?.name} icon={Home}/>
-                <DetailItem label="Service" value={service?.name} icon={Package}/>
-                {club && <DetailItem label="Club Address" value={clubAddressString} icon={MapPin}/>}
+                <DetailItem label="Club" value={club?.name} icon={Home} />
+                <DetailItem label="Service" value={service?.name} icon={Package} />
+                {club && <DetailItem label="Club Address" value={clubAddressString} icon={MapPin} />}
                 {service && <DetailItem label="Service Type" value={service.sportType} />}
               </dl>
             </Card>
-            
+
             <Card className="p-4">
-                <h3 className="text-lg font-semibold mb-2 flex items-center"><Calendar className="w-5 h-5 mr-2 text-primary"/>Date & Time</h3>
-                <dl className="divide-y divide-border">
-                    <DetailItem label="Date" value={format(parseISO(booking.bookingDate), "EEEE, MMMM d, yyyy")} icon={Calendar}/>
-                    <DetailItem label="Time" value={`${booking.startTime} - ${booking.endTime}`} icon={Clock}/>
-                </dl>
+              <h3 className="text-lg font-semibold mb-2 flex items-center"><Calendar className="w-5 h-5 mr-2 text-primary" />Date & Time</h3>
+              <dl className="divide-y divide-border">
+                <DetailItem label="Date" value={format(parseISO(booking.bookingDate), "EEEE, MMMM d, yyyy")} icon={Calendar} />
+                <DetailItem label="Time" value={`${booking.startTime} - ${booking.endTime}`} icon={Clock} />
+              </dl>
             </Card>
 
             <Card className="p-4">
-                 <h3 className="text-lg font-semibold mb-2 flex items-center"><Info className="w-5 h-5 mr-2 text-primary"/>Additional Info</h3>
-                <dl className="divide-y divide-border">
-                    <DetailItem label="Total Price" value={`$${booking.totalPrice.toFixed(2)}`} icon={DollarSign}/>
-                    <DetailItem label="Notes" value={booking.notes} valueClassName="whitespace-pre-wrap"/>
-                </dl>
+              <h3 className="text-lg font-semibold mb-2 flex items-center"><Info className="w-5 h-5 mr-2 text-primary" />Additional Info</h3>
+              <dl className="divide-y divide-border">
+                <DetailItem label="Total Price" value={`$${booking.totalPrice.toFixed(2)}`} icon={DollarSign} />
+                <DetailItem label="Notes" value={booking.notes} valueClassName="whitespace-pre-wrap" />
+              </dl>
             </Card>
           </div>
         )}
