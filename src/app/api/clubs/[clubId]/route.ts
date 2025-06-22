@@ -63,3 +63,61 @@ export async function GET(
 
   return NextResponse.json(clubResponse);
 }
+
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { clubId: string } }
+) {
+  const clubId = params.clubId;
+  const clubIndex = mockClubs.findIndex((c) => c.id === clubId || c._id === clubId);
+
+  if (clubIndex === -1) {
+    return NextResponse.json({ message: 'Club not found' }, { status: 404 });
+  }
+
+  try {
+    const body = await request.json();
+
+    // Basic validation
+    if (!body.name || !body.address || !body.location || !body.description) {
+      return NextResponse.json({ message: 'Missing required club data' }, { status: 400 });
+    }
+    
+    const originalClub = mockClubs[clubIndex];
+
+    const updatedClubData: Club = {
+      ...originalClub, // Keep original fields like owner, ratings etc.
+      name: body.name,
+      address: body.address as ClubAddress,
+      location: body.location as ClubLocationGeo,
+      description: body.description,
+      contactEmail: body.contactEmail,
+      contactPhone: body.contactPhone,
+      images: body.images || originalClub.images, // Use new images if provided, else keep old
+      amenities: body.amenities || originalClub.amenities,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Simulate updating the mock data store
+    mockClubs[clubIndex] = updatedClubData;
+
+    console.log(`Club ${clubId} updated (mock):`, updatedClubData);
+
+    return NextResponse.json(updatedClubData, { status: 200 });
+
+  } catch (error) {
+    console.error(`Error in PUT /api/clubs/${clubId}:`, error);
+    let message = 'Internal server error';
+    let statusCode = 500;
+
+    if (error instanceof SyntaxError) {
+        message = "Invalid request body: " + error.message;
+        statusCode = 400;
+    } else if (error instanceof Error) {
+        message = error.message;
+    }
+    
+    return NextResponse.json({ message }, { status: statusCode });
+  }
+}
