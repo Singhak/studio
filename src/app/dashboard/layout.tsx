@@ -176,7 +176,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/dashboard/owner' && item.href !== '/dashboard/user') || (pathname.startsWith(item.href) && pathname.split('/').length === item.href.split('/').length +1 && (item.href === '/dashboard/owner' || item.href === '/dashboard/user') )}
+                    isActive={item.href === '/dashboard/owner' || item.href === '/dashboard/user' ? pathname === item.href : pathname.startsWith(item.href)}
                     tooltip={{ children: item.label, side: 'right' }}
                   >
                     <Link href={item.href}>
