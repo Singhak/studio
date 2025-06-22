@@ -114,15 +114,18 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
           const conflictingBooking = existingBookings.find(booking => booking.startTime === startTimeFormatted);
 
           if (conflictingBooking) {
-            if (conflictingBooking.status === 'pending') {
+            if (conflictingBooking.status === 'blocked') {
+              displayStatus = 'confirmed'; // Treat blocked as unavailable to users
+            } else if (conflictingBooking.status === 'confirmed') {
+              displayStatus = 'confirmed';
+            } else if (conflictingBooking.status === 'pending') {
               if (currentUser && conflictingBooking.userId === currentUser.uid) {
                 displayStatus = 'pending';
                 isCurrentUsersPendingBooking = true;
               } else {
-                displayStatus = 'confirmed';
+                // Another user's pending booking makes the slot unavailable
+                displayStatus = 'confirmed'; 
               }
-            } else if (conflictingBooking.status === 'confirmed') {
-              displayStatus = 'confirmed';
             }
           }
 
@@ -324,4 +327,3 @@ export function BookingCalendar({ selectedService, onSlotSelect }: BookingCalend
     </TooltipProvider>
   );
 }
-

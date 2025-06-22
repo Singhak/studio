@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
-const BOOKING_STATUSES: Booking['status'][] = ['pending', 'confirmed', 'rejected', 'cancelled', 'completed'];
+const BOOKING_STATUSES: Booking['status'][] = ['pending', 'confirmed', 'rejected', 'cancelled', 'completed', 'blocked'];
 
 export default function OwnerBookingHistoryPage() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -205,6 +205,7 @@ export default function OwnerBookingHistoryPage() {
       case 'completed': return 'outline';
       case 'cancelled': return 'destructive';
       case 'rejected': return 'destructive';
+      case 'blocked': return 'destructive';
       default: return 'secondary';
     }
   };
@@ -252,8 +253,8 @@ export default function OwnerBookingHistoryPage() {
         <CardContent>
           <div className="space-y-4">
             {/* Row 1 */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <div className="space-y-1.5 xl:col-span-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
                 <label htmlFor="club-selector-history" className="text-sm font-medium text-muted-foreground">Select Club</label>
                 <Select
                   value={selectedClubId || ""}
@@ -270,7 +271,7 @@ export default function OwnerBookingHistoryPage() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5 xl:col-span-2">
+              <div className="space-y-1.5">
                   <label htmlFor="date-range-picker" className="text-sm font-medium text-muted-foreground">Date Range</label>
                   <Popover>
                       <PopoverTrigger asChild>

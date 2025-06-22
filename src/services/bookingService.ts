@@ -108,3 +108,34 @@ export async function getBookingsByClubId(clubId: string): Promise<Booking[]> {
     throw new Error('An unexpected error occurred while fetching club bookings.');
   }
 }
+
+export async function blockTimeSlot(payload: { clubId: string; serviceId: string; date: string; startTime: string; endTime: string; }): Promise<Booking> {
+  const bookingPayload: CreateBookingPayload = {
+    serviceId: payload.serviceId,
+    bookingDate: payload.date,
+    startTime: payload.startTime,
+    endTime: payload.endTime,
+    status: 'blocked',
+    userId: `owner_block_${payload.clubId}`
+  };
+  const response = await createBooking(bookingPayload as any); // Using 'any' to bypass strict CreateBookingResponse type for now
+  return response as unknown as Booking;
+}
+
+export async function unblockTimeSlot(bookingId: string): Promise<void> {
+  const apiUrlPath = `/bookings/${bookingId}`;
+  try {
+    const response = await authedFetch(apiUrlPath, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+       const errorBody = await response.json().catch(() => ({ message: `Failed to unblock slot: ${response.statusText}` }));
+       throw new Error(errorBody.message);
+    }
+    // No content is expected on successful deletion
+  } catch (error) {
+    console.error(`Error unblocking time slot ${bookingId}:`, error);
+    if (error instanceof Error) throw error;
+    throw new Error('An unexpected error occurred while unblocking the time slot.');
+  }
+}

@@ -123,7 +123,7 @@ export default function OwnerDashboardPage() {
       const bookings = await getBookingsByClubId(clubId);
       bookings.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       console.log("OwnerDashboard: fetchBookingsForClub - Bookings fetched for club", clubId, ":", bookings.length);
-      setClubBookings(bookings);
+      setClubBookings(bookings.filter(b => b.status !== 'blocked')); // Filter out blocked slots
     } catch (err) {
       console.error(`OwnerDashboard: fetchBookingsForClub - Failed to fetch bookings for club ${clubId}:`, err);
       const clubNameForError = ownerClubs.find(c => c._id === clubId)?.name || 'this club';
