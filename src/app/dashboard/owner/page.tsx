@@ -46,6 +46,8 @@ export default function OwnerDashboardPage() {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isLoadingDialogData, setIsLoadingDialogData] = useState(false);
 
+  const [isAcceptConfirmOpen, setIsAcceptConfirmOpen] = useState(false);
+  const [bookingToAcceptForDialog, setBookingToAcceptForDialog] = useState<Booking | null>(null);
   const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [bookingToRejectForDialog, setBookingToRejectForDialog] = useState<Booking | null>(null);
 
@@ -177,21 +179,31 @@ export default function OwnerDashboardPage() {
     return service ? service.name : 'Unknown Service';
   }, [selectedClub]);
 
-  const handleAcceptBooking = (bookingId: string) => {
-    const booking = clubBookings.find(b => b.id === bookingId);
-    if (!booking || !selectedClub) return;
+  const initiateAcceptBooking = (booking: Booking) => {
+    setBookingToAcceptForDialog(booking);
+    setIsAcceptConfirmOpen(true);
+  };
+
+  const executeAcceptBooking = () => {
+    if (!bookingToAcceptForDialog || !selectedClub) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "No booking selected for acceptance." });
+      return;
+    }
+    const bookingId = bookingToAcceptForDialog.id;
 
     setClubBookings(prev => prev.map(b => b.id === bookingId ? {...b, status: 'confirmed'} : b));
     toast({
         toastTitle: "Booking Accepted",
-        toastDescription: `Booking for User ${booking.userId.slice(-4)} at ${selectedClub.name} has been confirmed.`,
+        toastDescription: `Booking for User ${bookingToAcceptForDialog.userId.slice(-4)} at ${selectedClub.name} has been confirmed.`,
     });
     addNotification(
         `Booking Confirmed: ${selectedClub.name}`,
-        `Your booking for ${getServiceName(booking.serviceId)} on ${format(new Date(booking.date), 'MMM d, yyyy')} has been confirmed by the club.`,
+        `Your booking for ${getServiceName(bookingToAcceptForDialog.serviceId)} on ${format(new Date(bookingToAcceptForDialog.date), 'MMM d, yyyy')} has been confirmed by the club.`,
         '/dashboard/user', 
         `booking_confirmed_${bookingId}`
     );
+    setIsAcceptConfirmOpen(false);
+    setBookingToAcceptForDialog(null);
   };
 
   const initiateRejectBooking = (booking: Booking) => {
@@ -522,7 +534,7 @@ export default function OwnerDashboardPage() {
                             size="icon"
                             title="Accept Booking"
                             className="text-green-600 hover:text-green-700"
-                            onClick={() => handleAcceptBooking(booking.id)}
+                            onClick={() => initiateAcceptBooking(booking)}
                         >
                             <CheckCircle className="h-5 w-5" />
                         </Button>
@@ -611,6 +623,34 @@ export default function OwnerDashboardPage() {
           isLoading={isLoadingDialogData && !clubForDialog && !serviceForDialog}
         />
       )}
+       {bookingToAcceptForDialog && (
+        <AlertDialog open={isAcceptConfirmOpen} onOpenChange={setIsAcceptConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center">
+                <CheckCircle className="mr-2 h-6 w-6 text-green-600" />
+                Confirm Acceptance
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to accept the booking for User{' '}
+                <strong>{bookingToAcceptForDialog.userId.slice(-4)}</strong> for service{' '}
+                <strong>{getServiceName(bookingToAcceptForDialog.serviceId)}</strong> on{' '}
+                <strong>{format(new Date(bookingToAcceptForDialog.date), 'MMM d, yyyy')}</strong> at{' '}
+                <strong>{bookingToAcceptForDialog.startTime}</strong>?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setBookingToAcceptForDialog(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={executeAcceptBooking}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                Confirm Accept
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
       {bookingToRejectForDialog && (
         <AlertDialog open={isRejectConfirmOpen} onOpenChange={setIsRejectConfirmOpen}>
           <AlertDialogContent>
@@ -628,7 +668,7 @@ export default function OwnerDashboardPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setBookingToRejectForDialog(null)}>Back</AlertDialogCancel>
+              <AlertDialogCancel onClick={() => setBookingToRejectForDialog(null)}>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={executeRejectBooking}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -642,4 +682,6 @@ export default function OwnerDashboardPage() {
     </div>
   );
 }
+    
+
     
