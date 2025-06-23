@@ -15,10 +15,10 @@ export interface ClubLocationGeo {
 export type UserRole = 'user' | 'owner' | 'admin' | 'editor';
 
 export interface CourtlyUserBase { // Renamed from AppUser to avoid conflict, and made more generic
-  id: string; // Firebase UID
-  email: string | null;
+  id?: string; // Firebase UID
+  email?: string | null;
   name?: string | null; // displayName from Firebase
-  roles: UserRole[];
+  roles?: UserRole[];
   avatarUrl?: string | null; // photoURL from Firebase
   phoneNumber?: string | null;
   whatsappNumber?: string | null;
@@ -98,7 +98,7 @@ export interface TimeSlot {
 
 export interface Booking {
   _id: string;
-  customer: {_id:string, uid:string, name:string, email:string, phone:string}; // Changed from 'customer' to 'userId' for consistency
+  customer: {_id:string, uid:string, name:string, email:string, phoneNumber:string}; // Changed from 'customer' to 'userId' for consistency
   club: {_id:string, name:string};
   service: {_id:string, name:string, price:number}; // Should map to Service._id
   bookingDate: string;

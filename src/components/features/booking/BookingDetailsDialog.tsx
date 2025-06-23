@@ -95,7 +95,7 @@ export function BookingDetailsDialog({
                 <DetailItem label="Booked On" value={format(parseISO(booking.createdAt), "MMM d, yyyy 'at' h:mm a")} />
                 <DetailItem label="User Name" value={booking.customer.name} />
                 <DetailItem label="User Email" value={booking.customer.email} />
-                <DetailItem label="User Phone" value={booking.customer.phone} />
+                <DetailItem label="User Phone" value={booking.customer.phoneNumber} />
               </dl>
             </Card>
 

@@ -80,7 +80,7 @@ export function BookingTable({
                         <TableBody>
                             {bookings.map((booking) => (
                                 <TableRow key={booking._id}>
-                                    <TableCell className="font-medium">User {booking.customer.name}</TableCell>
+                                    <TableCell className="font-medium">{booking.customer.name || 'N/A'}</TableCell>
                                     <TableCell>{format(new Date(booking.bookingDate), 'MMM d, yyyy')} at {booking.startTime}</TableCell>
                                     <TableCell>{getServiceName(booking.service._id)}</TableCell>
                                     <TableCell><Badge variant={getStatusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
