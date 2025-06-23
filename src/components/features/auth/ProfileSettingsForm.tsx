@@ -41,7 +41,7 @@ import {
 const profileFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   userType: z.enum(["user", "owner"]),
-  phoneNumber: z.string().optional().or(z.literal('')),
+  phoneNumber: z.string().or(z.literal('')),
   isWhatsappSameAsPhone: z.boolean().default(false),
   whatsappNumber: z.string().optional().or(z.literal('')),
   address: z.object({
@@ -61,11 +61,11 @@ const profileFormSchema = z.object({
   }),
 })
 .superRefine((data, ctx) => {
-    if (!data.isWhatsappSameAsPhone && (!data.whatsappNumber || data.whatsappNumber.trim() === '')) {
+    if (!data.isWhatsappSameAsPhone && (!data.phoneNumber || data.phoneNumber.trim() === '')) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "WhatsApp number is required if different from phone number.",
-            path: ['whatsappNumber'],
+            message: "phone Number number is required",
+            path: ['phoneNumber'],
         });
     }
 });
