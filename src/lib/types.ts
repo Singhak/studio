@@ -88,7 +88,7 @@ export interface Service {
 }
 
 export type TimeSlotStatus = 'available' | 'pending' | 'confirmed' | 'in-progress' | 'unavailable';
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled_by_customer' | 'cancelled_by_club' | 'completed' | 'no_show' | 'rescheduled' | 'rejected' | 'blocked';
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled_by_customer' | 'cancelled_by_club' | 'completed' | 'no_show' | 'rescheduled' | 'rejected' | 'blocked'|'expired';
 
 export interface TimeSlot {
   startTime: string;
