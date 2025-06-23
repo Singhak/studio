@@ -53,8 +53,8 @@ export default function OwnerDashboardPage() {
 
   const getServiceName = useCallback((serviceId: string): string => {
     if (selectedClub && selectedClub.services) {
-        const serviceInClub = selectedClub.services.find(s => s._id === serviceId);
-        if (serviceInClub) return serviceInClub.name;
+      const serviceInClub = selectedClub.services.find(s => s._id === serviceId);
+      if (serviceInClub) return serviceInClub.name;
     }
     const service = allMockServices.find(s => s._id === serviceId);
     return service ? service.name : 'Unknown Service';
@@ -129,7 +129,7 @@ export default function OwnerDashboardPage() {
     setBookingsError(null);
     try {
       const bookings = await getBookingsByClubId(clubId);
-      
+
       const now = new Date();
       const clubName = ownerClubs.find(c => c._id === clubId)?.name || "your club";
       const processedBookings = bookings.map(booking => {
@@ -144,13 +144,13 @@ export default function OwnerDashboardPage() {
               `booking_expired_${booking._id}`
             );
             // Return a new object with the updated status.
-            return { ...booking, status: 'expired' };
+            return { ...booking, status: 'expired' as Booking['status'] };
           }
         }
         return booking;
       });
 
-      processedBookings.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      processedBookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       console.log("OwnerDashboard: fetchBookingsForClub - Bookings fetched for club", clubId, ":", processedBookings.length);
       setClubBookings(processedBookings.filter(b => b.status !== 'blocked')); // Filter out blocked slots
     } catch (err) {
@@ -212,14 +212,14 @@ export default function OwnerDashboardPage() {
 
     setClubBookings(prev => prev.map(b => b._id === bookingId ? { ...b, status: 'confirmed' } : b));
     toast({
-        toastTitle: "Booking Accepted",
-        toastDescription: `Booking for User ${bookingToAcceptForDialog.customer.name} at ${selectedClub.name} has been confirmed.`,
+      toastTitle: "Booking Accepted",
+      toastDescription: `Booking for User ${bookingToAcceptForDialog.customer.name} at ${selectedClub.name} has been confirmed.`,
     });
     addNotification(
-        `Booking Confirmed: ${selectedClub.name}`,
-        `Your booking for ${getServiceName(bookingToAcceptForDialog.service._id)} on ${format(parseISO(bookingToAcceptForDialog.bookingDate), 'MMM d, yyyy')} has been confirmed by the club.`,
-        '/dashboard/user', 
-        `booking_confirmed_${bookingId}`
+      `Booking Confirmed: ${selectedClub.name}`,
+      `Your booking for ${getServiceName(bookingToAcceptForDialog.service._id)} on ${format(parseISO(bookingToAcceptForDialog.bookingDate), 'MMM d, yyyy')} has been confirmed by the club.`,
+      '/dashboard/user',
+      `booking_confirmed_${bookingId}`
     );
     setIsAcceptConfirmOpen(false);
     setBookingToAcceptForDialog(null);
@@ -254,10 +254,10 @@ export default function OwnerDashboardPage() {
     }
 
     addNotification(
-        `Booking Update: ${selectedClub.name}`,
-        `Unfortunately, your booking for ${serviceName} on ${format(parseISO(bookingToRejectForDialog.bookingDate), 'MMM d, yyyy')} could not be confirmed.`,
-        '/dashboard/user', 
-        `booking_rejected_${bookingId}`
+      `Booking Update: ${selectedClub.name}`,
+      `Unfortunately, your booking for ${serviceName} on ${format(parseISO(bookingToRejectForDialog.bookingDate), 'MMM d, yyyy')} could not be confirmed.`,
+      '/dashboard/user',
+      `booking_rejected_${bookingId}`
     );
     setIsRejectConfirmOpen(false);
     setBookingToRejectForDialog(null);
@@ -542,46 +542,46 @@ export default function OwnerDashboardPage() {
             isLoading={isLoadingBookings}
             error={bookingsError}
             emptyStateMessage={`No booking requests for ${selectedClub.name} at this time.`}
-            onRetry={() => { selectedClub?._id && fetchBookingsForClub(selectedClub._id)}}
+            onRetry={() => { selectedClub?._id && fetchBookingsForClub(selectedClub._id) }}
             getServiceName={getServiceName}
             renderActions={(booking) => (
-                <>
-                    {booking.status === 'pending' && (
-                        <>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Accept Booking"
-                            className="text-green-600 hover:text-green-700"
-                            onClick={() => initiateAcceptBooking(booking)}
-                        >
-                            <CheckCircle className="h-5 w-5" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Reject Booking"
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() => initiateRejectBooking(booking)}
-                        >
-                            <XCircle className="h-5 w-5" />
-                        </Button>
-                        </>
-                    )}
+              <>
+                {booking.status === 'pending' && (
+                  <>
                     <Button
-                        variant="ghost"
-                        size="icon"
-                        title="View Details"
-                        onClick={() => handleOpenDetailsDialog(booking)}
-                        disabled={isLoadingDialogData && bookingForDialog?._id === booking._id}
+                      variant="ghost"
+                      size="icon"
+                      title="Accept Booking"
+                      className="text-green-600 hover:text-green-700"
+                      onClick={() => initiateAcceptBooking(booking)}
                     >
-                    {isLoadingDialogData && bookingForDialog?._id === booking._id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Eye className="h-4 w-4" />
-                    )}
+                      <CheckCircle className="h-5 w-5" />
                     </Button>
-                </>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Reject Booking"
+                      className="text-red-600 hover:text-red-700"
+                      onClick={() => initiateRejectBooking(booking)}
+                    >
+                      <XCircle className="h-5 w-5" />
+                    </Button>
+                  </>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="View Details"
+                  onClick={() => handleOpenDetailsDialog(booking)}
+                  disabled={isLoadingDialogData && bookingForDialog?._id === booking._id}
+                >
+                  {isLoadingDialogData && bookingForDialog?._id === booking._id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </>
             )}
           />
         </TabsContent>
@@ -642,7 +642,7 @@ export default function OwnerDashboardPage() {
           isLoading={isLoadingDialogData && !clubForDialog && !serviceForDialog}
         />
       )}
-       {bookingToAcceptForDialog && (
+      {bookingToAcceptForDialog && (
         <AlertDialog open={isAcceptConfirmOpen} onOpenChange={setIsAcceptConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -701,6 +701,6 @@ export default function OwnerDashboardPage() {
     </div>
   );
 }
-    
 
-    
+
+
