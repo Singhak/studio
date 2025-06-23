@@ -1,4 +1,5 @@
 
+
 export interface ClubAddress {
   street: string;
   city: string;
@@ -19,6 +20,9 @@ export interface CourtlyUserBase { // Renamed from AppUser to avoid conflict, an
   name?: string | null; // displayName from Firebase
   roles: UserRole[];
   avatarUrl?: string | null; // photoURL from Firebase
+  phoneNumber?: string | null;
+  whatsappNumber?: string | null;
+  address?: Partial<ClubAddress>;
 }
 
 

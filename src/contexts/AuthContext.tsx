@@ -10,7 +10,7 @@ import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast, type ToastFn } from "@/hooks/use-toast";
 import { Button } from '@/components/ui/button';
-import type { UserRole, AppNotification } from '@/lib/types'; // Corrected import
+import type { UserRole, AppNotification, ClubAddress } from '@/lib/types'; // Corrected import
 
 import { CLIENT_INSTANCE_ID_KEY, CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX, NOTIFICATION_STORAGE_PREFIX } from './authHelpers/constants';
 import {
@@ -41,6 +41,8 @@ import { initializeAuthHelpers } from '@/lib/apiUtils';
 
 export interface CourtlyUser extends FirebaseUser {
   roles: UserRole[];
+  whatsappNumber?: string | null;
+  address?: Partial<ClubAddress>;
 }
 
 export interface SetupFcmFn {
@@ -58,6 +60,7 @@ interface AuthContextType {
   confirmPhoneNumberCode: (confirmationResult: ConfirmationResult, code: string) => Promise<void>;
   logoutUser: () => Promise<void>;
   updateCourtlyUserRoles: (roles: UserRole[]) => void;
+  updateCourtlyUserProfile: (profileData: Partial<CourtlyUser>) => void;
   attemptTokenRefresh: () => Promise<boolean>;
   notifications: AppNotification[];
   unreadCount: number;
@@ -352,6 +355,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("AUTH_CONTEXT: Roles updated. Current path:", pathname, "New roles:", finalRoles);
     }
   }, [currentUser, pathname]);
+
+  const updateCourtlyUserProfileCb = useCallback((profileData: Partial<CourtlyUser>) => {
+    setCurrentUser(prevUser => {
+        if (!prevUser) return null;
+
+        const updatedUser: CourtlyUser = {
+            ...prevUser,
+            ...profileData,
+            displayName: profileData.displayName !== undefined ? profileData.displayName : prevUser.displayName,
+        };
+        
+        if (profileData.roles) {
+            localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${prevUser.uid}`, JSON.stringify(profileData.roles));
+        }
+
+        // SIMULATION: In a real app, you would also save other profile data to a database.
+        // For this prototype, it only lives in the context state.
+        console.log("Simulating user profile update. New state:", updatedUser);
+
+        return updatedUser;
+    });
+  }, []);
   
   const markNotificationAsReadCb = async (notificationId: string) => {
     await markNotificationReadManager(notificationId, notifications, currentUser?.uid, toast, setNotifications, setUnreadCount);
@@ -376,6 +401,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     confirmPhoneNumberCode,
     logoutUser: fullLogoutSequence,
     updateCourtlyUserRoles: updateCourtlyUserRolesCb,
+    updateCourtlyUserProfile: updateCourtlyUserProfileCb,
     attemptTokenRefresh,
     notifications,
     unreadCount,

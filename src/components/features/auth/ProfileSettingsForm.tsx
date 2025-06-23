@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,8 +21,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { User, KeyRound, ShieldCheck, Trash2, Loader2, Save } from "lucide-react";
-import type { UserRole } from "@/lib/types";
+import { User, KeyRound, ShieldCheck, Trash2, Loader2, Save, Phone, MessageSquareText, MapPin } from "lucide-react";
+import type { UserRole, ClubAddress } from "@/lib/types";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,11 +39,39 @@ import {
 
 const profileFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
-  userType: z.enum(["user", "owner"], { required_error: "Please select your account type." }),
+  userType: z.enum(["user", "owner"]),
+  phoneNumber: z.string().optional().or(z.literal('')),
+  isWhatsappSameAsPhone: z.boolean().default(false),
+  whatsappNumber: z.string().optional().or(z.literal('')),
+  address: z.object({
+    street: z.string().optional().or(z.literal('')),
+    city: z.string().min(1, "City is required."),
+    state: z.string().min(1, "State is required."),
+    zipCode: z.string().min(1, "Zip code is required."),
+  }).partial().refine(data => {
+      // if any part of address is filled, city, state, zip are required
+      if (Object.values(data).some(v => v && v.length > 0)) {
+          return !!data.city && !!data.state && !!data.zipCode;
+      }
+      return true;
+  }, {
+      message: "City, state, and zip code are required if providing an address.",
+      path: ["city"], // Show error under the first required field
+  }),
+})
+.superRefine((data, ctx) => {
+    if (!data.isWhatsappSameAsPhone && (!data.whatsappNumber || data.whatsappNumber.trim() === '')) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "WhatsApp number is required if different from phone number.",
+            path: ['whatsappNumber'],
+        });
+    }
 });
 
+
 export function ProfileSettingsForm() {
-  const { currentUser, updateCourtlyUserRoles, loading: authLoading } = useAuth();
+  const { currentUser, updateCourtlyUserProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,14 +88,45 @@ export function ProfileSettingsForm() {
     defaultValues: {
       fullName: "",
       userType: "user",
+      phoneNumber: "",
+      isWhatsappSameAsPhone: false,
+      whatsappNumber: "",
+      address: {
+        street: "",
+        city: "",
+        state: "",
+        zipCode: "",
+      },
     },
   });
+
+  const isWhatsappSame = form.watch("isWhatsappSameAsPhone");
+  const phoneNumberValue = form.watch("phoneNumber");
+
+  useEffect(() => {
+    if (isWhatsappSame) {
+        form.setValue("whatsappNumber", phoneNumberValue || "");
+    }
+  }, [isWhatsappSame, phoneNumberValue, form]);
 
   // Populate form with current user data once loaded
   useEffect(() => {
     if (currentUser) {
       form.setValue("fullName", currentUser.displayName || "");
       form.setValue("userType", currentUser.roles?.includes("owner") ? "owner" : "user");
+      form.setValue("phoneNumber", currentUser.phoneNumber || "");
+      form.setValue("whatsappNumber", currentUser.whatsappNumber || "");
+      
+      if (currentUser.phoneNumber && currentUser.whatsappNumber === currentUser.phoneNumber) {
+        form.setValue("isWhatsappSameAsPhone", true);
+      }
+
+      if (currentUser.address) {
+        form.setValue("address.street", currentUser.address.street || "");
+        form.setValue("address.city", currentUser.address.city || "");
+        form.setValue("address.state", currentUser.address.state || "");
+        form.setValue("address.zipCode", currentUser.address.zipCode || "");
+      }
     }
   }, [currentUser, form]);
 
@@ -79,12 +140,18 @@ export function ProfileSettingsForm() {
     }
 
     try {
-      // This is a simulation. In a real app, you would have separate API calls
-      // to update display name and roles.
-      // await updateProfile(currentUser, { displayName: values.fullName });
-
       const newRolesArray: UserRole[] = values.userType === "owner" ? ['user', 'owner'] : ['user'];
-      updateCourtlyUserRoles(newRolesArray);
+      const finalWhatsappNumber = values.isWhatsappSameAsPhone ? values.phoneNumber : values.whatsappNumber;
+
+      const addressIsEmpty = Object.values(values.address).every(val => !val || val.trim() === '');
+      
+      updateCourtlyUserProfile({
+          displayName: values.fullName,
+          roles: newRolesArray,
+          phoneNumber: values.phoneNumber,
+          whatsappNumber: finalWhatsappNumber,
+          address: addressIsEmpty ? undefined : values.address as ClubAddress,
+      });
 
       toast({ toastTitle: "Profile Updated", toastDescription: "Your settings have been saved successfully." });
     } catch (error) {
@@ -104,72 +171,56 @@ export function ProfileSettingsForm() {
 
   return (
     <div className="space-y-8">
-        {/* Profile Information Form */}
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                {/* Profile Information Section */}
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center"><User className="mr-2 h-5 w-5"/>Profile Information</CardTitle>
                         <CardDescription>Update your personal details and account type.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <FormField
-                            control={form.control}
-                            name="fullName"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Full Name</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="e.g., Alex Smith" {...field} disabled={isSubmitting} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <FormItem>
-                            <FormLabel>Email Address</FormLabel>
-                            <FormControl>
-                                <Input value={currentUser.email || "No email provided"} disabled readOnly />
-                            </FormControl>
-                            <FormDescription>Your email address cannot be changed.</FormDescription>
-                        </FormItem>
-
-                        <FormField
-                            control={form.control}
-                            name="userType"
-                            render={({ field }) => (
-                                <FormItem className="space-y-3">
-                                <FormLabel>Primary Account Type</FormLabel>
-                                <FormControl>
-                                    <RadioGroup
-                                    onValueChange={field.onChange}
-                                    value={field.value}
-                                    className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-4"
-                                    disabled={isSubmitting}
-                                    >
-                                    <FormItem className="flex items-center space-x-3 space-y-0">
-                                        <FormControl><RadioGroupItem value="user" /></FormControl>
-                                        <FormLabel className="font-normal">Player (booking courts)</FormLabel>
-                                    </FormItem>
-                                    <FormItem className="flex items-center space-x-3 space-y-0">
-                                        <FormControl><RadioGroupItem value="owner" /></FormControl>
-                                        <FormLabel className="font-normal">Club Owner (listing club)</FormLabel>
-                                    </FormItem>
-                                    </RadioGroup>
-                                </FormControl>
-                                <FormDescription>This helps tailor your dashboard experience.</FormDescription>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <FormField control={form.control} name="fullName" render={({ field }) => ( <FormItem> <FormLabel>Full Name</FormLabel> <FormControl> <Input placeholder="e.g., Alex Smith" {...field} disabled={isSubmitting} /> </FormControl> <FormMessage /> </FormItem> )}/>
+                        <FormItem> <FormLabel>Email Address</FormLabel> <FormControl> <Input value={currentUser.email || "No email provided"} disabled readOnly /> </FormControl> <FormDescription>Your email address cannot be changed.</FormDescription> </FormItem>
+                        <FormField control={form.control} name="userType" render={({ field }) => ( <FormItem className="space-y-3"> <FormLabel>Primary Account Type</FormLabel> <FormControl> <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-4" disabled={isSubmitting} > <FormItem className="flex items-center space-x-3 space-y-0"> <FormControl><RadioGroupItem value="user" /></FormControl> <FormLabel className="font-normal">Player (booking courts)</FormLabel> </FormItem> <FormItem className="flex items-center space-x-3 space-y-0"> <FormControl><RadioGroupItem value="owner" /></FormControl> <FormLabel className="font-normal">Club Owner (listing club)</FormLabel> </FormItem> </RadioGroup> </FormControl> <FormDescription>This helps tailor your dashboard experience.</FormDescription> <FormMessage /> </FormItem> )}/>
                     </CardContent>
-                    <CardFooter>
-                         <Button type="submit" className="ml-auto" disabled={isSubmitting || authLoading}>
-                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            Save Changes
-                        </Button>
-                    </CardFooter>
                 </Card>
+
+                {/* Contact Information Section */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><Phone className="mr-2 h-5 w-5"/>Contact Information</CardTitle>
+                        <CardDescription>Manage your contact numbers.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                       <FormField control={form.control} name="phoneNumber" render={({ field }) => ( <FormItem> <FormLabel>Phone Number</FormLabel> <FormControl><Input type="tel" placeholder="e.g., +12223334444" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
+                       <FormField control={form.control} name="whatsappNumber" render={({ field }) => ( <FormItem> <FormLabel className="flex items-center"><MessageSquareText className="mr-2 h-4 w-4"/>WhatsApp Number</FormLabel> <FormControl><Input type="tel" placeholder="Your WhatsApp number" {...field} value={field.value ?? ""} disabled={isSubmitting || isWhatsappSame} /></FormControl> <FormMessage /> </FormItem> )}/>
+                       <FormField control={form.control} name="isWhatsappSameAsPhone" render={({ field }) => ( <FormItem className="flex flex-row items-center space-x-3 space-y-0"> <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isSubmitting} /></FormControl> <div className="space-y-1 leading-none"> <FormLabel>WhatsApp number is same as Phone Number</FormLabel> </div> </FormItem> )}/>
+                    </CardContent>
+                </Card>
+
+                {/* Address Section */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><MapPin className="mr-2 h-5 w-5"/>Address</CardTitle>
+                        <CardDescription>Your primary address. Optional, but helps with local features.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem> <FormLabel>Street Address</FormLabel> <FormControl><Input placeholder="123 Main St" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem> <FormLabel>City</FormLabel> <FormControl><Input placeholder="Anytown" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
+                            <FormField control={form.control} name="address.state" render={({ field }) => ( <FormItem> <FormLabel>State / Province</FormLabel> <FormControl><Input placeholder="CA" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
+                            <FormField control={form.control} name="address.zipCode" render={({ field }) => ( <FormItem> <FormLabel>Zip / Postal Code</FormLabel> <FormControl><Input placeholder="12345" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <div className="flex justify-end">
+                    <Button type="submit" className="ml-auto" disabled={isSubmitting || authLoading}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save All Changes
+                    </Button>
+                </div>
             </form>
         </Form>
         
