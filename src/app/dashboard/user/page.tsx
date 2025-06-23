@@ -38,6 +38,7 @@ const statusBadgeVariant = (status: Booking['status']) => {
     case 'cancelled_by_customer': return 'destructive';
     case 'cancelled_by_club': return 'destructive';
     case 'rejected': return 'destructive';
+    case 'expired': return 'destructive';
     default: return 'secondary';
   }
 };

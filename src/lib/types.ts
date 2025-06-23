@@ -117,7 +117,7 @@ export interface BookingDetails {
   date: string;
   startTime: string;
   endTime: string;
-  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed' | 'blocked';
+  status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed' | 'blocked' | 'expired';
   totalPrice: number;
   notes?: string;
   createdAt: string;

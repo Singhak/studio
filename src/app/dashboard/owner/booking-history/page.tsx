@@ -39,7 +39,7 @@ import {
 import { getCachedClubEntry } from '@/lib/cacheUtils';
 
 const ITEMS_PER_PAGE = 10;
-const BOOKING_STATUSES: BookingStatus[] = ['confirmed', 'pending', 'completed', 'cancelled_by_customer', 'cancelled_by_club', 'rejected','blocked'];
+const BOOKING_STATUSES: BookingStatus[] = ['confirmed', 'pending', 'completed', 'cancelled_by_customer', 'cancelled_by_club', 'rejected','blocked', 'expired'];
 
 export default function OwnerBookingHistoryPage() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -213,6 +213,7 @@ export default function OwnerBookingHistoryPage() {
       case 'cancelled_by_club': return 'destructive';
       case 'rejected': return 'destructive';
       case 'blocked': return 'destructive';
+      case 'expired': return 'destructive';
       default: return 'secondary';
     }
   };
