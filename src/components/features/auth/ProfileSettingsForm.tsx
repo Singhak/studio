@@ -19,6 +19,7 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label"; // Direct import for display-only fields
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { User, KeyRound, ShieldCheck, Trash2, Loader2, Save, Phone, MessageSquareText, MapPin } from "lucide-react";
@@ -180,9 +181,56 @@ export function ProfileSettingsForm() {
                         <CardDescription>Update your personal details and account type.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <FormField control={form.control} name="fullName" render={({ field }) => ( <FormItem> <FormLabel>Full Name</FormLabel> <FormControl> <Input placeholder="e.g., Alex Smith" {...field} disabled={isSubmitting} /> </FormControl> <FormMessage /> </FormItem> )}/>
-                        <FormItem> <FormLabel>Email Address</FormLabel> <FormControl> <Input value={currentUser.email || "No email provided"} disabled readOnly /> </FormControl> <FormDescription>Your email address cannot be changed.</FormDescription> </FormItem>
-                        <FormField control={form.control} name="userType" render={({ field }) => ( <FormItem className="space-y-3"> <FormLabel>Primary Account Type</FormLabel> <FormControl> <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-4" disabled={isSubmitting} > <FormItem className="flex items-center space-x-3 space-y-0"> <FormControl><RadioGroupItem value="user" /></FormControl> <FormLabel className="font-normal">Player (booking courts)</FormLabel> </FormItem> <FormItem className="flex items-center space-x-3 space-y-0"> <FormControl><RadioGroupItem value="owner" /></FormControl> <FormLabel className="font-normal">Club Owner (listing club)</FormLabel> </FormItem> </RadioGroup> </FormControl> <FormDescription>This helps tailor your dashboard experience.</FormDescription> <FormMessage /> </FormItem> )}/>
+                        <FormField
+                            control={form.control}
+                            name="fullName"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Full Name</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g., Alex Smith" {...field} disabled={isSubmitting} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <div className="space-y-2">
+                            <Label htmlFor="email-display">Email Address</Label>
+                            <Input id="email-display" value={currentUser.email || "No email provided"} disabled readOnly />
+                            <p className="text-sm text-muted-foreground">Your email address cannot be changed.</p>
+                        </div>
+                        <FormField
+                            control={form.control}
+                            name="userType"
+                            render={({ field }) => (
+                                <FormItem className="space-y-3">
+                                    <FormLabel>Primary Account Type</FormLabel>
+                                    <FormControl>
+                                        <RadioGroup
+                                            onValueChange={field.onChange}
+                                            value={field.value}
+                                            className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-4"
+                                            disabled={isSubmitting}
+                                        >
+                                            <FormItem className="flex items-center space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <RadioGroupItem value="user" />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">Player (booking courts)</FormLabel>
+                                            </FormItem>
+                                            <FormItem className="flex items-center space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <RadioGroupItem value="owner" />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">Club Owner (listing club)</FormLabel>
+                                            </FormItem>
+                                        </RadioGroup>
+                                    </FormControl>
+                                    <FormDescription>This helps tailor your dashboard experience.</FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                     </CardContent>
                 </Card>
 
@@ -193,9 +241,46 @@ export function ProfileSettingsForm() {
                         <CardDescription>Manage your contact numbers.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                       <FormField control={form.control} name="phoneNumber" render={({ field }) => ( <FormItem> <FormLabel>Phone Number</FormLabel> <FormControl><Input type="tel" placeholder="e.g., +12223334444" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
-                       <FormField control={form.control} name="whatsappNumber" render={({ field }) => ( <FormItem> <FormLabel className="flex items-center"><MessageSquareText className="mr-2 h-4 w-4"/>WhatsApp Number</FormLabel> <FormControl><Input type="tel" placeholder="Your WhatsApp number" {...field} value={field.value ?? ""} disabled={isSubmitting || isWhatsappSame} /></FormControl> <FormMessage /> </FormItem> )}/>
-                       <FormField control={form.control} name="isWhatsappSameAsPhone" render={({ field }) => ( <FormItem className="flex flex-row items-center space-x-3 space-y-0"> <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isSubmitting} /></FormControl> <div className="space-y-1 leading-none"> <FormLabel>WhatsApp number is same as Phone Number</FormLabel> </div> </FormItem> )}/>
+                       <FormField
+                            control={form.control}
+                            name="phoneNumber"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Phone Number</FormLabel>
+                                    <FormControl>
+                                        <Input type="tel" placeholder="e.g., +12223334444" {...field} value={field.value ?? ""} disabled={isSubmitting} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                       <FormField
+                            control={form.control}
+                            name="whatsappNumber"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="flex items-center"><MessageSquareText className="mr-2 h-4 w-4"/>WhatsApp Number</FormLabel>
+                                    <FormControl>
+                                        <Input type="tel" placeholder="Your WhatsApp number" {...field} value={field.value ?? ""} disabled={isSubmitting || isWhatsappSame} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                       <FormField
+                            control={form.control}
+                            name="isWhatsappSameAsPhone"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={isSubmitting} />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                        <FormLabel>WhatsApp number is same as Phone Number</FormLabel>
+                                    </div>
+                                </FormItem>
+                            )}
+                        />
                     </CardContent>
                 </Card>
 
@@ -206,11 +291,59 @@ export function ProfileSettingsForm() {
                         <CardDescription>Your primary address. Optional, but helps with local features.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <FormField control={form.control} name="address.street" render={({ field }) => ( <FormItem> <FormLabel>Street Address</FormLabel> <FormControl><Input placeholder="123 Main St" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
+                        <FormField
+                            control={form.control}
+                            name="address.street"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Street Address</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="123 Main St" {...field} value={field.value ?? ""} disabled={isSubmitting} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <FormField control={form.control} name="address.city" render={({ field }) => ( <FormItem> <FormLabel>City</FormLabel> <FormControl><Input placeholder="Anytown" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
-                            <FormField control={form.control} name="address.state" render={({ field }) => ( <FormItem> <FormLabel>State / Province</FormLabel> <FormControl><Input placeholder="CA" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
-                            <FormField control={form.control} name="address.zipCode" render={({ field }) => ( <FormItem> <FormLabel>Zip / Postal Code</FormLabel> <FormControl><Input placeholder="12345" {...field} value={field.value ?? ""} disabled={isSubmitting} /></FormControl> <FormMessage /> </FormItem> )}/>
+                            <FormField
+                                control={form.control}
+                                name="address.city"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>City</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="Anytown" {...field} value={field.value ?? ""} disabled={isSubmitting} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="address.state"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>State / Province</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="CA" {...field} value={field.value ?? ""} disabled={isSubmitting} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="address.zipCode"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Zip / Postal Code</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="12345" {...field} value={field.value ?? ""} disabled={isSubmitting} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                         </div>
                     </CardContent>
                 </Card>
