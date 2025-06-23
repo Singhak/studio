@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
-const BOOKING_STATUSES: Booking['status'][] = ['pending', 'confirmed', 'rejected', 'cancelled', 'completed', 'blocked'];
+const BOOKING_STATUSES: Booking['status'][] = ['pending', 'confirmed', 'rejected', 'cancelled', 'completed', 'blocked', 'expired'];
 
 export default function OwnerBookingHistoryPage() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -206,6 +206,7 @@ export default function OwnerBookingHistoryPage() {
       case 'cancelled': return 'destructive';
       case 'rejected': return 'destructive';
       case 'blocked': return 'destructive';
+      case 'expired': return 'destructive';
       default: return 'secondary';
     }
   };
