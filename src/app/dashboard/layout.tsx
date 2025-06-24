@@ -28,10 +28,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, ChevronDown, Send, Loader2, Club, History } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Building, Settings, LogOut, UserCircle, CreditCard, ShieldCheck, PlusCircle, ChevronDown, Send, Loader2, Club, History, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext'; 
 import { getLoggedInOwnerClubs } from '@/services/clubService';
 import type { Club as ClubType } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -50,6 +51,11 @@ const ownerNavItems = [
   { href: '/dashboard/owner/promotions', label: 'Promotions', icon: Send },
 ];
 
+const adminNavItems = [
+  { href: '/dashboard/admin', label: 'Admin Panel', icon: Shield },
+];
+
+
 const commonBottomNavItems = [
 ];
 
@@ -57,12 +63,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logoutUser, currentUser, loading: authLoading } = useAuth(); 
+  const { toast } = useToast();
   
-  const [currentView, setCurrentView] = useState<'user' | 'owner'>('user');
+  const [currentView, setCurrentView] = useState<'user' | 'owner' | 'admin'>('user');
   const [ownedClubs, setOwnedClubs] = useState<ClubType[]>([]);
   const [isLoadingOwnedClubs, setIsLoadingOwnedClubs] = useState(true);
 
   const userHasOwnerRole = currentUser?.roles.includes('owner') ?? false;
+  const userHasAdminRole = currentUser?.roles.includes('admin') ?? false;
 
   useEffect(() => {
     if (authLoading) return;
@@ -72,6 +80,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       setOwnedClubs([]);
       setCurrentView('user');
       if (pathname.startsWith('/dashboard')) router.push('/login');
+      return;
+    }
+    
+    // Route Protection
+    if (pathname.startsWith('/dashboard/admin') && !userHasAdminRole) {
+      toast({ variant: 'destructive', toastTitle: 'Access Denied', toastDescription: 'You do not have permission to view this page.' });
+      router.push('/dashboard/user'); // Redirect non-admins away
       return;
     }
 
@@ -90,29 +105,32 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       }
       setIsLoadingOwnedClubs(false);
       
-      if (userHasOwnerRole && pathname.startsWith('/dashboard/owner')) {
+      // Determine current view based on path and roles
+      if (userHasAdminRole && pathname.startsWith('/dashboard/admin')) {
+        setCurrentView('admin');
+      } else if (userHasOwnerRole && pathname.startsWith('/dashboard/owner')) {
         setCurrentView('owner');
       } else {
         setCurrentView('user'); 
       }
     };
     fetchClubsAndSetView();
-  }, [currentUser, pathname, router, authLoading, userHasOwnerRole]);
+  }, [currentUser, pathname, router, authLoading, userHasOwnerRole, userHasAdminRole, toast]);
 
 
-  const handleViewChange = useCallback((newView: 'user' | 'owner') => {
-    if (newView === 'owner') {
-      if (userHasOwnerRole && ownedClubs.length > 0) {
-        router.push('/dashboard/owner');
-      } else if (userHasOwnerRole) {
-        router.push('/dashboard/owner/register-club');
-      } else {
+  const handleViewChange = useCallback((newView: 'user' | 'owner' | 'admin') => {
+    if (newView === 'admin' && userHasAdminRole) {
+        router.push('/dashboard/admin');
+    } else if (newView === 'owner' && userHasOwnerRole) {
+        if (ownedClubs.length > 0) {
+            router.push('/dashboard/owner');
+        } else {
+            router.push('/dashboard/owner/register-club');
+        }
+    } else { // Default to user view
         router.push('/dashboard/user');
-      }
-    } else {
-      router.push('/dashboard/user');
     }
-  }, [router, ownedClubs.length, userHasOwnerRole]);
+  }, [router, ownedClubs.length, userHasOwnerRole, userHasAdminRole]);
 
   const handleLogout = async () => {
     await logoutUser();
@@ -134,7 +152,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  const displayNavItems = (currentView === 'owner' && userHasOwnerRole) ? ownerNavItems : userNavItems;
+  const getDisplayNavItems = () => {
+    switch(currentView) {
+        case 'admin': return adminNavItems;
+        case 'owner': return ownerNavItems;
+        case 'user':
+        default:
+            return userNavItems;
+    }
+  };
+  const displayNavItems = getDisplayNavItems();
 
   return (
     <SidebarProvider defaultOpen>
@@ -144,11 +171,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <Logo className="text-lg" />
             <SidebarTrigger className="group-data-[collapsible=icon]:hidden"/>
           </div>
-          {!isLoadingOwnedClubs && userHasOwnerRole && ( 
+          {(userHasOwnerRole || userHasAdminRole) && ( 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="sidebarOutline" className="w-full justify-between text-xs sm:text-sm group-data-[collapsible=icon]:hidden">
-                  <span>Viewing as: {currentView === 'owner' ? 'Owner' : 'User'}</span>
+                  <span className="capitalize">Viewing as: {currentView}</span>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -165,6 +192,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     <span>Owner View</span>
                   </DropdownMenuItem>
                 )}
+                 {userHasAdminRole && (
+                  <DropdownMenuItem onClick={() => handleViewChange('admin')} disabled={currentView === 'admin'}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>Admin View</span>
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -176,7 +209,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
-                    isActive={item.href === '/dashboard/owner' || item.href === '/dashboard/user' ? pathname === item.href : pathname.startsWith(item.href)}
+                    isActive={item.href === '/dashboard/owner' || item.href === '/dashboard/user' || item.href === '/dashboard/admin' ? pathname === item.href : pathname.startsWith(item.href)}
                     tooltip={{ children: item.label, side: 'right' }}
                   >
                     <Link href={item.href}>
@@ -187,7 +220,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
-            {!isLoadingOwnedClubs && userHasOwnerRole && ownedClubs.length === 0 && (
+            {!isLoadingOwnedClubs && userHasOwnerRole && currentView === 'owner' && ownedClubs.length === 0 && (
               <SidebarMenu className="mt-4 pt-2 border-t border-sidebar-border">
                 <SidebarMenuItem>
                     <SidebarMenuButton
@@ -235,7 +268,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <SidebarInset>
         <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 md:hidden">
             <SidebarTrigger/>
-            <h1 className="text-lg font-semibold">Dashboard</h1>
+            <h1 className="text-lg font-semibold capitalize">{currentView} Dashboard</h1>
         </header>
         <main className="flex-1 p-4 md:p-6 overflow-auto">
             {children}
