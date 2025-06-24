@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, parse } from 'date-fns';
 
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
@@ -134,16 +134,27 @@ export default function OwnerDashboardPage() {
       const clubName = ownerClubs.find(c => c._id === clubId)?.name || "your club";
       const processedBookings = await Promise.all(bookings.map(async (booking) => {
         if (booking.status === 'pending') {
-          const bookingDateTime = parseISO(`${booking.bookingDate}T${booking.startTime}:00`);
-          if (bookingDateTime < now) {
-            // This booking has expired. Notify the user.
-            try {
-              await updateBookingStatus(booking._id, 'expired',  `Your pending booking for "${getServiceName(booking.service._id)}" at ${clubName} on ${format(parseISO(booking.bookingDate), 'MMM d, yyyy')} has expired as it was not confirmed in time.`);
-              // Return a new object with the updated status.
+          const dateString = booking.bookingDate || (booking as any).bookingDate;
+          if (!dateString || !booking.startTime) {
+            console.warn("Could not determine expiry for a pending booking due to missing date/time.", booking);
+            return booking;
+          }
+          
+          try {
+            const bookingDateTime = parse(`${dateString} ${booking.startTime}`, 'yyyy-MM-dd HH:mm', new Date());
+
+            if (bookingDateTime < now) {
+              addNotification(
+                `Booking Expired`,
+                `Your pending booking for "${getServiceName(booking.service._id)}" at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`,
+                '/dashboard/user',
+                `booking_expired_${booking._id}`
+              );
               return { ...booking, status: 'expired' as Booking['status'] };
-            } catch (error) {
-              console.error(`OwnerDashboard: fetchBookingsForClub - Failed to update booking status for ${booking._id}:`, error);
             }
+          } catch(e) {
+            console.error(`Failed to parse date for booking ID ${booking._id}. Date: ${dateString}, Time: ${booking.startTime}`, e);
+            return booking;
           }
         }
         return booking;
