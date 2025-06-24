@@ -1,5 +1,6 @@
-
 // src/contexts/authHelpers/notificationManager.tsx
+"use client";
+
 import type React from 'react'; // Import React for JSX
 import type { AppNotification, ApiNotification } from '@/lib/types';
 import type { CourtlyUser } from '@/contexts/AuthContext';
