@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, parse } from 'date-fns';
 
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
@@ -134,17 +134,27 @@ export default function OwnerDashboardPage() {
       const clubName = ownerClubs.find(c => c._id === clubId)?.name || "your club";
       const processedBookings = bookings.map(booking => {
         if (booking.status === 'pending') {
-          const bookingDateTime = parseISO(`${booking.date}T${booking.startTime}:00`);
-          if (bookingDateTime < now) {
-            // This booking has expired. Notify the user.
-            addNotification(
-              `Booking Expired`,
-              `Your pending booking for "${getServiceName(booking.serviceId)}" at ${clubName} on ${format(parseISO(booking.date), 'MMM d, yyyy')} has expired as it was not confirmed in time.`,
-              '/dashboard/user',
-              `booking_expired_${booking.id}`
-            );
-            // Return a new object with the updated status.
-            return { ...booking, status: 'expired' };
+          const dateString = booking.date || (booking as any).bookingDate;
+          if (!dateString || !booking.startTime) {
+            console.warn("Could not determine expiry for a pending booking due to missing date/time.", booking);
+            return booking;
+          }
+          
+          try {
+            const bookingDateTime = parse(`${dateString} ${booking.startTime}`, 'yyyy-MM-dd HH:mm', new Date());
+
+            if (bookingDateTime < now) {
+              addNotification(
+                `Booking Expired`,
+                `Your pending booking for "${getServiceName(booking.serviceId)}" at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`,
+                '/dashboard/user',
+                `booking_expired_${booking.id}`
+              );
+              return { ...booking, status: 'expired' };
+            }
+          } catch(e) {
+            console.error(`Failed to parse date for booking ID ${booking.id}. Date: ${dateString}, Time: ${booking.startTime}`, e);
+            return booking;
           }
         }
         return booking;
