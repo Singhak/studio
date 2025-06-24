@@ -11,16 +11,12 @@ import { Bell } from 'lucide-react';
 import { clearClubCache } from '@/lib/cacheUtils';
 import { NOTIFICATION_STORAGE_PREFIX, LAST_NOTIFICATION_REMINDER_KEY } from '@/contexts/authHelpers/constants';
 
-// --- Start of logic merged from messaging.ts ---
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 
 export const initializeFirebaseMessaging = async () => {
   try {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && (await isSupported())) {
       const messaging = getMessaging(app);
-      // Note: Service worker registration is typically handled automatically by Firebase SDK
-      // when getToken is called, or can be manually registered if needed.
-      // Ensure 'firebase-messaging-sw.js' is in your /public folder.
       return messaging;
     }
   } catch (error) {
@@ -50,7 +46,6 @@ export const requestNotificationPermission = async () => {
       });
       if (currentToken) {
         console.log('FCM Token:', currentToken);
-        // In a real app, you would send this token to your server to subscribe the user to topics.
         return currentToken;
       } else {
         console.log('No registration token available. Request permission to generate one.');
@@ -65,8 +60,6 @@ export const requestNotificationPermission = async () => {
     return null;
   }
 };
-// --- End of logic merged from messaging.ts ---
-
 
 export const getNotificationStorageKey = (uid: string | null | undefined): string | null => {
   return uid ? `${NOTIFICATION_STORAGE_PREFIX}${uid}` : null;
