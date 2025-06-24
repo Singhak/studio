@@ -161,8 +161,8 @@ export default function UserDashboardPage() {
     setBookingForDialog(booking);
     setIsLoadingDialogData(true);
     try {
-      const club = await getClubById(booking.club);
-      const service = await getServiceById(booking.service);
+      const club = await getClubById(booking.club._id);
+      const service = await getServiceById(booking.service._id);
       setClubForDialog(club);
       setServiceForDialog(service);
       setIsDetailsDialogOpen(true);
@@ -179,11 +179,11 @@ export default function UserDashboardPage() {
     setIsLoadingDialogData(true); // Reuse this flag for generic detail loading before dialog
     try {
       // Pre-fetch details for the confirmation dialog
-      let tempClub = clubForDialog && clubForDialog._id === booking.club ? clubForDialog : null;
-      let tempService = serviceForDialog && serviceForDialog._id === booking.service ? serviceForDialog : null;
+      let tempClub = clubForDialog && clubForDialog._id === booking.club._id ? clubForDialog : null;
+      let tempService = serviceForDialog && serviceForDialog._id === booking.service._id ? serviceForDialog : null;
 
-      if (!tempClub) tempClub = await getClubById(booking.club);
-      if (!tempService) tempService = await getServiceById(booking.service);
+      if (!tempClub) tempClub = await getClubById(booking.club._id);
+      if (!tempService) tempService = await getServiceById(booking.service._id);
 
       setClubForDialog(tempClub); // Store fetched club for dialog
       setServiceForDialog(tempService); // Store fetched service for dialog
@@ -220,7 +220,7 @@ export default function UserDashboardPage() {
     if (clubForDialog && currentUser) {
       addNotification(
         `Booking Cancelled: ${clubForDialog.name}`,
-        `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.slice(-4)} cancelled their booking for ${serviceNameForToast} on ${format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`,
+        `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.name} cancelled their booking for ${serviceNameForToast} on ${format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`,
         '/dashboard/owner',
         `booking_cancelled_${bookingId}`
       );
@@ -278,8 +278,8 @@ export default function UserDashboardPage() {
     setBookingForDialog(booking); // For loader on button
     setIsLoadingDialogData(true);
     try {
-      const club = await getClubById(booking.club);
-      const service = await getServiceById(booking.service);
+      const club = await getClubById(booking.club._id);
+      const service = await getServiceById(booking.service._id);
 
       if (!club || !service) {
         toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Could not load essential club/service details for rescheduling." });
@@ -483,7 +483,7 @@ export default function UserDashboardPage() {
                   <TableBody>
                     {upcomingBookings.map((booking) => (
                       <TableRow key={booking._id}>
-                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
+                        <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.name}</TableCell>
                         <TableCell className="p-2 sm:p-4">{format(parseISO(booking.bookingDate), 'MMM d, yyyy')}</TableCell>
                         <TableCell className="p-2 sm:p-4">{booking.startTime} - {booking.endTime}</TableCell>
                         <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
@@ -564,7 +564,7 @@ export default function UserDashboardPage() {
                 <TableBody>
                   {pastBookings.map((booking) => (
                     <TableRow key={booking._id}>
-                      <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.slice(-4)}</TableCell>
+                      <TableCell className="font-medium p-2 sm:p-4">Club {booking.club.name}</TableCell>
                       <TableCell className="p-2 sm:p-4">{format(parseISO(booking.bookingDate), 'MMM d, yyyy')}</TableCell>
                       <TableCell className="p-2 sm:p-4"><Badge variant={statusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>
                        <TableCell className="text-right space-x-1 p-2 sm:p-4">
@@ -675,8 +675,8 @@ export default function UserDashboardPage() {
               </AlertDialogTitle>
               <AlertDialogDescription>
                 Are you sure you want to cancel your booking for{' '}
-                <strong>{serviceForDialog?.name || bookingToCancelForDialog.service.slice(-6)}</strong> at{' '}
-                <strong>{clubForDialog?.name || bookingToCancelForDialog.club.slice(-6)}</strong> on{' '}
+                <strong>{serviceForDialog?.name || bookingToCancelForDialog.service.name}</strong> at{' '}
+                <strong>{clubForDialog?.name || bookingToCancelForDialog.club.name}</strong> on{' '}
                 <strong>{format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}</strong> at{' '}
                 <strong>{bookingToCancelForDialog.startTime}</strong>? This action cannot be undone.
               </AlertDialogDescription>

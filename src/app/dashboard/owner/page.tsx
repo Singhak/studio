@@ -13,7 +13,7 @@ import { PlusCircle, Edit, Settings, Users, Eye, CheckCircle, XCircle, Trash2, B
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { getLoggedInOwnerClubs, getClubById, getServiceById, getServicesByClubId } from '@/services/clubService';
-import { getBookingsByClubId } from '@/services/bookingService';
+import { getBookingsByClubId, updateBookingStatus } from '@/services/bookingService';
 import { BookingDetailsDialog } from '@/components/features/booking/BookingDetailsDialog';
 import { BookingTable } from '@/components/features/booking/BookingTable';
 import {
@@ -132,23 +132,22 @@ export default function OwnerDashboardPage() {
 
       const now = new Date();
       const clubName = ownerClubs.find(c => c._id === clubId)?.name || "your club";
-      const processedBookings = bookings.map(booking => {
+      const processedBookings = await Promise.all(bookings.map(async (booking) => {
         if (booking.status === 'pending') {
           const bookingDateTime = parseISO(`${booking.bookingDate}T${booking.startTime}:00`);
           if (bookingDateTime < now) {
             // This booking has expired. Notify the user.
-            addNotification(
-              `Booking Expired`,
-              `Your pending booking for "${getServiceName(booking.service._id)}" at ${clubName} on ${format(parseISO(booking.bookingDate), 'MMM d, yyyy')} has expired as it was not confirmed in time.`,
-              '/dashboard/user',
-              `booking_expired_${booking._id}`
-            );
-            // Return a new object with the updated status.
-            return { ...booking, status: 'expired' as Booking['status'] };
+            try {
+              await updateBookingStatus(booking._id, 'expired',  `Your pending booking for "${getServiceName(booking.service._id)}" at ${clubName} on ${format(parseISO(booking.bookingDate), 'MMM d, yyyy')} has expired as it was not confirmed in time.`);
+              // Return a new object with the updated status.
+              return { ...booking, status: 'expired' as Booking['status'] };
+            } catch (error) {
+              console.error(`OwnerDashboard: fetchBookingsForClub - Failed to update booking status for ${booking._id}:`, error);
+            }
           }
         }
         return booking;
-      });
+      }));
 
       processedBookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       console.log("OwnerDashboard: fetchBookingsForClub - Bookings fetched for club", clubId, ":", processedBookings.length);
@@ -203,7 +202,7 @@ export default function OwnerDashboardPage() {
     setIsAcceptConfirmOpen(true);
   };
 
-  const executeAcceptBooking = () => {
+  const executeAcceptBooking = async () => {
     if (!bookingToAcceptForDialog || !selectedClub) {
       toast({ variant: "destructive", toastTitle: "Error", toastDescription: "No booking selected for acceptance." });
       return;
@@ -215,12 +214,11 @@ export default function OwnerDashboardPage() {
       toastTitle: "Booking Accepted",
       toastDescription: `Booking for User ${bookingToAcceptForDialog.customer.name} at ${selectedClub.name} has been confirmed.`,
     });
-    addNotification(
-      `Booking Confirmed: ${selectedClub.name}`,
-      `Your booking for ${getServiceName(bookingToAcceptForDialog.service._id)} on ${format(parseISO(bookingToAcceptForDialog.bookingDate), 'MMM d, yyyy')} has been confirmed by the club.`,
-      '/dashboard/user',
-      `booking_confirmed_${bookingId}`
-    );
+    try {
+      await updateBookingStatus(bookingId, 'confirmed', `Your booking for ${getServiceName(bookingToAcceptForDialog.service._id)} on ${format(parseISO(bookingToAcceptForDialog.bookingDate), 'MMM d, yyyy')} has been confirmed by the club.`);
+    } catch (error) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Failed to update booking status." });
+    }
     setIsAcceptConfirmOpen(false);
     setBookingToAcceptForDialog(null);
   };
@@ -253,12 +251,11 @@ export default function OwnerDashboardPage() {
       serviceName = getServiceName(bookingToRejectForDialog.service._id);
     }
 
-    addNotification(
-      `Booking Update: ${selectedClub.name}`,
-      `Unfortunately, your booking for ${serviceName} on ${format(parseISO(bookingToRejectForDialog.bookingDate), 'MMM d, yyyy')} could not be confirmed.`,
-      '/dashboard/user',
-      `booking_rejected_${bookingId}`
-    );
+    try {
+      await updateBookingStatus(bookingId, 'rejected', `Your booking for ${serviceName} on ${format(parseISO(bookingToRejectForDialog.bookingDate), 'MMM d, yyyy')} has been rejected by the club.`);
+    } catch (error) {
+      toast({ variant: "destructive", toastTitle: "Error", toastDescription: "Failed to update booking status." });
+    }
     setIsRejectConfirmOpen(false);
     setBookingToRejectForDialog(null);
   };
