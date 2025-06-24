@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format, parseISO, parse } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
@@ -134,27 +134,27 @@ export default function OwnerDashboardPage() {
       const clubName = ownerClubs.find(c => c._id === clubId)?.name || "your club";
       const processedBookings = bookings.map(booking => {
         if (booking.status === 'pending') {
-          const dateString = booking.date || (booking as any).bookingDate;
+          const dateString = (booking.date || (booking as any).bookingDate)?.split('T')[0];
           if (!dateString || !booking.startTime) {
             console.warn("Could not determine expiry for a pending booking due to missing date/time.", booking);
             return booking;
           }
           
-          try {
-            const bookingDateTime = parse(`${dateString} ${booking.startTime}`, 'yyyy-MM-dd HH:mm', new Date());
+          const bookingDateTime = new Date(`${dateString}T${booking.startTime}`);
 
-            if (bookingDateTime < now) {
-              addNotification(
-                `Booking Expired`,
-                `Your pending booking for "${getServiceName(booking.serviceId)}" at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`,
-                '/dashboard/user',
-                `booking_expired_${booking.id}`
-              );
-              return { ...booking, status: 'expired' };
-            }
-          } catch(e) {
-            console.error(`Failed to parse date for booking ID ${booking.id}. Date: ${dateString}, Time: ${booking.startTime}`, e);
-            return booking;
+          if (isNaN(bookingDateTime.getTime())) {
+              console.warn(`Could not parse date for booking ID ${booking.id}. Date: ${dateString}, Time: ${booking.startTime}`);
+              return booking;
+          }
+
+          if (bookingDateTime < now) {
+            addNotification(
+              `Booking Expired`,
+              `Your pending booking for "${getServiceName(booking.serviceId)}" at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`,
+              '/dashboard/user',
+              `booking_expired_${booking.id}`
+            );
+            return { ...booking, status: 'expired' };
           }
         }
         return booking;

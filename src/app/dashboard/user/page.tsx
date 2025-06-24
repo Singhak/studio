@@ -28,7 +28,7 @@ import { getAllClubs, getClubById, getServiceById } from '@/services/clubService
 import { getBookingsByUserId } from '@/services/bookingService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { format, subHours, isAfter, parseISO, parse } from 'date-fns';
+import { format, subHours, isAfter, parseISO } from 'date-fns';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -237,7 +237,7 @@ export default function UserDashboardPage() {
     }
     try {
       const dateString = booking.date.split('T')[0];
-      const bookingStartDateTime = parse(`${dateString} ${booking.startTime}`, 'yyyy-MM-dd HH:mm', new Date());
+      const bookingStartDateTime = new Date(`${dateString}T${booking.startTime}`);
       
       if (isNaN(bookingStartDateTime.getTime())) {
         console.error("Constructed bookingStartDateTime is invalid for reschedule check.", booking.date, booking.startTime);
