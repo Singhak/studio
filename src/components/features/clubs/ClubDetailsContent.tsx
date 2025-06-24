@@ -96,7 +96,7 @@ export function ClubDetailsContent({ club }: { club: Club }) {
         variant: "default",
         toastTitle: "Login Required",
         toastDescription: "Please log in or register to continue with your booking.",
-        action: (
+        toastAction: (
           <div className="flex gap-2 mt-2">
             <Button size="sm" onClick={() => router.push('/login')}>Login</Button>
             <Button size="sm" variant="outline" onClick={() => router.push('/register')}>Register</Button>
