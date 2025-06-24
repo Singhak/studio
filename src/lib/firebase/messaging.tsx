@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import type { AppNotification, ApiNotification, CourtlyUser } from '@/lib/types';
+import type { AppNotification, ApiNotification } from '@/lib/types';
 import { getMessaging, onMessage, type MessagePayload, getToken, isSupported } from 'firebase/messaging';
 import { app } from './config';
 import { markNotificationsAsReadApi, getWeeklyNotificationsApi } from '@/services/notificationService';
@@ -10,6 +10,7 @@ import type { ToastFn } from '@/hooks/use-toast';
 import { Bell } from 'lucide-react';
 import { clearClubCache } from '@/lib/cacheUtils';
 import { NOTIFICATION_STORAGE_PREFIX, LAST_NOTIFICATION_REMINDER_KEY } from '@/contexts/authHelpers/constants';
+import { CourtlyUser } from '@/contexts/AuthContext';
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 

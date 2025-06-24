@@ -119,7 +119,7 @@ export default function UserDashboardPage() {
       setUserBookings([]);
       setBookingsError(null);
     }
-  }, [currentUser, authLoading, toast]);
+  }, [currentUser?.uid, authLoading, toast]);
 
 
   useEffect(() => {
