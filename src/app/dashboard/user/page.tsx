@@ -28,7 +28,7 @@ import { getAllClubs, getClubById, getServiceById } from '@/services/clubService
 import { getBookingsByUserId } from '@/services/bookingService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { format, subHours, isAfter, parseISO } from 'date-fns';
+import { format, subHours, isAfter, parseISO, parse } from 'date-fns';
 
 const statusBadgeVariant = (status: Booking['status']) => {
   switch (status) {
@@ -236,37 +236,16 @@ export default function UserDashboardPage() {
       return false;
     }
     try {
-      // booking.date is expected to be in "YYYY-MM-DD" format
-      const datePart = booking.date.split('T')[0]; // Ensure we only use the date part
-      const dateParts = datePart.split('-');
-      const timeParts = booking.startTime.split(':');
-
-      if (dateParts.length !== 3 || timeParts.length !== 2) {
-        console.error("Invalid date or time string format for reschedule check.", booking.date, booking.startTime);
-        return false;
-      }
-
-      const year = parseInt(dateParts[0], 10);
-      const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed in JavaScript Date
-      const day = parseInt(dateParts[2], 10);
-      const hours = parseInt(timeParts[0], 10);
-      const minutes = parseInt(timeParts[1], 10);
-
-      if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) {
-        console.error("Failed to parse date/time components for reschedule check.");
-        return false;
-      }
+      const dateString = booking.date.split('T')[0];
+      const bookingStartDateTime = parse(`${dateString} ${booking.startTime}`, 'yyyy-MM-dd HH:mm', new Date());
       
-      const bookingStartDateTime = new Date(year, month, day, hours, minutes);
-
       if (isNaN(bookingStartDateTime.getTime())) {
-        console.error("Constructed bookingStartDateTime is invalid for reschedule check.");
+        console.error("Constructed bookingStartDateTime is invalid for reschedule check.", booking.date, booking.startTime);
         return false;
       }
 
       const oneHourBeforeBooking = subHours(bookingStartDateTime, 1);
       return isAfter(oneHourBeforeBooking, new Date());
-
     } catch (e) {
       console.error("Error in canReschedule logic:", e, "Booking date:", booking.date, "Booking startTime:", booking.startTime);
       return false;
