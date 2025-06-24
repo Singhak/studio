@@ -29,15 +29,15 @@ import {
 } from './authHelpers/tokenManager';
 import {
   fetchAndSetWeeklyAppNotifications,
-  addAppNotification as addNotificationManager,
-  markAppNotificationAsRead as markNotificationReadManager,
-  markAllAppNotificationsAsRead as markAllNotificationsReadManager,
-  clearAllAppNotifications as clearAllNotificationsManager,
+  addAppNotification,
+  markAppNotificationAsRead,
+  markAllAppNotificationsAsRead,
+  clearAllAppNotifications,
   setupFcmMessaging,
   showNotificationPermissionReminder,
   getNotificationStorageKey,
   saveNotificationsToStorage,
-} from './authHelpers/notificationManager';
+} from '@/lib/firebase/messaging';
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 
 
@@ -129,7 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
-    addNotificationManager(title, body, href, id, notifications, currentUser?.uid, setNotifications, setUnreadCount);
+    addAppNotification(title, body, href, id, notifications, currentUser?.uid, setNotifications, setUnreadCount);
   }, [notifications, currentUser?.uid]);
 
   const setupFcm = useCallback(async (userForFcmSetup: CourtlyUser | null): Promise<(() => void) | null> => {
@@ -306,7 +306,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setCurrentUser(prevUser => {
         if (!prevUser) return null;
 
-        // Create a clean object by filtering out undefined values from the update payload.
         const updates = Object.entries(profileData).reduce((acc, [key, value]) => {
             if (value !== undefined) {
                 (acc as any)[key] = value;
@@ -330,15 +329,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   
   const markNotificationAsReadCb = useCallback(async (notificationId: string) => {
-    await markNotificationReadManager(notificationId, notifications, currentUser?.uid, toast, setNotifications, setUnreadCount);
+    await markAppNotificationAsRead(notificationId, notifications, currentUser?.uid, toast, setNotifications, setUnreadCount);
   }, [notifications, currentUser?.uid, toast]);
   
   const markAllNotificationsAsReadCb = useCallback(async () => {
-    await markAllNotificationsReadManager(notifications, currentUser?.uid, toast, setNotifications, setUnreadCount);
+    await markAllAppNotificationsAsRead(notifications, currentUser?.uid, toast, setNotifications, setUnreadCount);
   }, [notifications, currentUser?.uid, toast]);
   
   const clearAllNotificationsCb = useCallback(async () => {
-    await clearAllNotificationsManager(currentUser?.uid, toast, setNotifications, setUnreadCount);
+    await clearAllAppNotifications(currentUser?.uid, toast, setNotifications, setUnreadCount);
   }, [currentUser?.uid, toast]);
 
 

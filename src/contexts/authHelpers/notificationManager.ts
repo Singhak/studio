@@ -1,1 +1,2 @@
-// This file is now empty. The logic has been consolidated into notificationManager.tsx to resolve module conflicts.
+// This file is intentionally left empty to resolve module conflicts. All logic is in messaging.tsx.
+export {};
