@@ -37,7 +37,7 @@ import {
   showNotificationPermissionReminder,
   getNotificationStorageKey,
   saveNotificationsToStorage,
-} from './authHelpers/notificationManager.tsx';
+} from './authHelpers/notificationManager';
 import { initializeAuthHelpers } from '@/lib/apiUtils';
 
 
@@ -306,11 +306,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setCurrentUser(prevUser => {
         if (!prevUser) return null;
 
-        const mergedData: Partial<CourtlyUser> = { ...profileData };
-        if (mergedData.displayName === undefined) delete mergedData.displayName;
-        if (mergedData.phoneNumber === undefined) delete mergedData.phoneNumber;
+        // Create a clean object by filtering out undefined values from the update payload.
+        const updates = Object.entries(profileData).reduce((acc, [key, value]) => {
+            if (value !== undefined) {
+                (acc as any)[key] = value;
+            }
+            return acc;
+        }, {} as Partial<CourtlyUser>);
         
-        const updatedUser: CourtlyUser = { ...prevUser, ...mergedData };
+        const updatedUser: CourtlyUser = { ...prevUser, ...updates };
         
         if (profileData.roles) {
             localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${prevUser.uid}`, JSON.stringify(profileData.roles));
@@ -319,6 +323,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("Simulating user profile update. New state:", updatedUser);
         return updatedUser;
     });
+
     if (auth.currentUser && profileData.displayName) {
         updateProfile(auth.currentUser, { displayName: profileData.displayName }).catch(e => console.error("Firebase profile update failed:", e));
     }
