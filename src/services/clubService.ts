@@ -147,6 +147,34 @@ export async function updateClub(clubId: string, payload: UpdateClubPayload): Pr
     }
 }
 
+export async function updateClubAdminStatus(clubId: string, payload: { isActive?: boolean; isFeatured?: boolean }): Promise<Club> {
+  const apiUrlPath = `/clubs/${clubId}`;
+  try {
+    const response = await authedFetch(apiUrlPath, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+
+    const responseBody = await response.json();
+    if (!response.ok) {
+      const errorMessage = responseBody?.message || `Failed to update club status: ${response.statusText}`;
+      throw new Error(errorMessage);
+    }
+    
+    // Invalidate cache after successful update to ensure fresh data on next load
+    clearClubCache(clubId);
+    
+    return responseBody as Club;
+  } catch (error) {
+    console.error(`Error updating club ${clubId} status in service:`, error);
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error('An unexpected error occurred during club status update.');
+    }
+  }
+}
+
 
 export type AddServicePayload = Omit<Service, '_id' | 'createdAt' | 'updatedAt' | '__v'>;
 

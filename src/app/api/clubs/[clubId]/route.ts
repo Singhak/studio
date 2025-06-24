@@ -121,3 +121,54 @@ export async function PUT(
     return NextResponse.json({ message }, { status: statusCode });
   }
 }
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: { clubId: string } }
+) {
+  const clubId = params.clubId;
+  const clubIndex = mockClubs.findIndex((c) => c.id === clubId || c._id === clubId);
+
+  if (clubIndex === -1) {
+    return NextResponse.json({ message: 'Club not found' }, { status: 404 });
+  }
+
+  try {
+    const body = await request.json();
+    const { isActive, isFeatured } = body;
+
+    const originalClub = mockClubs[clubIndex];
+    
+    const updatedClubData: Club = { ...originalClub };
+    
+    if (typeof isActive === 'boolean') {
+      updatedClubData.isActive = isActive;
+    }
+    if (typeof isFeatured === 'boolean') {
+      updatedClubData.isFeatured = isFeatured;
+    }
+    
+    updatedClubData.updatedAt = new Date().toISOString();
+
+    // Simulate updating the mock data store
+    mockClubs[clubIndex] = updatedClubData;
+
+    console.log(`Club ${clubId} status updated (mock):`, { isActive: updatedClubData.isActive, isFeatured: updatedClubData.isFeatured });
+
+    return NextResponse.json(updatedClubData, { status: 200 });
+
+  } catch (error) {
+    console.error(`Error in PATCH /api/clubs/${clubId}:`, error);
+    let message = 'Internal server error';
+    let statusCode = 500;
+
+    if (error instanceof SyntaxError) {
+        message = "Invalid request body: " + error.message;
+        statusCode = 400;
+    } else if (error instanceof Error) {
+        message = error.message;
+    }
+    
+    return NextResponse.json({ message }, { status: statusCode });
+  }
+}
