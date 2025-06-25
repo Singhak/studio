@@ -73,17 +73,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const userHasAdminRole = currentUser?.roles.includes('admin') ?? false;
 
   useEffect(() => {
-    if (authLoading) return;
-
-    if (!currentUser) {
-      setIsLoadingOwnedClubs(false);
-      setOwnedClubs([]);
-      setCurrentView('user');
-      if (pathname.startsWith('/dashboard')) router.push('/login');
+    // If auth is still loading, or if there's no user, do nothing.
+    // The main loading screen will be displayed, and AuthContext handles redirection for unauthenticated users.
+    if (authLoading || !currentUser) {
       return;
     }
     
-    // Route Protection
+    // Route Protection for authenticated users
     if (pathname.startsWith('/dashboard/admin') && !userHasAdminRole) {
       toast({ variant: 'destructive', toastTitle: 'Access Denied', toastDescription: 'You do not have permission to view this page.' });
       router.push('/dashboard/user'); // Redirect non-admins away
@@ -115,7 +111,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       }
     };
     fetchClubsAndSetView();
-  }, [currentUser, pathname, router, authLoading, userHasOwnerRole, userHasAdminRole, toast]);
+  }, [currentUser, pathname, authLoading, userHasOwnerRole, userHasAdminRole, router, toast]);
 
 
   const handleViewChange = useCallback((newView: 'user' | 'owner' | 'admin') => {
@@ -136,19 +132,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     await logoutUser();
   };
 
-  if (authLoading || (!currentUser && pathname.startsWith('/dashboard'))) {
+  // Show a loading spinner while auth state is being determined or if there is no user
+  // (because AuthContext will be handling the redirection). This prevents the layout from
+  // flashing or attempting to render with incomplete data.
+  if (authLoading || !currentUser) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
       </div>
-    );
-  }
-  
-  if (!currentUser && pathname.startsWith('/dashboard')) {
-    return (
-        <div className="flex h-screen items-center justify-center bg-background">
-            <p className="text-muted-foreground">Redirecting to login...</p>
-        </div>
     );
   }
 
