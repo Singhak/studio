@@ -3,7 +3,7 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { User as FirebaseUser, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
 import { onAuthStateChanged, updateProfile } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
@@ -102,10 +102,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
+  
   const unsubscribeFcmOnMessageRef = useRef<(() => void) | null>(null);
   
-  // Use a ref to hold the current user for callbacks that don't need to be reactive
   const currentUserRef = useRef(currentUser);
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -127,7 +127,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Effect to load tokens from storage on initial mount
   useEffect(() => {
     const { accessToken: storedAccess, refreshToken: storedRefresh } = loadTokensFromStorage();
     setAccessTokenState(storedAccess);
@@ -137,14 +136,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
     addAppNotification(
         title, body, href, id,
-        (current) => [...current], // Pass a function to get latest notifications
         currentUserRef.current?.uid,
-        setNotifications, setUnreadCount
+        setNotifications
     );
-  }, [setNotifications, setUnreadCount]);
+  }, [setNotifications]);
 
   const fullLogoutSequence = useCallback(async () => {
-    // Use the ref to get the current UID without creating a dependency on currentUser state
     const uidToClean = currentUserRef.current?.uid; 
     await logoutFirebase(auth, toast);
     if (uidToClean && typeof window !== 'undefined') {
@@ -164,7 +161,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [refreshToken, toast, setAndStoreAccessToken, setAndStoreRefreshToken, fullLogoutSequence]);
 
-  // Effect 1: Listen to Firebase's raw auth state. This is the source of truth for login/logout events.
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setLoading(true);
@@ -173,13 +169,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
-  // Effect 2: Process the raw Firebase user state to create our rich application user state (CourtlyUser).
   useEffect(() => {
     const processUserChange = async () => {
-        if (firebaseUser === undefined) return; // Initial state, not yet determined.
+        if (firebaseUser === undefined) return;
 
         if (firebaseUser) {
-            // User is logged in via Firebase. Now, log in to our custom backend.
             const isNewUser = Date.parse(firebaseUser.metadata.lastSignInTime!) - Date.parse(firebaseUser.metadata.creationTime!) < 5000;
             const clientInstanceId = getOrCreateClientInstanceId();
             
@@ -194,43 +188,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 await logoutFirebase(auth, toast);
             }
         } else {
-            // User is logged out. Clear all user-related state.
             clearCustomTokens();
             setAndStoreAccessToken(null);
             setAndStoreRefreshToken(null);
             setCurrentUser(null);
             setProfileCompletionPending(false);
         }
-        setLoading(false); // Done processing for this auth change.
+        setLoading(false);
     };
     processUserChange();
   }, [firebaseUser, auth, toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
 
-  // Effect 3: Handle side-effects that depend on our application user (currentUser).
   useEffect(() => {
     const setup = async () => {
       if (currentUser) {
-          // Now that we have a fully authenticated user, setup things that depend on them.
           if (unsubscribeFcmOnMessageRef.current) {
               unsubscribeFcmOnMessageRef.current();
           }
           unsubscribeFcmOnMessageRef.current = await setupFcmMessaging(currentUser, toast, addNotificationCb);
-          fetchAndSetWeeklyAppNotifications(currentUser, setNotifications, setUnreadCount);
+          fetchAndSetWeeklyAppNotifications(currentUser, setNotifications);
       } else {
-          // User has been logged out, clean up their-specific data.
           if (unsubscribeFcmOnMessageRef.current) {
               unsubscribeFcmOnMessageRef.current();
               unsubscribeFcmOnMessageRef.current = null;
           }
           setNotifications([]);
-          setUnreadCount(0);
       }
     };
     setup();
   }, [currentUser, toast, addNotificationCb]);
 
 
-  // Effect 4: Redirection logic
   useEffect(() => {
     if (loading) return;
 
@@ -306,7 +294,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setCurrentUser(prevUser => {
         if (!prevUser) return null;
         
-        // Create a new object with the previous user's data and the new profile data
         const updatedUser: CourtlyUser = {
             ...prevUser,
             ...profileData,
@@ -325,25 +312,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   
   const markNotificationAsReadCb = useCallback(async (notificationId: string) => {
-    const uid = currentUserRef.current?.uid;
     markAppNotificationAsRead(
-      notificationId, (current) => [...current], uid, toast,
-      setNotifications, setUnreadCount
+      notificationId,
+      currentUserRef.current?.uid,
+      toast,
+      setNotifications
     );
-  }, [toast, setNotifications, setUnreadCount]);
+  }, [toast, setNotifications]);
   
   const markAllNotificationsAsReadCb = useCallback(async () => {
-    const uid = currentUserRef.current?.uid;
     markAllAppNotificationsAsRead(
-      (current) => [...current], uid, toast,
-      setNotifications, setUnreadCount
+      currentUserRef.current?.uid,
+      toast,
+      setNotifications
     );
-  }, [toast, setNotifications, setUnreadCount]);
+  }, [toast, setNotifications]);
   
   const clearAllNotificationsCb = useCallback(async () => {
-    const uid = currentUserRef.current?.uid;
-    clearAllAppNotifications(uid, toast, setNotifications, setUnreadCount);
-  }, [toast, setNotifications, setUnreadCount]);
+    clearAllAppNotifications(currentUserRef.current?.uid, toast, setNotifications);
+  }, [toast, setNotifications]);
 
 
   const value = {
