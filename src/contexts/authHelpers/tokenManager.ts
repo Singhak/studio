@@ -1,6 +1,6 @@
 // src/contexts/authHelpers/tokenManager.ts
 import type { User as FirebaseUser, Auth } from 'firebase/auth';
-import type { CourtlyUser, SetupFcmFn } from '@/contexts/AuthContext';
+import type { CourtlyUser } from '@/contexts/AuthContext';
 import type { UserRole } from '@/lib/types';
 import type { ToastFn } from '@/hooks/use-toast';
 import { getStoredRoles } from './roleManager';
@@ -10,10 +10,9 @@ interface HandleCustomApiLoginArgs {
   firebaseUser: FirebaseUser;
   auth: Auth;
   toast: ToastFn;
-  setupFcm: SetupFcmFn;
   setAndStoreAccessToken: (token: string | null) => void;
   setAndStoreRefreshToken: (token: string | null) => void;
-  clientInstanceId: string; // Added this line
+  clientInstanceId: string;
 }
 
 interface CustomApiLoginResult {
@@ -26,10 +25,9 @@ export const handleCustomApiLogin = async ({
   firebaseUser,
   auth,
   toast,
-  setupFcm,
   setAndStoreAccessToken,
   setAndStoreRefreshToken,
-  clientInstanceId, // Added this line
+  clientInstanceId,
 }: HandleCustomApiLoginArgs): Promise<CourtlyUser | null> => {
   try {
     const firebaseIdToken = await firebaseUser.getIdToken();
@@ -38,7 +36,7 @@ export const handleCustomApiLogin = async ({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         idToken: firebaseIdToken,
-        clientInstanceId: clientInstanceId, // Send the client instance ID
+        clientInstanceId: clientInstanceId,
       }),
     });
 
@@ -73,7 +71,6 @@ export const handleCustomApiLogin = async ({
       ...(firebaseUser as any),
     };
     
-    await setupFcm(courtlyUser);
     return courtlyUser;
 
   } catch (error) {

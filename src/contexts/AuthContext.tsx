@@ -104,6 +104,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const unsubscribeFcmOnMessageRef = useRef<(() => void) | null>(null);
+  const currentUserRef = useRef(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
   
   const setAndStoreAccessToken = useCallback((token: string | null) => {
     setAccessTokenState(token);
@@ -129,8 +133,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
-    addAppNotification(title, body, href, id, notifications, currentUser?.uid, setNotifications, setUnreadCount);
-  }, [notifications, currentUser?.uid]);
+    const uid = currentUserRef.current?.uid;
+    setNotifications(currentNotifications => {
+        const newNotification: AppNotification = {
+            id: id || `client_${Date.now().toString()}`,
+            title, body, href,
+            timestamp: Date.now(),
+            read: false,
+        };
+        const updated = [newNotification, ...currentNotifications.slice(0, 19)];
+        saveNotificationsToStorage(updated, uid);
+        return updated;
+    });
+    setUnreadCount(prev => prev + 1);
+  }, [setNotifications, setUnreadCount]);
 
   const setupFcm = useCallback(async (userForFcmSetup: CourtlyUser | null): Promise<(() => void) | null> => {
       if (unsubscribeFcmOnMessageRef.current) {
@@ -146,9 +162,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [toast, addNotificationCb]);
 
   const fullLogoutSequence = useCallback(async () => {
+    const uidToClean = currentUser?.uid;
     await logoutFirebase(auth, toast);
-    // onAuthStateChanged will handle the rest of the cleanup
-  }, [toast]);
+    if (uidToClean && typeof window !== 'undefined') {
+        localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidToClean}`);
+        const notificationKey = getNotificationStorageKey(uidToClean);
+        if (notificationKey) localStorage.removeItem(notificationKey);
+    }
+    // onAuthStateChanged will handle the rest of the state cleanup
+  }, [toast, currentUser?.uid]);
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
     return attemptTokenRefreshApi({
@@ -160,65 +182,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [refreshToken, toast, setAndStoreAccessToken, setAndStoreRefreshToken, fullLogoutSequence]);
 
-  // Effect 1: Firebase listener. Runs only once.
+  // Effect 1: Listen to Firebase's raw auth state. This is the source of truth for login/logout events.
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setLoading(true);
       setFirebaseUser(user);
     });
     return () => unsubscribe();
   }, []);
 
-  // Effect 2: Process user changes from Firebase listener.
+  // Effect 2: Process the raw Firebase user state to create our rich application user state (CourtlyUser).
   useEffect(() => {
     const processUserChange = async () => {
-      setLoading(true);
-      if (firebaseUser) {
-        // This is a login or refresh event
-        const isNewUser = Date.parse(firebaseUser.metadata.lastSignInTime!) - Date.parse(firebaseUser.metadata.creationTime!) < 5000;
-        
-        const clientInstanceId = getOrCreateClientInstanceId();
-        const loggedInCourtlyUser = await handleCustomApiLogin({
-          firebaseUser, auth, toast, setupFcm, setAndStoreAccessToken, setAndStoreRefreshToken, clientInstanceId,
-        });
+        if (firebaseUser === undefined) return; // Initial state, not yet determined.
 
-        if (loggedInCourtlyUser) {
-          setCurrentUser(loggedInCourtlyUser);
-          if (isNewUser) {
-            console.log("AUTH_CONTEXT: New user detected, setting profile completion pending.");
-            setProfileCompletionPending(true);
-          } else {
+        if (firebaseUser) {
+            // User is logged in via Firebase. Now, log in to our custom backend.
+            const isNewUser = Date.parse(firebaseUser.metadata.lastSignInTime!) - Date.parse(firebaseUser.metadata.creationTime!) < 5000;
+            const clientInstanceId = getOrCreateClientInstanceId();
+            
+            const loggedInCourtlyUser = await handleCustomApiLogin({
+              firebaseUser, auth, toast, setAndStoreAccessToken, setAndStoreRefreshToken, clientInstanceId,
+            });
+
+            if (loggedInCourtlyUser) {
+                setCurrentUser(loggedInCourtlyUser);
+                setProfileCompletionPending(isNewUser);
+            } else {
+                // Custom backend login failed. This is a critical error. Log the user out of Firebase to be safe.
+                await logoutFirebase(auth, toast);
+            }
+        } else {
+            // User is logged out. Clear all user-related state.
+            clearCustomTokens();
+            setAndStoreAccessToken(null);
+            setAndStoreRefreshToken(null);
+            setCurrentUser(null);
             setProfileCompletionPending(false);
-          }
         }
-      } else {
-        // This is a logout event
-        clearCustomTokens();
-        setAndStoreAccessToken(null);
-        setAndStoreRefreshToken(null);
-        setCurrentUser(null);
-        setProfileCompletionPending(false);
-        if (typeof window !== 'undefined' && currentUser?.uid) {
-            localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${currentUser.uid}`);
-            const notificationKey = getNotificationStorageKey(currentUser.uid);
-            if(notificationKey) localStorage.removeItem(notificationKey);
+        setLoading(false); // Done processing for this auth change.
+    };
+    processUserChange();
+  }, [firebaseUser, auth, toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
+
+  // Effect 3: Handle side-effects that depend on our application user (currentUser).
+  useEffect(() => {
+    if (currentUser) {
+        // Now that we have a fully authenticated user, setup things that depend on them.
+        setupFcm(currentUser);
+        fetchAndSetWeeklyAppNotifications(currentUser, setNotifications, setUnreadCount);
+    } else {
+        // User has been logged out, clean up their-specific data.
+        if (unsubscribeFcmOnMessageRef.current) {
+            unsubscribeFcmOnMessageRef.current();
+            unsubscribeFcmOnMessageRef.current = null;
         }
         setNotifications([]);
         setUnreadCount(0);
-        if (unsubscribeFcmOnMessageRef.current) {
-          unsubscribeFcmOnMessageRef.current();
-          unsubscribeFcmOnMessageRef.current = null;
-        }
-      }
-      setLoading(false);
-    };
-
-    if (firebaseUser !== undefined) {
-      processUserChange();
     }
-  }, [firebaseUser, setAndStoreAccessToken, setAndStoreRefreshToken, setupFcm, toast, currentUser?.uid]);
+  }, [currentUser, setupFcm]);
 
 
-  // Effect 3: Redirection logic
+  // Effect 4: Redirection logic
   useEffect(() => {
     if (loading) return;
 
@@ -227,7 +252,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const isProtectedPath = pathname.startsWith('/dashboard') || pathname.startsWith('/profile');
 
     if (profileCompletionPending && pathname !== '/auth/complete-profile') {
-      console.log("AUTH_CONTEXT: [REDIRECTION] Profile completion pending. Redirecting to /auth/complete-profile.");
       router.push('/auth/complete-profile');
       return;
     }
@@ -235,11 +259,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (currentUser && accessToken) {
       if (isAuthPage && !profileCompletionPending) {
         const targetDashboard = currentUser.roles.includes('owner') ? '/dashboard/owner' : '/dashboard/user';
-        console.log(`AUTH_CONTEXT: [REDIRECTION] User authenticated, on auth page. Redirecting to ${targetDashboard}.`);
         router.push(targetDashboard);
       }
     } else if (!currentUser && isProtectedPath) {
-      console.log("AUTH_CONTEXT: [REDIRECTION] No user, on protected path. Redirecting to /login.");
       router.push('/login');
     }
   }, [currentUser, loading, router, pathname, accessToken, profileCompletionPending]);
@@ -251,15 +273,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       logoutUser: fullLogoutSequence,
     });
   }, [accessToken, attemptTokenRefresh, fullLogoutSequence]);
-
-  useEffect(() => {
-    if (currentUser?.uid) {
-      fetchAndSetWeeklyAppNotifications(currentUser, setNotifications, setUnreadCount);
-    } else {
-      setNotifications([]);
-      setUnreadCount(0);
-    }
-  }, [currentUser?.uid]);
 
   useEffect(() => {
     if (loading) return;
@@ -305,21 +318,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateCourtlyUserProfile = useCallback((profileData: Partial<Pick<CourtlyUser, 'displayName' | 'phoneNumber' | 'whatsappNumber' | 'address' | 'roles'>>) => {
     setCurrentUser(prevUser => {
         if (!prevUser) return null;
-
-        const updates = Object.entries(profileData).reduce((acc, [key, value]) => {
-            if (value !== undefined) {
-                (acc as any)[key] = value;
-            }
-            return acc;
-        }, {} as Partial<CourtlyUser>);
-        
-        const updatedUser: CourtlyUser = { ...prevUser, ...updates };
-        
+        const updatedUser: CourtlyUser = { ...prevUser, ...profileData };
         if (profileData.roles) {
             localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${prevUser.uid}`, JSON.stringify(profileData.roles));
         }
-        
-        console.log("Simulating user profile update. New state:", updatedUser);
         return updatedUser;
     });
 
@@ -329,16 +331,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   
   const markNotificationAsReadCb = useCallback(async (notificationId: string) => {
-    await markAppNotificationAsRead(notificationId, notifications, currentUser?.uid, toast, setNotifications, setUnreadCount);
-  }, [notifications, currentUser?.uid, toast]);
+    const uid = currentUserRef.current?.uid;
+    setNotifications(currentNotifications => {
+        let unreadChanged = false;
+        const updated = currentNotifications.map(n => {
+            if (n.id === notificationId && !n.read) {
+                unreadChanged = true;
+                return { ...n, read: true };
+            }
+            return n;
+        });
+        if (unreadChanged) {
+            markNotificationsAsReadApi([notificationId]).catch(err => console.error("Failed to sync read status with API", err));
+            setUnreadCount(prev => Math.max(0, prev - 1));
+            saveNotificationsToStorage(updated, uid);
+        }
+        return updated;
+    });
+  }, [toast, setNotifications, setUnreadCount]);
   
   const markAllNotificationsAsReadCb = useCallback(async () => {
-    await markAllAppNotificationsAsRead(notifications, currentUser?.uid, toast, setNotifications, setUnreadCount);
-  }, [notifications, currentUser?.uid, toast]);
+    const uid = currentUserRef.current?.uid;
+     setNotifications(currentNotifications => {
+        const unreadIds = currentNotifications.filter(n => !n.read).map(n => n.id);
+        if (unreadIds.length === 0) return currentNotifications;
+        
+        markNotificationsAsReadApi(unreadIds).catch(err => console.error("Failed to sync all-read status with API", err));
+        const updated = currentNotifications.map(n => ({ ...n, read: true }));
+        saveNotificationsToStorage(updated, uid);
+        setUnreadCount(0);
+        return updated;
+    });
+  }, [toast, setNotifications, setUnreadCount]);
   
   const clearAllNotificationsCb = useCallback(async () => {
-    await clearAllAppNotifications(currentUser?.uid, toast, setNotifications, setUnreadCount);
-  }, [currentUser?.uid, toast]);
+    const uid = currentUserRef.current?.uid;
+    await clearAllAppNotifications(uid, toast, setNotifications, setUnreadCount);
+  }, [toast, setNotifications, setUnreadCount]);
 
 
   const value = {
