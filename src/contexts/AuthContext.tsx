@@ -104,6 +104,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const unsubscribeFcmOnMessageRef = useRef<(() => void) | null>(null);
+  
+  // Use a ref to hold the current user for callbacks that don't need to be reactive
   const currentUserRef = useRef(currentUser);
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -135,34 +137,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
     addAppNotification(
         title, body, href, id,
-        notifications, currentUserRef.current?.uid,
+        (current) => [...current], // Pass a function to get latest notifications
+        currentUserRef.current?.uid,
         setNotifications, setUnreadCount
     );
-  }, [notifications, setNotifications, setUnreadCount]);
-
-  const setupFcm = useCallback(async (userForFcmSetup: CourtlyUser | null): Promise<(() => void) | null> => {
-      if (unsubscribeFcmOnMessageRef.current) {
-          unsubscribeFcmOnMessageRef.current();
-          unsubscribeFcmOnMessageRef.current = null;
-      }
-      if (userForFcmSetup) {
-          const unsubscribe = await setupFcmMessaging(userForFcmSetup, toast, addNotificationCb);
-          unsubscribeFcmOnMessageRef.current = unsubscribe;
-          return unsubscribe;
-      }
-      return null;
-  }, [toast, addNotificationCb]);
+  }, [setNotifications, setUnreadCount]);
 
   const fullLogoutSequence = useCallback(async () => {
-    const uidToClean = currentUser?.uid;
+    // Use the ref to get the current UID without creating a dependency on currentUser state
+    const uidToClean = currentUserRef.current?.uid; 
     await logoutFirebase(auth, toast);
     if (uidToClean && typeof window !== 'undefined') {
         localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidToClean}`);
         const notificationKey = getNotificationStorageKey(uidToClean);
         if (notificationKey) localStorage.removeItem(notificationKey);
     }
-    // onAuthStateChanged will handle the rest of the state cleanup
-  }, [toast, currentUser?.uid]);
+  }, [toast]);
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
     return attemptTokenRefreshApi({
@@ -201,7 +191,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setCurrentUser(loggedInCourtlyUser);
                 setProfileCompletionPending(isNewUser);
             } else {
-                // Custom backend login failed. This is a critical error. Log the user out of Firebase to be safe.
                 await logoutFirebase(auth, toast);
             }
         } else {
@@ -219,20 +208,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Effect 3: Handle side-effects that depend on our application user (currentUser).
   useEffect(() => {
-    if (currentUser) {
-        // Now that we have a fully authenticated user, setup things that depend on them.
-        setupFcm(currentUser);
-        fetchAndSetWeeklyAppNotifications(currentUser, setNotifications, setUnreadCount);
-    } else {
-        // User has been logged out, clean up their-specific data.
-        if (unsubscribeFcmOnMessageRef.current) {
-            unsubscribeFcmOnMessageRef.current();
-            unsubscribeFcmOnMessageRef.current = null;
-        }
-        setNotifications([]);
-        setUnreadCount(0);
-    }
-  }, [currentUser, setupFcm]);
+    const setup = async () => {
+      if (currentUser) {
+          // Now that we have a fully authenticated user, setup things that depend on them.
+          if (unsubscribeFcmOnMessageRef.current) {
+              unsubscribeFcmOnMessageRef.current();
+          }
+          unsubscribeFcmOnMessageRef.current = await setupFcmMessaging(currentUser, toast, addNotificationCb);
+          fetchAndSetWeeklyAppNotifications(currentUser, setNotifications, setUnreadCount);
+      } else {
+          // User has been logged out, clean up their-specific data.
+          if (unsubscribeFcmOnMessageRef.current) {
+              unsubscribeFcmOnMessageRef.current();
+              unsubscribeFcmOnMessageRef.current = null;
+          }
+          setNotifications([]);
+          setUnreadCount(0);
+      }
+    };
+    setup();
+  }, [currentUser, toast, addNotificationCb]);
 
 
   // Effect 4: Redirection logic
@@ -331,23 +326,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const markNotificationAsReadCb = useCallback(async (notificationId: string) => {
     const uid = currentUserRef.current?.uid;
-    await markAppNotificationAsRead(
-      notificationId, notifications, uid, toast,
+    markAppNotificationAsRead(
+      notificationId, (current) => [...current], uid, toast,
       setNotifications, setUnreadCount
     );
-  }, [notifications, toast, setNotifications, setUnreadCount]);
+  }, [toast, setNotifications, setUnreadCount]);
   
   const markAllNotificationsAsReadCb = useCallback(async () => {
     const uid = currentUserRef.current?.uid;
-    await markAllAppNotificationsAsRead(
-      notifications, uid, toast,
+    markAllAppNotificationsAsRead(
+      (current) => [...current], uid, toast,
       setNotifications, setUnreadCount
     );
-  }, [notifications, toast, setNotifications, setUnreadCount]);
+  }, [toast, setNotifications, setUnreadCount]);
   
   const clearAllNotificationsCb = useCallback(async () => {
     const uid = currentUserRef.current?.uid;
-    await clearAllAppNotifications(uid, toast, setNotifications, setUnreadCount);
+    clearAllAppNotifications(uid, toast, setNotifications, setUnreadCount);
   }, [toast, setNotifications, setUnreadCount]);
 
 
@@ -388,5 +383,3 @@ export const useAuth = (): AuthContextType => {
 declare global {
   interface Window { recaptchaVerifier?: RecaptchaVerifier }
 }
-
-    
