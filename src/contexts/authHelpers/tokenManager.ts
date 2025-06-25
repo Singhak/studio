@@ -1,6 +1,6 @@
 // src/contexts/authHelpers/tokenManager.ts
 import type { User as FirebaseUser, Auth } from 'firebase/auth';
-import type { CourtlyUser, SetupFcmFn } from '@/contexts/AuthContext';
+import type { CourtlyUser } from '@/contexts/AuthContext';
 import type { CourtlyUserBase, UserRole } from '@/lib/types';
 import type { ToastFn } from '@/hooks/use-toast';
 import { getStoredRoles, updateCurrentUserRoles } from './roleManager';
@@ -12,10 +12,9 @@ interface HandleCustomApiLoginArgs {
   firebaseUser: FirebaseUser;
   auth: Auth;
   toast: ToastFn;
-  setupFcm: SetupFcmFn;
   setAndStoreAccessToken: (token: string | null) => void;
   setAndStoreRefreshToken: (token: string | null) => void;
-  clientInstanceId: string; // Added this line
+  clientInstanceId: string;
 }
 
 interface CustomApiLoginResult {
@@ -28,10 +27,9 @@ export const handleCustomApiLogin = async ({
   firebaseUser,
   auth,
   toast,
-  setupFcm,
   setAndStoreAccessToken,
   setAndStoreRefreshToken,
-  clientInstanceId, // Added this line
+  clientInstanceId,
 }: HandleCustomApiLoginArgs): Promise<CourtlyUser | null> => {
   try {
     const firebaseIdToken = await firebaseUser.getIdToken();
@@ -82,8 +80,7 @@ export const handleCustomApiLogin = async ({
       ...(firebaseUser as any),
       id: aboutMe?.id
     };
-
-    await setupFcm(courtlyUser);
+    
     return courtlyUser;
 
   } catch (error) {
