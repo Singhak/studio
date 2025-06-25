@@ -133,20 +133,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
-    const uid = currentUserRef.current?.uid;
-    setNotifications(currentNotifications => {
-        const newNotification: AppNotification = {
-            id: id || `client_${Date.now().toString()}`,
-            title, body, href,
-            timestamp: Date.now(),
-            read: false,
-        };
-        const updated = [newNotification, ...currentNotifications.slice(0, 19)];
-        saveNotificationsToStorage(updated, uid);
-        return updated;
-    });
-    setUnreadCount(prev => prev + 1);
-  }, [setNotifications, setUnreadCount]);
+    addAppNotification(
+        title, body, href, id,
+        notifications, currentUserRef.current?.uid,
+        setNotifications, setUnreadCount
+    );
+  }, [notifications, setNotifications, setUnreadCount]);
 
   const setupFcm = useCallback(async (userForFcmSetup: CourtlyUser | null): Promise<(() => void) | null> => {
       if (unsubscribeFcmOnMessageRef.current) {
@@ -318,10 +310,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateCourtlyUserProfile = useCallback((profileData: Partial<Pick<CourtlyUser, 'displayName' | 'phoneNumber' | 'whatsappNumber' | 'address' | 'roles'>>) => {
     setCurrentUser(prevUser => {
         if (!prevUser) return null;
-        const updatedUser: CourtlyUser = { ...prevUser, ...profileData };
+        
+        // Create a new object with the previous user's data and the new profile data
+        const updatedUser: CourtlyUser = {
+            ...prevUser,
+            ...profileData,
+        };
+
         if (profileData.roles) {
             localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${prevUser.uid}`, JSON.stringify(profileData.roles));
         }
+
         return updatedUser;
     });
 
@@ -332,37 +331,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const markNotificationAsReadCb = useCallback(async (notificationId: string) => {
     const uid = currentUserRef.current?.uid;
-    setNotifications(currentNotifications => {
-        let unreadChanged = false;
-        const updated = currentNotifications.map(n => {
-            if (n.id === notificationId && !n.read) {
-                unreadChanged = true;
-                return { ...n, read: true };
-            }
-            return n;
-        });
-        if (unreadChanged) {
-            markNotificationsAsReadApi([notificationId]).catch(err => console.error("Failed to sync read status with API", err));
-            setUnreadCount(prev => Math.max(0, prev - 1));
-            saveNotificationsToStorage(updated, uid);
-        }
-        return updated;
-    });
-  }, [toast, setNotifications, setUnreadCount]);
+    await markAppNotificationAsRead(
+      notificationId, notifications, uid, toast,
+      setNotifications, setUnreadCount
+    );
+  }, [notifications, toast, setNotifications, setUnreadCount]);
   
   const markAllNotificationsAsReadCb = useCallback(async () => {
     const uid = currentUserRef.current?.uid;
-     setNotifications(currentNotifications => {
-        const unreadIds = currentNotifications.filter(n => !n.read).map(n => n.id);
-        if (unreadIds.length === 0) return currentNotifications;
-        
-        markNotificationsAsReadApi(unreadIds).catch(err => console.error("Failed to sync all-read status with API", err));
-        const updated = currentNotifications.map(n => ({ ...n, read: true }));
-        saveNotificationsToStorage(updated, uid);
-        setUnreadCount(0);
-        return updated;
-    });
-  }, [toast, setNotifications, setUnreadCount]);
+    await markAllAppNotificationsAsRead(
+      notifications, uid, toast,
+      setNotifications, setUnreadCount
+    );
+  }, [notifications, toast, setNotifications, setUnreadCount]);
   
   const clearAllNotificationsCb = useCallback(async () => {
     const uid = currentUserRef.current?.uid;
@@ -407,3 +388,5 @@ export const useAuth = (): AuthContextType => {
 declare global {
   interface Window { recaptchaVerifier?: RecaptchaVerifier }
 }
+
+    
