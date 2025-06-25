@@ -88,19 +88,16 @@ const transformApiNotificationToApp = (apiNotif: ApiNotification): AppNotificati
 
 export const fetchAndSetWeeklyAppNotifications = async (
   userForNotifications: CourtlyUser | null,
-  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>,
-  setUnreadCount: React.Dispatch<React.SetStateAction<number>>
+  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>
 ) => {
   if (!userForNotifications) {
     setNotifications([]);
-    setUnreadCount(0);
     return;
   }
   try {
     const apiNotifications = await getWeeklyNotificationsApi();
     const appNotifications = apiNotifications.map(transformApiNotificationToApp);
     setNotifications(appNotifications);
-    setUnreadCount(appNotifications.filter(n => !n.read).length);
     saveNotificationsToStorage(appNotifications, userForNotifications.uid);
   } catch (error) {
     console.error("Failed to fetch weekly notifications:", error);
@@ -112,16 +109,13 @@ export const fetchAndSetWeeklyAppNotifications = async (
           try {
             const parsed = JSON.parse(stored) as AppNotification[];
             setNotifications(parsed);
-            setUnreadCount(parsed.filter(n => !n.read).length);
           } catch (parseError) {
             console.error(`Failed to parse stored notifications (key: ${storageKey}). Error: ${parseError}`);
             localStorage.removeItem(storageKey);
             setNotifications([]);
-            setUnreadCount(0);
           }
         } else {
           setNotifications([]);
-          setUnreadCount(0);
         }
       }
     }
@@ -133,10 +127,8 @@ export const addAppNotification = (
   body: string | undefined,
   href: string | undefined,
   id: string | undefined,
-  getLatestNotifications: () => AppNotification[], // Use a function to get latest state
   currentUserUid: string | null | undefined,
-  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>,
-  setUnreadCount: React.Dispatch<React.SetStateAction<number>>
+  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>
 ) => {
   const newAppNotification: AppNotification = {
     id: id || `client_${Date.now().toString()}_${Math.random().toString(36).substring(2,7)}`,
@@ -146,37 +138,28 @@ export const addAppNotification = (
     timestamp: Date.now(),
     read: false,
   };
-  const currentNotifications = getLatestNotifications();
-  const updated = [newAppNotification, ...currentNotifications.slice(0, 19)];
-  setNotifications(updated);
-  saveNotificationsToStorage(updated, currentUserUid);
-  setUnreadCount(prev => prev + 1);
+  setNotifications(prevNotifications => {
+    const updated = [newAppNotification, ...prevNotifications.slice(0, 19)];
+    saveNotificationsToStorage(updated, currentUserUid);
+    return updated;
+  });
 };
 
 export const markAppNotificationAsRead = async (
   notificationId: string,
-  getLatestNotifications: () => AppNotification[],
   currentUserUid: string | null | undefined,
   toast: ToastFn,
-  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>,
-  setUnreadCount: React.Dispatch<React.SetStateAction<number>>
+  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>
 ) => {
   try {
     await markNotificationsAsReadApi([notificationId]);
-    const currentNotifications = getLatestNotifications();
-    let unreadChanged = false;
-    const updated = currentNotifications.map(n => {
-      if (n.id === notificationId && !n.read) {
-        unreadChanged = true;
-        return { ...n, read: true };
-      }
-      return n;
+    setNotifications(prevNotifications => {
+      const updated = prevNotifications.map(n => 
+        n.id === notificationId ? { ...n, read: true } : n
+      );
+      saveNotificationsToStorage(updated, currentUserUid);
+      return updated;
     });
-    if (unreadChanged) {
-      setUnreadCount(currentUnread => Math.max(0, currentUnread - 1));
-    }
-    setNotifications(updated);
-    saveNotificationsToStorage(updated, currentUserUid);
   } catch (error) {
     console.error("Failed to mark notification as read (NotificationManager):", error);
     toast({
@@ -188,40 +171,36 @@ export const markAppNotificationAsRead = async (
 };
 
 export const markAllAppNotificationsAsRead = async (
-  getLatestNotifications: () => AppNotification[],
   currentUserUid: string | null | undefined,
   toast: ToastFn,
-  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>,
-  setUnreadCount: React.Dispatch<React.SetStateAction<number>>
+  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>
 ) => {
-  const currentNotifications = getLatestNotifications();
-  const unreadIds = currentNotifications.filter(n => !n.read).map(n => n.id);
-  if (unreadIds.length === 0) return;
-  try {
-    await markNotificationsAsReadApi(unreadIds);
-    const updated = currentNotifications.map(n => ({ ...n, read: true }));
-    setNotifications(updated);
-    saveNotificationsToStorage(updated, currentUserUid);
-    setUnreadCount(0);
-  } catch (error) {
-    console.error("Failed to mark all notifications as read (NotificationManager):", error);
-    toast({
-      variant: "destructive",
-      toastTitle: "Update Failed",
-      toastDescription: "Could not mark all notifications as read.",
+  setNotifications(prevNotifications => {
+    const unreadIds = prevNotifications.filter(n => !n.read).map(n => n.id);
+    if (unreadIds.length === 0) return prevNotifications;
+    
+    markNotificationsAsReadApi(unreadIds).catch(error => {
+      console.error("Failed to mark all notifications as read (NotificationManager):", error);
+      toast({
+        variant: "destructive",
+        toastTitle: "Update Failed",
+        toastDescription: "Could not mark all notifications as read.",
+      });
     });
-  }
+
+    const updated = prevNotifications.map(n => ({ ...n, read: true }));
+    saveNotificationsToStorage(updated, currentUserUid);
+    return updated;
+  });
 };
 
 export const clearAllAppNotifications = async (
   currentUserUid: string | null | undefined,
   toast: ToastFn,
-  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>,
-  setUnreadCount: React.Dispatch<React.SetStateAction<number>>
+  setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>
 ) => {
   console.log("Simulating: Would call API to clear/delete all notifications for user if endpoint existed.");
   setNotifications([]);
-  setUnreadCount(0);
   saveNotificationsToStorage([], currentUserUid);
   toast({ toastTitle: "Notifications Cleared" });
 };
