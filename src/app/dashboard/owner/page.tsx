@@ -139,22 +139,28 @@ export default function OwnerDashboardPage() {
             console.warn("Could not determine expiry for a pending booking due to missing date/time.", booking);
             return booking;
           }
-          
+
           const bookingDateTime = new Date(`${dateString}T${booking.startTime}`);
 
           if (isNaN(bookingDateTime.getTime())) {
-              console.warn(`Could not parse date for booking ID ${booking._id}. Date: ${dateString}, Time: ${booking.startTime}`);
-              return booking;
+            console.warn(`Could not parse date for booking ID ${booking._id}. Date: ${dateString}, Time: ${booking.startTime}`);
+            return booking;
           }
 
           if (bookingDateTime < now) {
-            addNotification(
-              `Booking Expired`,
-              `Your pending booking for "${getServiceName(booking.service._id)}" at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`,
-              '/dashboard/user',
-              `booking_expired_${booking._id}`
-            );
-            return { ...booking, status: 'expired' as Booking['status'] };
+            try {
+              await updateBookingStatus(booking._id, 'expired', `Your booking for ${getServiceName(booking.service._id)} at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`);
+              return { ...booking, status: 'expired' as Booking['status'] };
+            } catch (error) {
+              console.error(`Failed to update booking status for booking ID ${booking._id}:`, error);
+            }
+            // addNotification(
+            //   `Booking Expired`,
+            //   `Your pending booking for "${getServiceName(booking.service._id)}" at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`,
+            //   '/dashboard/user',
+            //   `booking_expired_${booking._id}`
+            // );
+            return booking; // Return the original booking without modification
           }
         }
         return booking;
