@@ -133,7 +133,7 @@ export const addAppNotification = (
   body: string | undefined,
   href: string | undefined,
   id: string | undefined,
-  currentNotifications: AppNotification[],
+  getLatestNotifications: () => AppNotification[], // Use a function to get latest state
   currentUserUid: string | null | undefined,
   setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>,
   setUnreadCount: React.Dispatch<React.SetStateAction<number>>
@@ -146,6 +146,7 @@ export const addAppNotification = (
     timestamp: Date.now(),
     read: false,
   };
+  const currentNotifications = getLatestNotifications();
   const updated = [newAppNotification, ...currentNotifications.slice(0, 19)];
   setNotifications(updated);
   saveNotificationsToStorage(updated, currentUserUid);
@@ -154,7 +155,7 @@ export const addAppNotification = (
 
 export const markAppNotificationAsRead = async (
   notificationId: string,
-  currentNotifications: AppNotification[],
+  getLatestNotifications: () => AppNotification[],
   currentUserUid: string | null | undefined,
   toast: ToastFn,
   setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>,
@@ -162,6 +163,7 @@ export const markAppNotificationAsRead = async (
 ) => {
   try {
     await markNotificationsAsReadApi([notificationId]);
+    const currentNotifications = getLatestNotifications();
     let unreadChanged = false;
     const updated = currentNotifications.map(n => {
       if (n.id === notificationId && !n.read) {
@@ -186,12 +188,13 @@ export const markAppNotificationAsRead = async (
 };
 
 export const markAllAppNotificationsAsRead = async (
-  currentNotifications: AppNotification[],
+  getLatestNotifications: () => AppNotification[],
   currentUserUid: string | null | undefined,
   toast: ToastFn,
   setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>,
   setUnreadCount: React.Dispatch<React.SetStateAction<number>>
 ) => {
+  const currentNotifications = getLatestNotifications();
   const unreadIds = currentNotifications.filter(n => !n.read).map(n => n.id);
   if (unreadIds.length === 0) return;
   try {
