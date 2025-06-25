@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
@@ -117,8 +117,8 @@ export default function OwnerDashboardPage() {
 
 
   const fetchBookingsForClub = useCallback(async (clubId: string) => {
-    if (!clubId) {
-      console.log("OwnerDashboard: fetchBookingsForClub - No clubId, clearing bookings state.");
+    if (!clubId || !selectedClub) {
+      console.log("OwnerDashboard: fetchBookingsForClub - No clubId or selectedClub, clearing bookings state.");
       setClubBookings([]);
       setBookingsError(null);
       setIsLoadingBookings(false);
@@ -131,7 +131,7 @@ export default function OwnerDashboardPage() {
       const bookings = await getBookingsByClubId(clubId);
       
       const now = new Date();
-      const clubName = ownerClubs.find(c => c._id === clubId)?.name || "your club";
+      const clubName = selectedClub.name || "your club";
       const processedBookings = bookings.map(booking => {
         if (booking.status === 'pending') {
           const dateString = (booking.date || (booking as any).bookingDate)?.split('T')[0];
@@ -140,7 +140,7 @@ export default function OwnerDashboardPage() {
             return booking;
           }
           
-          const bookingDateTime = new Date(`${dateString}T${booking.startTime}`);
+          const bookingDateTime = new Date(`${dateString}T${booking.startTime}:00`);
 
           if (isNaN(bookingDateTime.getTime())) {
               console.warn(`Could not parse date for booking ID ${booking.id}. Date: ${dateString}, Time: ${booking.startTime}`);
@@ -165,7 +165,7 @@ export default function OwnerDashboardPage() {
       setClubBookings(processedBookings.filter(b => b.status !== 'blocked')); // Filter out blocked slots
     } catch (err) {
       console.error(`OwnerDashboard: fetchBookingsForClub - Failed to fetch bookings for club ${clubId}:`, err);
-      const clubNameForError = ownerClubs.find(c => c._id === clubId)?.name || 'this club';
+      const clubNameForError = selectedClub.name || 'this club';
       const errorMessage = err instanceof Error ? err.message : `Could not load bookings for ${clubNameForError}.`;
       setBookingsError(errorMessage);
       toast({ variant: "destructive", toastTitle: "Error Loading Bookings", toastDescription: errorMessage });
@@ -174,7 +174,7 @@ export default function OwnerDashboardPage() {
       console.log("OwnerDashboard: fetchBookingsForClub - Finished fetching bookings for club", clubId, ", setIsLoadingBookings(false)");
       setIsLoadingBookings(false);
     }
-  }, [toast, ownerClubs, addNotification, getServiceName]);
+  }, [toast, addNotification, getServiceName, selectedClub]);
 
   useEffect(() => {
     const currentSelectedClubId = selectedClub?._id;
@@ -219,6 +219,7 @@ export default function OwnerDashboardPage() {
       return;
     }
     const bookingId = bookingToAcceptForDialog.id;
+    const bookingDate = new Date(bookingToAcceptForDialog.date);
 
     setClubBookings(prev => prev.map(b => b.id === bookingId ? {...b, status: 'confirmed'} : b));
     toast({
@@ -227,7 +228,7 @@ export default function OwnerDashboardPage() {
     });
     addNotification(
         `Booking Confirmed: ${selectedClub.name}`,
-        `Your booking for ${getServiceName(bookingToAcceptForDialog.serviceId)} on ${format(parseISO(bookingToAcceptForDialog.date), 'MMM d, yyyy')} has been confirmed by the club.`,
+        `Your booking for ${getServiceName(bookingToAcceptForDialog.serviceId)} on ${format(bookingDate, 'MMM d, yyyy')} has been confirmed by the club.`,
         '/dashboard/user', 
         `booking_confirmed_${bookingId}`
     );
@@ -246,6 +247,7 @@ export default function OwnerDashboardPage() {
       return;
     }
     const bookingId = bookingToRejectForDialog.id;
+    const bookingDate = new Date(bookingToRejectForDialog.date);
 
     setClubBookings(prev => prev.map(b => b.id === bookingId ? {...b, status: 'rejected'} : b));
     toast({
@@ -265,7 +267,7 @@ export default function OwnerDashboardPage() {
 
     addNotification(
         `Booking Update: ${selectedClub.name}`,
-        `Unfortunately, your booking for ${serviceName} on ${format(parseISO(bookingToRejectForDialog.date), 'MMM d, yyyy')} could not be confirmed.`,
+        `Unfortunately, your booking for ${serviceName} on ${format(bookingDate, 'MMM d, yyyy')} could not be confirmed.`,
         '/dashboard/user', 
         `booking_rejected_${bookingId}`
     );
@@ -664,7 +666,7 @@ export default function OwnerDashboardPage() {
                 Are you sure you want to accept the booking for User{' '}
                 <strong>{bookingToAcceptForDialog.userId.slice(-4)}</strong> for service{' '}
                 <strong>{getServiceName(bookingToAcceptForDialog.serviceId)}</strong> on{' '}
-                <strong>{format(parseISO(bookingToAcceptForDialog.date), 'MMM d, yyyy')}</strong> at{' '}
+                <strong>{format(new Date(bookingToAcceptForDialog.date), 'MMM d, yyyy')}</strong> at{' '}
                 <strong>{bookingToAcceptForDialog.startTime}</strong>?
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -692,7 +694,7 @@ export default function OwnerDashboardPage() {
                 Are you sure you want to reject the booking for User{' '}
                 <strong>{bookingToRejectForDialog.userId.slice(-4)}</strong> for service{' '}
                 <strong>{getServiceName(bookingToRejectForDialog.serviceId)}</strong> on{' '}
-                <strong>{format(parseISO(bookingToRejectForDialog.date), 'MMM d, yyyy')}</strong> at{' '}
+                <strong>{format(new Date(bookingToRejectForDialog.date), 'MMM d, yyyy')}</strong> at{' '}
                 <strong>{bookingToRejectForDialog.startTime}</strong>?
               </AlertDialogDescription>
             </AlertDialogHeader>
