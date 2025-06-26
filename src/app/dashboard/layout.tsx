@@ -160,7 +160,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <SidebarHeader className="p-4 flex flex-col space-y-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:p-2">
           <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
             <Logo className="text-lg" />
-            <SidebarTrigger className="group-data-[collapsible=icon]:hidden"/>
+            <SidebarTrigger className="group-data-[collapsible=icon]:hidden" />
           </div>
           {(userHasOwnerRole || userHasAdminRole) && ( 
             <DropdownMenu>
