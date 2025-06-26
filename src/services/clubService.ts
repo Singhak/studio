@@ -120,31 +120,31 @@ export async function registerClub(clubData: RegisterClubPayload): Promise<Club>
 export type UpdateClubPayload = Pick<Club, 'name' | 'address' | 'location' | 'description' | 'images' | 'amenities' | 'contactEmail' | 'contactPhone'>;
 
 export async function updateClub(clubId: string, payload: UpdateClubPayload): Promise<Club> {
-    const apiUrlPath = `/clubs/${clubId}`;
-    try {
-        const response = await authedFetch(apiUrlPath, {
-            method: 'PUT',
-            body: JSON.stringify(payload),
-        });
+  const apiUrlPath = `/clubs/${clubId}`;
+  try {
+    const response = await authedFetch(apiUrlPath, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
 
-        const responseBody = await response.json();
-        if (!response.ok) {
-            const errorMessage = responseBody?.message || `Club update failed: ${response.statusText} (${response.status})`;
-            throw new Error(errorMessage);
-        }
-        
-        // Invalidate cache after successful update
-        clearClubCache(clubId);
-        
-        return responseBody as Club;
-    } catch (error) {
-        console.error(`Error updating club ${clubId} in service:`, error);
-        if (error instanceof Error) {
-            throw error;
-        } else {
-            throw new Error('An unexpected error occurred during club update.');
-        }
+    const responseBody = await response.json();
+    if (!response.ok) {
+      const errorMessage = responseBody?.message || `Club update failed: ${response.statusText} (${response.status})`;
+      throw new Error(errorMessage);
     }
+
+    // Invalidate cache after successful update
+    clearClubCache(clubId);
+
+    return responseBody as Club;
+  } catch (error) {
+    console.error(`Error updating club ${clubId} in service:`, error);
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error('An unexpected error occurred during club update.');
+    }
+  }
 }
 
 export async function updateClubAdminStatus(clubId: string, payload: { isActive?: boolean; isFeatured?: boolean }): Promise<Club> {
@@ -160,10 +160,10 @@ export async function updateClubAdminStatus(clubId: string, payload: { isActive?
       const errorMessage = responseBody?.message || `Failed to update club status: ${response.statusText}`;
       throw new Error(errorMessage);
     }
-    
+
     // Invalidate cache after successful update to ensure fresh data on next load
     clearClubCache(clubId);
-    
+
     return responseBody as Club;
   } catch (error) {
     console.error(`Error updating club ${clubId} status in service:`, error);
@@ -193,12 +193,12 @@ export async function addClubService(serviceData: AddServicePayload): Promise<Se
     }
     // After adding a service, invalidate the services cache for the parent club.
     if (serviceData.club) {
-       const existingEntry = getCachedClubEntry(serviceData.club);
-       if (existingEntry) {
-           setCachedClubEntry(serviceData.club, { servicesData: null }); // Mark services as needing refresh
-           // Or fetch services again and update, for simplicity, just mark for refresh
-           console.log(`[CACHE] Club ${serviceData.club}: Services cache marked for refresh after adding new service.`);
-       }
+      const existingEntry = getCachedClubEntry(serviceData.club);
+      if (existingEntry) {
+        setCachedClubEntry(serviceData.club, { servicesData: null }); // Mark services as needing refresh
+        // Or fetch services again and update, for simplicity, just mark for refresh
+        console.log(`[CACHE] Club ${serviceData.club}: Services cache marked for refresh after adding new service.`);
+      }
     }
     return responseBody as Service;
   } catch (error) {
@@ -224,9 +224,9 @@ export async function getServicesByClubId(clubId: string): Promise<Service[]> {
     console.log(`[API] Club ${clubId}: Fetching fresh servicesData.`);
     const response = await authedFetch(apiUrlPath);
     if (!response.ok) {
-      if (response.status === 404) { 
+      if (response.status === 404) {
         setCachedClubEntry(clubId, { servicesData: [] }); // Cache empty services if 404
-        return []; 
+        return [];
       }
       throw new Error(`Failed to fetch services for club ${clubId}: ${response.statusText} (${response.status}) from ${getApiBaseUrl()}${apiUrlPath}`);
     }

@@ -63,7 +63,7 @@ export function BookingTable({
         let filteredItems = bookings;
         if (filter) {
             const lowercasedFilter = filter.toLowerCase();
-            filteredItems = bookings.filter(booking => 
+            filteredItems = bookings.filter(booking =>
                 booking.customer?.name?.toLowerCase().includes(lowercasedFilter) ||
                 booking.customer?._id?.toLowerCase().includes(lowercasedFilter) ||
                 getServiceName(booking.service._id).toLowerCase().includes(lowercasedFilter) ||
@@ -99,7 +99,7 @@ export function BookingTable({
         <Card>
             <CardHeader><CardTitle>{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader>
             <CardContent>
-                 <div className="flex items-center pb-4">
+                <div className="flex items-center pb-4">
                     <div className="relative w-full max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input

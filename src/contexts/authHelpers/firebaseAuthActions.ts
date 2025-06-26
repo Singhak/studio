@@ -117,15 +117,15 @@ export const confirmPhoneNumberCodeFirebase = async (
 };
 
 export const logoutFirebase = async (
-    authInstance: Auth,
-    toast: ToastFn,
+  authInstance: Auth,
+  toast: ToastFn,
 ): Promise<void> => {
-    try {
-        await signOut(authInstance);
-        toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
-    } catch (error: any) {
-        console.error("Error signing out from Firebase:", error);
-        toast({ variant: "destructive", toastTitle: "Logout Failed", toastDescription: error.message });
-        // Re-throw or handle as needed, but the core Firebase signout is done.
-    }
+  try {
+    await signOut(authInstance);
+    toast({ toastTitle: "Logged Out", toastDescription: "You have been successfully logged out." });
+  } catch (error: any) {
+    console.error("Error signing out from Firebase:", error);
+    toast({ variant: "destructive", toastTitle: "Logout Failed", toastDescription: error.message });
+    // Re-throw or handle as needed, but the core Firebase signout is done.
+  }
 };

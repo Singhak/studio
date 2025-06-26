@@ -151,8 +151,8 @@ export async function unblockTimeSlot(bookingId: string): Promise<void> {
       method: 'DELETE',
     });
     if (!response.ok) {
-       const errorBody = await response.json().catch(() => ({ message: `Failed to unblock slot: ${response.statusText}` }));
-       throw new Error(errorBody.message);
+      const errorBody = await response.json().catch(() => ({ message: `Failed to unblock slot: ${response.statusText}` }));
+      throw new Error(errorBody.message);
     }
     // No content is expected on successful deletion
   } catch (error) {

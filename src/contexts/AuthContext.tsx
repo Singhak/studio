@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<CourtlyUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileCompletionPending, setProfileCompletionPending] = useState(false);
-  
+
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
   const [refreshToken, setRefreshTokenState] = useState<string | null>(null);
 
@@ -103,14 +103,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
-  
+
   const unsubscribeFcmOnMessageRef = useRef<(() => void) | null>(null);
-  
+
   const currentUserRef = useRef(currentUser);
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
-  
+
   const setAndStoreAccessToken = useCallback((token: string | null) => {
     setAccessTokenState(token);
     if (typeof window !== 'undefined') {
@@ -135,29 +135,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
     addAppNotification(
-        title, body, href, id,
-        currentUserRef.current?.uid,
-        setNotifications
+      title, body, href, id,
+      currentUserRef.current?.uid,
+      setNotifications
     );
   }, [setNotifications]);
 
   const fullLogoutSequence = useCallback(async () => {
-    const uidToClean = currentUserRef.current?.uid; 
+    const uidToClean = currentUserRef.current?.uid;
     await logoutFirebase(auth, toast);
     if (uidToClean && typeof window !== 'undefined') {
-        localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidToClean}`);
-        const notificationKey = getNotificationStorageKey(uidToClean);
-        if (notificationKey) localStorage.removeItem(notificationKey);
+      localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidToClean}`);
+      const notificationKey = getNotificationStorageKey(uidToClean);
+      if (notificationKey) localStorage.removeItem(notificationKey);
     }
   }, [toast]);
 
   const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
     return attemptTokenRefreshApi({
-        currentRefreshToken: refreshToken,
-        toast,
-        setAndStoreAccessToken,
-        setAndStoreRefreshToken,
-        performLogout: fullLogoutSequence,
+      currentRefreshToken: refreshToken,
+      toast,
+      setAndStoreAccessToken,
+      setAndStoreRefreshToken,
+      performLogout: fullLogoutSequence,
     });
   }, [refreshToken, toast, setAndStoreAccessToken, setAndStoreRefreshToken, fullLogoutSequence]);
 
@@ -171,30 +171,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const processUserChange = async () => {
-        if (firebaseUser === undefined) return;
+      if (firebaseUser === undefined) return;
 
-        if (firebaseUser) {
-            const isNewUser = Date.parse(firebaseUser.metadata.lastSignInTime!) - Date.parse(firebaseUser.metadata.creationTime!) < 5000;
-            const clientInstanceId = getOrCreateClientInstanceId();
-            
-            const loggedInCourtlyUser = await handleCustomApiLogin({
-              firebaseUser, auth, toast, setAndStoreAccessToken, setAndStoreRefreshToken, clientInstanceId,
-            });
+      if (firebaseUser) {
+        const isNewUser = Date.parse(firebaseUser.metadata.lastSignInTime!) - Date.parse(firebaseUser.metadata.creationTime!) < 5000;
+        const clientInstanceId = getOrCreateClientInstanceId();
 
-            if (loggedInCourtlyUser) {
-                setCurrentUser(loggedInCourtlyUser);
-                setProfileCompletionPending(isNewUser);
-            } else {
-                await logoutFirebase(auth, toast);
-            }
+        const loggedInCourtlyUser = await handleCustomApiLogin({
+          firebaseUser, auth, toast, setAndStoreAccessToken, setAndStoreRefreshToken, clientInstanceId,
+        });
+
+        if (loggedInCourtlyUser) {
+          setCurrentUser(loggedInCourtlyUser);
+          setProfileCompletionPending(isNewUser);
         } else {
-            clearCustomTokens();
-            setAndStoreAccessToken(null);
-            setAndStoreRefreshToken(null);
-            setCurrentUser(null);
-            setProfileCompletionPending(false);
+          await logoutFirebase(auth, toast);
         }
-        setLoading(false);
+      } else {
+        clearCustomTokens();
+        setAndStoreAccessToken(null);
+        setAndStoreRefreshToken(null);
+        setCurrentUser(null);
+        setProfileCompletionPending(false);
+      }
+      setLoading(false);
     };
     processUserChange();
   }, [firebaseUser, auth, toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
@@ -202,17 +202,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const setup = async () => {
       if (currentUser) {
-          if (unsubscribeFcmOnMessageRef.current) {
-              unsubscribeFcmOnMessageRef.current();
-          }
-          unsubscribeFcmOnMessageRef.current = await setupFcmMessaging(currentUser, toast, addNotificationCb);
-          fetchAndSetWeeklyAppNotifications(currentUser, setNotifications);
+        if (unsubscribeFcmOnMessageRef.current) {
+          unsubscribeFcmOnMessageRef.current();
+        }
+        unsubscribeFcmOnMessageRef.current = await setupFcmMessaging(currentUser, toast, addNotificationCb);
+        fetchAndSetWeeklyAppNotifications(currentUser, setNotifications);
       } else {
-          if (unsubscribeFcmOnMessageRef.current) {
-              unsubscribeFcmOnMessageRef.current();
-              unsubscribeFcmOnMessageRef.current = null;
-          }
-          setNotifications([]);
+        if (unsubscribeFcmOnMessageRef.current) {
+          unsubscribeFcmOnMessageRef.current();
+          unsubscribeFcmOnMessageRef.current = null;
+        }
+        setNotifications([]);
       }
     };
     setup();
@@ -279,38 +279,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const rolesToSet = new Set<UserRole>(roles);
     rolesToSet.add('user');
     const finalRoles = Array.from(rolesToSet);
-    
+
     const updatedUser: CourtlyUser = { ...currentUser, roles: finalRoles };
-    
+
     localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(finalRoles));
     setCurrentUser(updatedUser);
-    
+
     if (profileCompletionPending) {
-        setProfileCompletionPending(false);
+      setProfileCompletionPending(false);
     }
   }, [currentUser, profileCompletionPending]);
 
   const updateCourtlyUserProfile = useCallback((profileData: Partial<Pick<CourtlyUser, 'displayName' | 'phoneNumber' | 'whatsappNumber' | 'address' | 'roles'>>) => {
     setCurrentUser(prevUser => {
-        if (!prevUser) return null;
-        
-        const updatedUser: CourtlyUser = {
-            ...prevUser,
-            ...profileData,
-        };
+      if (!prevUser) return null;
 
-        if (profileData.roles) {
-            localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${prevUser.uid}`, JSON.stringify(profileData.roles));
-        }
+      const updatedUser: CourtlyUser = {
+        ...prevUser,
+        ...profileData,
+      };
 
-        return updatedUser;
+      if (profileData.roles) {
+        localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${prevUser.uid}`, JSON.stringify(profileData.roles));
+      }
+
+      return updatedUser;
     });
 
     if (auth.currentUser && profileData.displayName) {
-        updateProfile(auth.currentUser, { displayName: profileData.displayName }).catch(e => console.error("Firebase profile update failed:", e));
+      updateProfile(auth.currentUser, { displayName: profileData.displayName }).catch(e => console.error("Firebase profile update failed:", e));
     }
   }, []);
-  
+
   const markNotificationAsReadCb = useCallback(async (notificationId: string) => {
     markAppNotificationAsRead(
       notificationId,
@@ -319,7 +319,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setNotifications
     );
   }, [toast, setNotifications]);
-  
+
   const markAllNotificationsAsReadCb = useCallback(async () => {
     markAllAppNotificationsAsRead(
       currentUserRef.current?.uid,
@@ -327,7 +327,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setNotifications
     );
   }, [toast, setNotifications]);
-  
+
   const clearAllNotificationsCb = useCallback(async () => {
     clearAllAppNotifications(currentUserRef.current?.uid, toast, setNotifications);
   }, [toast, setNotifications]);

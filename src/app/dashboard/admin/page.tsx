@@ -72,7 +72,7 @@ export default function AdminDashboardPage() {
 
         if (aVal === undefined || aVal === null) return 1;
         if (bVal === undefined || bVal === null) return -1;
-        
+
         if (aVal < bVal) {
           return sortConfig.direction === 'ascending' ? -1 : 1;
         }
@@ -135,19 +135,19 @@ export default function AdminDashboardPage() {
         <TableHeader>
           <TableRow>
             <TableHead>
-                <Button variant="ghost" onClick={() => requestSort('name')}>
-                    Club Name {getSortIcon('name')}
-                </Button>
+              <Button variant="ghost" onClick={() => requestSort('name')}>
+                Club Name {getSortIcon('name')}
+              </Button>
             </TableHead>
             <TableHead>
-                 <Button variant="ghost" onClick={() => requestSort('owner')}>
-                    Owner ID {getSortIcon('owner')}
-                </Button>
+              <Button variant="ghost" onClick={() => requestSort('owner')}>
+                Owner ID {getSortIcon('owner')}
+              </Button>
             </TableHead>
             <TableHead>
-                 <Button variant="ghost" onClick={() => requestSort('createdAt')}>
-                    Created {getSortIcon('createdAt')}
-                </Button>
+              <Button variant="ghost" onClick={() => requestSort('createdAt')}>
+                Created {getSortIcon('createdAt')}
+              </Button>
             </TableHead>
             <TableHead className="text-center">Active</TableHead>
             <TableHead className="text-center">Featured</TableHead>
@@ -161,20 +161,20 @@ export default function AdminDashboardPage() {
               <TableCell className="text-muted-foreground text-xs">{club.owner?.slice(-6) ?? 'N/A'}</TableCell>
               <TableCell className="text-muted-foreground text-xs">{club.createdAt ? format(new Date(club.createdAt), 'MMM d, yyyy') : 'N/A'}</TableCell>
               <TableCell className="text-center">
-                 <Switch
-                    id={`active-${club._id}`}
-                    checked={club.isActive}
-                    onCheckedChange={(value) => handleStatusChange(club._id, 'isActive', value)}
-                    aria-label={`Toggle active status for ${club.name}`}
-                  />
+                <Switch
+                  id={`active-${club._id}`}
+                  checked={club.isActive}
+                  onCheckedChange={(value) => handleStatusChange(club._id, 'isActive', value)}
+                  aria-label={`Toggle active status for ${club.name}`}
+                />
               </TableCell>
               <TableCell className="text-center">
-                 <Switch
-                    id={`featured-${club._id}`}
-                    checked={club.isFeatured}
-                    onCheckedChange={(value) => handleStatusChange(club._id, 'isFeatured', value)}
-                    aria-label={`Toggle featured status for ${club.name}`}
-                  />
+                <Switch
+                  id={`featured-${club._id}`}
+                  checked={club.isFeatured}
+                  onCheckedChange={(value) => handleStatusChange(club._id, 'isFeatured', value)}
+                  aria-label={`Toggle featured status for ${club.name}`}
+                />
               </TableCell>
               <TableCell className="text-right">
                 <Button variant="outline" size="sm" asChild>
@@ -190,8 +190,8 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight flex items-center"><Shield className="mr-3 h-8 w-8"/>Admin Club Management</h1>
-      
+      <h1 className="text-3xl font-bold tracking-tight flex items-center"><Shield className="mr-3 h-8 w-8" />Admin Club Management</h1>
+
       <Card>
         <CardHeader>
           <CardTitle>All Clubs</CardTitle>
@@ -200,15 +200,15 @@ export default function AdminDashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="mb-4">
-                <Input 
-                    placeholder="Filter by club name or owner ID..."
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                    className="max-w-sm"
-                />
-            </div>
-            {renderContent()}
+          <div className="mb-4">
+            <Input
+              placeholder="Filter by club name or owner ID..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+          {renderContent()}
         </CardContent>
       </Card>
     </div>

@@ -132,7 +132,7 @@ export const addAppNotification = (
   setNotifications: React.Dispatch<React.SetStateAction<AppNotification[]>>
 ) => {
   const newAppNotification: AppNotification = {
-    id: id || `client_${Date.now().toString()}_${Math.random().toString(36).substring(2,7)}`,
+    id: id || `client_${Date.now().toString()}_${Math.random().toString(36).substring(2, 7)}`,
     title,
     body,
     href,
@@ -155,7 +155,7 @@ export const markAppNotificationAsRead = async (
   try {
     await markNotificationsAsReadApi([notificationId]);
     setNotifications(prevNotifications => {
-      const updated = prevNotifications.map(n => 
+      const updated = prevNotifications.map(n =>
         n.id === notificationId ? { ...n, read: true } : n
       );
       saveNotificationsToStorage(updated, currentUserUid);
@@ -179,7 +179,7 @@ export const markAllAppNotificationsAsRead = async (
   setNotifications(prevNotifications => {
     const unreadIds = prevNotifications.filter(n => !n.read).map(n => n.id);
     if (unreadIds.length === 0) return prevNotifications;
-    
+
     markNotificationsAsReadApi(unreadIds).catch(error => {
       console.error("Failed to mark all notifications as read (NotificationManager):", error);
       toast({
@@ -220,7 +220,7 @@ export const setupFcmMessaging = async (
         const body = payload.notification?.body;
         const href = payload.data?.href;
         const messageId = payload.messageId;
-        
+
         addNotificationCallback(title, body, href, messageId);
         toast({
           toastTitle: (<div className="flex items-center"><Bell className="h-5 w-5 text-primary mr-2" /><span>{title}</span></div>),
@@ -252,40 +252,40 @@ const isSameDay = (ts1: number, ts2: number): boolean => {
 };
 
 export const showNotificationPermissionReminder = (
-    toast: ToastFn,
-    ButtonComponent: React.ElementType
+  toast: ToastFn,
+  ButtonComponent: React.ElementType
 ) => {
-    if (typeof window === 'undefined' || typeof Notification === 'undefined' || Notification.permission === 'granted') {
-        return;
+  if (typeof window === 'undefined' || typeof Notification === 'undefined' || Notification.permission === 'granted') {
+    return;
+  }
+
+  const lastReminderTimestampStr = localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY);
+  const now = Date.now();
+  let shouldShowReminder = true;
+
+  if (lastReminderTimestampStr) {
+    const lastReminderTimestamp = parseInt(lastReminderTimestampStr, 10);
+    if (!isNaN(lastReminderTimestamp) && isSameDay(lastReminderTimestamp, now)) {
+      shouldShowReminder = false;
     }
+  }
 
-    const lastReminderTimestampStr = localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY);
-    const now = Date.now();
-    let shouldShowReminder = true;
-
-    if (lastReminderTimestampStr) {
-        const lastReminderTimestamp = parseInt(lastReminderTimestampStr, 10);
-        if (!isNaN(lastReminderTimestamp) && isSameDay(lastReminderTimestamp, now)) {
-        shouldShowReminder = false;
+  if (shouldShowReminder) {
+    const toastInstance = toast({
+      toastTitle: (<div className="flex items-center"><Bell className="h-5 w-5 text-primary mr-2" /><span>Stay Updated!</span></div>),
+      toastDescription: "Enable notifications for timely booking and club updates.",
+      duration: 15000,
+      toastAction: (
+        <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full">
+          <ButtonComponent size="sm" onClick={async () => { toastInstance.dismiss(); await requestNotificationPermission(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString()); }} className="w-full sm:w-auto"><Bell className="mr-2 h-4 w-4" /> Enable</ButtonComponent>
+          <ButtonComponent size="sm" variant="outline" onClick={() => { toastInstance.dismiss(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString()); }} className="w-full sm:w-auto">Maybe Later</ButtonComponent>
+        </div>
+      ),
+      onDismiss: () => {
+        if (!localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || !isSameDay(parseInt(localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || '0', 10), now)) {
+          localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
         }
-    }
-
-    if (shouldShowReminder) {
-        const toastInstance = toast({
-        toastTitle: (<div className="flex items-center"><Bell className="h-5 w-5 text-primary mr-2" /><span>Stay Updated!</span></div>),
-        toastDescription: "Enable notifications for timely booking and club updates.",
-        duration: 15000,
-        toastAction: (
-            <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full">
-            <ButtonComponent size="sm" onClick={async () => { toastInstance.dismiss(); await requestNotificationPermission(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());}} className="w-full sm:w-auto"><Bell className="mr-2 h-4 w-4" /> Enable</ButtonComponent>
-            <ButtonComponent size="sm" variant="outline" onClick={() => { toastInstance.dismiss(); localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());}} className="w-full sm:w-auto">Maybe Later</ButtonComponent>
-            </div>
-        ),
-        onDismiss: () => { 
-            if (!localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || !isSameDay(parseInt(localStorage.getItem(LAST_NOTIFICATION_REMINDER_KEY) || '0', 10), now)) {
-            localStorage.setItem(LAST_NOTIFICATION_REMINDER_KEY, now.toString());
-            }
-        }
-        });
-    }
+      }
+    });
+  }
 };

@@ -35,9 +35,9 @@ export default function ManageAvailabilityPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  
+
   const [timeSlots, setTimeSlots] = useState<TimeSlotForOwner[]>([]);
-  
+
   const [isLoading, setIsLoading] = useState({ clubs: true, services: false, slots: false });
   const [error, setError] = useState({ clubs: '', services: '', slots: '' });
 
@@ -119,7 +119,7 @@ export default function ManageAvailabilityPage() {
         if (isBefore(slotEnd, closingTime) || isEqual(slotEnd, closingTime)) {
           const startTimeFormatted = format(slotStart, 'HH:mm');
           const endTimeFormatted = format(slotEnd, 'HH:mm');
-          
+
           const conflictingBooking = relevantBookings.find(b => b.startTime === startTimeFormatted);
 
           // if (conflictingBooking) {
@@ -155,8 +155,8 @@ export default function ManageAvailabilityPage() {
 
   const handleBlockSlot = async (slot: TimeSlotForOwner) => {
     if (!selectedService || !selectedDate) return;
-    
-    setTimeSlots(prev => prev.map(s => s.startTime === slot.startTime ? {...s, displayStatus: 'blocked', status: 'blocked'} : s));
+
+    setTimeSlots(prev => prev.map(s => s.startTime === slot.startTime ? { ...s, displayStatus: 'blocked', status: 'blocked' } : s));
     try {
       await blockTimeSlot({
         clubId: selectedClubId,
@@ -168,22 +168,22 @@ export default function ManageAvailabilityPage() {
       toast({ toastTitle: "Slot Blocked", toastDescription: `Slot ${slot.startTime} has been blocked.` });
       await generateAndSetTimeSlots(); // Re-fetch to get correct IDs
     } catch (err) {
-      toast({ variant: "destructive", toastTitle: "Blocking Failed", toastDescription: "Could not block the slot."});
-      setTimeSlots(prev => prev.map(s => s.startTime === slot.startTime ? {...s, displayStatus: 'available', status: 'pending'} : s));
+      toast({ variant: "destructive", toastTitle: "Blocking Failed", toastDescription: "Could not block the slot." });
+      setTimeSlots(prev => prev.map(s => s.startTime === slot.startTime ? { ...s, displayStatus: 'available', status: 'pending' } : s));
     }
   };
 
   const handleUnblockSlot = async (slot: TimeSlotForOwner) => {
     if (!slot.id) return;
-    
-    setTimeSlots(prev => prev.map(s => s.startTime === slot.startTime ? {...s, displayStatus: 'available', status: 'pending'} : s));
+
+    setTimeSlots(prev => prev.map(s => s.startTime === slot.startTime ? { ...s, displayStatus: 'available', status: 'pending' } : s));
     try {
       await unblockTimeSlot(slot.id);
       toast({ toastTitle: "Slot Unblocked", toastDescription: `Slot ${slot.startTime} is now available.` });
       await generateAndSetTimeSlots();
     } catch (err) {
-      toast({ variant: "destructive", toastTitle: "Unblocking Failed", toastDescription: "Could not unblock the slot."});
-       setTimeSlots(prev => prev.map(s => s.startTime === slot.startTime ? {...s, displayStatus: 'blocked', status: 'blocked'} : s));
+      toast({ variant: "destructive", toastTitle: "Unblocking Failed", toastDescription: "Could not unblock the slot." });
+      setTimeSlots(prev => prev.map(s => s.startTime === slot.startTime ? { ...s, displayStatus: 'blocked', status: 'blocked' } : s));
     }
   };
 
@@ -210,7 +210,7 @@ export default function ManageAvailabilityPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {isLoading.clubs ? <Loader2 className="animate-spin" /> : (
             <div className="space-y-1.5">
-              <label htmlFor="club-select" className="text-sm font-medium text-muted-foreground flex items-center"><ClubIcon className="mr-2 h-4 w-4"/>Club</label>
+              <label htmlFor="club-select" className="text-sm font-medium text-muted-foreground flex items-center"><ClubIcon className="mr-2 h-4 w-4" />Club</label>
               <Select value={selectedClubId} onValueChange={setSelectedClubId}>
                 <SelectTrigger id="club-select"><SelectValue placeholder="Select a club..." /></SelectTrigger>
                 <SelectContent>
@@ -221,7 +221,7 @@ export default function ManageAvailabilityPage() {
           )}
           {isLoading.services ? <Loader2 className="animate-spin" /> : (
             <div className="space-y-1.5">
-              <label htmlFor="service-select" className="text-sm font-medium text-muted-foreground flex items-center"><Package className="mr-2 h-4 w-4"/>Service</label>
+              <label htmlFor="service-select" className="text-sm font-medium text-muted-foreground flex items-center"><Package className="mr-2 h-4 w-4" />Service</label>
               <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
                 <SelectTrigger id="service-select"><SelectValue placeholder="Select a service..." /></SelectTrigger>
                 <SelectContent>
@@ -232,79 +232,79 @@ export default function ManageAvailabilityPage() {
           )}
         </CardContent>
       </Card>
-      
+
       {selectedServiceId && (
-         <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <CalendarClock className="mr-2 h-5 w-5 text-primary" />
-                Daily Schedule for {selectedService?.name}
-              </CardTitle>
-              <CardDescription>
-                Select a date to view its schedule. You can block time slots to make them unavailable for booking.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="flex justify-center lg:col-span-1">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  disabled={disabledDays}
-                  className="rounded-md border"
-                />
-              </div>
-              <div className="lg:col-span-2">
-                <h3 className="font-semibold mb-2">Slots for {selectedDate ? format(selectedDate, 'PPP') : '...'}</h3>
-                 {isLoading.slots ? (
-                    <div className="flex justify-center items-center h-48"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
-                ) : error.slots ? (
-                    <div className="text-destructive text-center p-4 flex flex-col items-center gap-3">
-                        <AlertTriangle size={32} />
-                        <span>{error.slots}</span>
-                        <Button onClick={generateAndSetTimeSlots} variant="outline" size="sm">
-                            <RefreshCw className="mr-2 h-4 w-4" /> Try Again
-                        </Button>
-                    </div>
-                ) : timeSlots.length > 0 ? (
-                    <TooltipProvider>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto pr-2">
-                        {timeSlots.map(slot => (
-                          <Tooltip key={slot.startTime}>
-                            <TooltipTrigger asChild>
-                              <div className="relative">
-                                <Button
-                                  variant={slot.displayStatus === 'available' ? 'outline' : 'secondary'}
-                                  className={`w-full ${slot.displayStatus === 'blocked' ? 'bg-muted-foreground/20' : ''} ${slot.displayStatus === 'booked' || slot.displayStatus === 'pending' ? 'cursor-not-allowed' : ''}`}
-                                  disabled={slot.displayStatus === 'booked' || slot.displayStatus === 'pending'}
-                                  onClick={() => {
-                                    if (slot.displayStatus === 'available') handleBlockSlot(slot);
-                                    if (slot.displayStatus === 'blocked') handleUnblockSlot(slot);
-                                  }}
-                                >
-                                  {slot.startTime}
-                                </Button>
-                                {(slot.displayStatus === 'blocked' || slot.displayStatus === 'booked' || slot.displayStatus === 'pending') && (
-                                    <div className="absolute top-1 right-1">
-                                        {slot.displayStatus === 'blocked' && <Lock className="h-3 w-3 text-muted-foreground" />}
-                                        {slot.displayStatus === 'booked' && <CheckCircle className="h-3 w-3 text-green-600" />}
-                                        {slot.displayStatus === 'pending' && <Clock className="h-3 w-3 text-amber-600" />}
-                                    </div>
-                                )}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <CalendarClock className="mr-2 h-5 w-5 text-primary" />
+              Daily Schedule for {selectedService?.name}
+            </CardTitle>
+            <CardDescription>
+              Select a date to view its schedule. You can block time slots to make them unavailable for booking.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="flex justify-center lg:col-span-1">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                disabled={disabledDays}
+                className="rounded-md border"
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <h3 className="font-semibold mb-2">Slots for {selectedDate ? format(selectedDate, 'PPP') : '...'}</h3>
+              {isLoading.slots ? (
+                <div className="flex justify-center items-center h-48"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
+              ) : error.slots ? (
+                <div className="text-destructive text-center p-4 flex flex-col items-center gap-3">
+                  <AlertTriangle size={32} />
+                  <span>{error.slots}</span>
+                  <Button onClick={generateAndSetTimeSlots} variant="outline" size="sm">
+                    <RefreshCw className="mr-2 h-4 w-4" /> Try Again
+                  </Button>
+                </div>
+              ) : timeSlots.length > 0 ? (
+                <TooltipProvider>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto pr-2">
+                    {timeSlots.map(slot => (
+                      <Tooltip key={slot.startTime}>
+                        <TooltipTrigger asChild>
+                          <div className="relative">
+                            <Button
+                              variant={slot.displayStatus === 'available' ? 'outline' : 'secondary'}
+                              className={`w-full ${slot.displayStatus === 'blocked' ? 'bg-muted-foreground/20' : ''} ${slot.displayStatus === 'booked' || slot.displayStatus === 'pending' ? 'cursor-not-allowed' : ''}`}
+                              disabled={slot.displayStatus === 'booked' || slot.displayStatus === 'pending'}
+                              onClick={() => {
+                                if (slot.displayStatus === 'available') handleBlockSlot(slot);
+                                if (slot.displayStatus === 'blocked') handleUnblockSlot(slot);
+                              }}
+                            >
+                              {slot.startTime}
+                            </Button>
+                            {(slot.displayStatus === 'blocked' || slot.displayStatus === 'booked' || slot.displayStatus === 'pending') && (
+                              <div className="absolute top-1 right-1">
+                                {slot.displayStatus === 'blocked' && <Lock className="h-3 w-3 text-muted-foreground" />}
+                                {slot.displayStatus === 'booked' && <CheckCircle className="h-3 w-3 text-green-600" />}
+                                {slot.displayStatus === 'pending' && <Clock className="h-3 w-3 text-amber-600" />}
                               </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                               <p className="capitalize">{slot.displayStatus}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        ))}
-                      </div>
-                    </TooltipProvider>
-                ) : (
-                    <p className="text-muted-foreground text-center py-8">No time slots generated for this day.</p>
-                )}
-              </div>
-            </CardContent>
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="capitalize">{slot.displayStatus}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
+                </TooltipProvider>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">No time slots generated for this day.</p>
+              )}
+            </div>
+          </CardContent>
         </Card>
       )}
     </div>

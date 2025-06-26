@@ -39,14 +39,14 @@ export const updateCurrentUserRoles = (
 
     // Ensure 'user' role is always present if any role is assigned.
     if (rolesToSet.size > 0 || newRolesInput.length > 0) { // if any valid roles are provided, or if intention is to set roles (even if empty initially)
-        rolesToSet.add('user');
+      rolesToSet.add('user');
     } else { // If newRolesInput is empty and rolesToSet is empty, default to ['user']
-        rolesToSet.add('user');
+      rolesToSet.add('user');
     }
-    
+
     const finalRoles = Array.from(rolesToSet);
     const updatedUser: CourtlyUser = { ...currentUser, roles: finalRoles };
-    
+
     localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(finalRoles));
     setCurrentUser(updatedUser);
     return updatedUser;

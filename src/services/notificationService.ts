@@ -23,7 +23,7 @@ export async function markNotificationsAsReadApi(notificationIds: string[]): Pro
     if (response.status === 204) { // Successfully marked as read, no content
       return;
     }
-    
+
     // Handle other non-204 but still ok responses if any, or non-ok responses
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({ message: `Failed to mark notifications as read: ${response.statusText} (${response.status})` }));
@@ -33,7 +33,7 @@ export async function markNotificationsAsReadApi(notificationIds: string[]): Pro
     // it's still considered a success for this void function.
     // Log a warning if the status is unexpected but still 'ok'.
     if (response.status !== 204) {
-        console.warn(`Mark notifications as read API returned status ${response.status} instead of 204, but was 'ok'.`);
+      console.warn(`Mark notifications as read API returned status ${response.status} instead of 204, but was 'ok'.`);
     }
 
   } catch (error) {

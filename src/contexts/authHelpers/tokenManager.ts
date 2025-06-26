@@ -80,7 +80,7 @@ export const handleCustomApiLogin = async ({
       ...(firebaseUser as any),
       id: aboutMe?.id
     };
-    
+
     return courtlyUser;
 
   } catch (error) {

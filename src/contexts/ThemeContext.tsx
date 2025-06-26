@@ -19,7 +19,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const storedTheme = localStorage.getItem("courtly-theme") as Theme | null;
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    
+
     // Initialize theme based on localStorage or system preference
     let initialTheme: Theme = "light";
     if (storedTheme) {
