@@ -152,15 +152,10 @@ export default function OwnerBookingHistoryPage() {
   const getServiceName = useCallback((serviceId: string): string => {
     let serviceInClub = null
     if (selectedClub) {
-      if (selectedClub.services) {
-        serviceInClub = selectedClub.services.find(s => s._id === serviceId);
-      } else {
-        const service = getCachedClubEntry(selectedClub?._id)
-        serviceInClub = service?.servicesData?.find(s => s._id === serviceId)
-      }
+      let service = getCachedClubEntry(selectedClub?._id)
+      serviceInClub = service?.servicesData?.find(s => s._id === serviceId)
     }
-    const service = allMockServices.find(s => s._id === serviceId);
-    return service ? service.name : 'Unknown Service';
+    return serviceInClub ? serviceInClub.name : 'Unknown Service';
   }, [selectedClub]);
 
   const requestSort = (key: SortableBookingKeys) => {

@@ -64,7 +64,8 @@ export function BookingTable({
         if (filter) {
             const lowercasedFilter = filter.toLowerCase();
             filteredItems = bookings.filter(booking => 
-                booking.customer.name.toLowerCase().includes(lowercasedFilter) ||
+                booking.customer?.name?.toLowerCase().includes(lowercasedFilter) ||
+                booking.customer?._id?.toLowerCase().includes(lowercasedFilter) ||
                 getServiceName(booking.service._id).toLowerCase().includes(lowercasedFilter) ||
                 booking.status.toLowerCase().includes(lowercasedFilter)
             );
@@ -132,7 +133,7 @@ export function BookingTable({
                         <TableBody>
                             {filteredAndSortedBookings.map((booking) => (
                                 <TableRow key={booking._id}>
-                                    <TableCell className="font-medium">User {booking.customer.name}</TableCell>
+                                    <TableCell className="font-medium">{booking.customer.name || booking.customer._id.slice(-4)}</TableCell>
                                     <TableCell>{format(parseISO(booking.bookingDate), 'MMM d, yyyy')} at {booking.startTime}</TableCell>
                                     <TableCell>{getServiceName(booking.service._id)}</TableCell>
                                     <TableCell><Badge variant={getStatusBadgeVariant(booking.status)}>{booking.status}</Badge></TableCell>

@@ -56,7 +56,6 @@ export default function OwnerDashboardPage() {
     let serviceInClub = null
     if (selectedClub) {
       let service = getCachedClubEntry(selectedClub?._id)
-      // if (!service) { service = await getServicesByClubId(selectedClub?._id) }
       serviceInClub = service?.servicesData?.find(s => s._id === serviceId)
     }
     return serviceInClub ? serviceInClub.name : 'Unknown Service';
