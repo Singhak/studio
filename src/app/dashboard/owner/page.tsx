@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format } from 'date-fns';
+import { getCachedClubEntry } from '@/lib/cacheUtils';
 
 export default function OwnerDashboardPage() {
   const { toast } = useToast();
@@ -52,12 +53,13 @@ export default function OwnerDashboardPage() {
   const [bookingToRejectForDialog, setBookingToRejectForDialog] = useState<Booking | null>(null);
 
   const getServiceName = useCallback((serviceId: string): string => {
-    if (selectedClub && selectedClub.services) {
-      const serviceInClub = selectedClub.services.find(s => s._id === serviceId);
-      if (serviceInClub) return serviceInClub.name;
+    let serviceInClub = null
+    if (selectedClub) {
+      let service = getCachedClubEntry(selectedClub?._id)
+      // if (!service) { service = await getServicesByClubId(selectedClub?._id) }
+      serviceInClub = service?.servicesData?.find(s => s._id === serviceId)
     }
-    const service = allMockServices.find(s => s._id === serviceId);
-    return service ? service.name : 'Unknown Service';
+    return serviceInClub ? serviceInClub.name : 'Unknown Service';
   }, [selectedClub]);
 
   useEffect(() => {
@@ -139,7 +141,7 @@ export default function OwnerDashboardPage() {
             console.warn("Could not determine expiry for a pending booking due to missing date/time.", booking);
             return booking;
           }
-          
+
           const bookingDateTime = new Date(`${dateString}T${booking.startTime}:00`);
 
           if (isNaN(bookingDateTime.getTime())) {
@@ -149,7 +151,7 @@ export default function OwnerDashboardPage() {
 
           if (bookingDateTime < now) {
             try {
-               updateBookingStatus(booking._id, 'expired', `Your booking for ${getServiceName(booking.service._id)} at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`);
+              updateBookingStatus(booking._id, 'expired', `Your booking for ${getServiceName(booking.service._id)} at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`);
               return { ...booking, status: 'expired' as Booking['status'] };
             } catch (error) {
               console.error(`Failed to update booking status for booking ID ${booking._id}:`, error);
@@ -187,6 +189,9 @@ export default function OwnerDashboardPage() {
     console.log("OwnerDashboard: useEffect[fetchBookings] - Triggered. selectedClubId:", currentSelectedClubId);
     if (currentSelectedClubId) {
       fetchBookingsForClub(currentSelectedClubId);
+      // Fetch services in advance for selected clubs
+      const service = getCachedClubEntry(selectedClub?._id)?.servicesData
+      if (!service) getServicesByClubId(currentSelectedClubId)
     } else {
       console.log("OwnerDashboard: useEffect[fetchBookings] - No selected club ID, clearing bookings.");
       setClubBookings([]);
@@ -233,10 +238,10 @@ export default function OwnerDashboardPage() {
       toastDescription: `Booking for User ${bookingToAcceptForDialog.customer.name} at ${selectedClub.name} has been confirmed.`,
     });
     addNotification(
-        `Booking Confirmed: ${selectedClub.name}`,
-        `Your booking for ${getServiceName(bookingToAcceptForDialog.service._id)} on ${format(bookingDate, 'MMM d, yyyy')} has been confirmed by the club.`,
-        '/dashboard/user', 
-        `booking_confirmed_${bookingId}`
+      `Booking Confirmed: ${selectedClub.name}`,
+      `Your booking for ${getServiceName(bookingToAcceptForDialog.service._id)} on ${format(bookingDate, 'MMM d, yyyy')} has been confirmed by the club.`,
+      '/dashboard/user',
+      `booking_confirmed_${bookingId}`
     );
     setIsAcceptConfirmOpen(false);
     setBookingToAcceptForDialog(null);
@@ -272,10 +277,10 @@ export default function OwnerDashboardPage() {
     }
 
     addNotification(
-        `Booking Update: ${selectedClub.name}`,
-        `Unfortunately, your booking for ${serviceName} on ${format(bookingDate, 'MMM d, yyyy')} could not be confirmed.`,
-        '/dashboard/user', 
-        `booking_rejected_${bookingId}`
+      `Booking Update: ${selectedClub.name}`,
+      `Unfortunately, your booking for ${serviceName} on ${format(bookingDate, 'MMM d, yyyy')} could not be confirmed.`,
+      '/dashboard/user',
+      `booking_rejected_${bookingId}`
     );
     setIsRejectConfirmOpen(false);
     setBookingToRejectForDialog(null);
