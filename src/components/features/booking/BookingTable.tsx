@@ -87,6 +87,10 @@ export function BookingTable({
                     aValue = parseISO(a.bookingDate).getTime();
                     bValue = parseISO(b.bookingDate).getTime();
                 }
+                if (sortConfig.key == 'customer') {
+                    aValue = a['customer']['name'] || a['customer']['_id'];
+                    bValue = b['customer']['name'] || a['customer']['_id'];
+                }
                 if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
                 if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
                 return 0;

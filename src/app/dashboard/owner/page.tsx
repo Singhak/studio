@@ -155,12 +155,6 @@ export default function OwnerDashboardPage() {
             } catch (error) {
               console.error(`Failed to update booking status for booking ID ${booking._id}:`, error);
             }
-            // addNotification(
-            //   `Booking Expired`,
-            //   `Your pending booking for "${getServiceName(booking.service._id)}" at ${clubName} on ${format(bookingDateTime, 'MMM d, yyyy')} has expired as it was not confirmed in time.`,
-            //   '/dashboard/user',
-            //   `booking_expired_${booking._id}`
-            // );
             return booking; // Return the original booking without modification
           }
         }
