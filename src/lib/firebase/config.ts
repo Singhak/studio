@@ -51,4 +51,10 @@ const auth = getAuth(app);
 // const db = getFirestore(app); // If you use Firestore
 // const storage = getStorage(app); // If you use Storage
 
+if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
+    if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
+        console.warn("%cFirebase Warning: %cNEXT_PUBLIC_FIREBASE_VAPID_KEY is not set. Push notifications will not work. Please generate a 'Web push certificate' in your Firebase Project Settings > Cloud Messaging and add the key pair to your .env.local file.", "color: orange; font-weight: bold;", "color: inherit;");
+    }
+}
+
 export { app, auth /*, db, storage */ };
