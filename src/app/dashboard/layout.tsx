@@ -44,11 +44,11 @@ const userNavItems = [
 
 const ownerNavItems = [
   { href: '/dashboard/owner', label: 'Club Overview', icon: LayoutDashboard },
+  { href: '/dashboard/owner/booking-history', label: 'Booking History', icon: History },
   { href: '/dashboard/owner/services', label: 'Services & Pricing', icon: CreditCard },
   { href: '/dashboard/owner/availability', label: 'Availability', icon: ShieldCheck },
-  { href: '/dashboard/owner/booking-history', label: 'Booking History', icon: History },
-  { href: '/dashboard/owner/settings', label: 'Club Settings', icon: Settings },
   { href: '/dashboard/owner/promotions', label: 'Promotions', icon: Send },
+  { href: '/dashboard/owner/settings', label: 'Club Settings', icon: Settings },
 ];
 
 const adminNavItems = [
@@ -157,8 +157,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <SidebarProvider defaultOpen>
       <Sidebar collapsible="icon" className="border-r">
-        <SidebarHeader className="p-4 flex flex-col space-y-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:p-2">
-          <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
+        <SidebarHeader className="p-4 flex flex-col space-y-3 group-data-[collapsible=icon]:p-2">
+          <div className="flex items-center justify-between group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-4">
             <Logo className="text-lg" />
             <SidebarTrigger />
           </div>
