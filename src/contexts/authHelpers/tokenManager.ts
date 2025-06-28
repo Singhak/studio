@@ -1,11 +1,12 @@
+
 // src/contexts/authHelpers/tokenManager.ts
 import type { User as FirebaseUser, Auth } from 'firebase/auth';
 import type { CourtlyUser } from '@/contexts/AuthContext';
 import type { CourtlyUserBase, UserRole } from '@/lib/types';
 import type { ToastFn } from '@/hooks/use-toast';
-import { getStoredRoles, updateCurrentUserRoles } from './roleManager';
-import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX } from './constants';
-import { authedFetch, getApiAuthHeaders, getApiBaseUrl } from '@/lib/apiUtils';
+import { getStoredRoles } from './roleManager';
+import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, PLAYCE_USER_ROLES_PREFIX } from './constants';
+import { authedFetch, getApiBaseUrl } from '@/lib/apiUtils';
 import { getApproximateLocationByIp } from '@/lib/locationUtils';
 
 interface HandleCustomApiLoginArgs {
@@ -62,7 +63,7 @@ export const handleCustomApiLogin = async ({
     const userRoles = aboutMe?.roles || getStoredRoles(firebaseUser.uid);
     let finalRoles = userRoles.length > 0 ? userRoles : (['user'] as UserRole[]);
     if (userRoles.length === 0 && typeof window !== 'undefined') {
-      localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(finalRoles));
+        localStorage.setItem(`${PLAYCE_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(finalRoles));
     }
     if (finalRoles.length > 0 && !finalRoles.includes('user')) {
       finalRoles = ['user', ...finalRoles];

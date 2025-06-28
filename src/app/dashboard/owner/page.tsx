@@ -403,7 +403,7 @@ export default function OwnerDashboardPage() {
         <ClubIconLucide className="w-24 h-24 text-muted-foreground mb-6" />
         <h1 className="text-3xl font-bold mb-2">No Clubs Registered Yet</h1>
         <p className="text-muted-foreground mb-6 max-w-md">
-          It looks like you haven't registered any clubs with Courtly yet.
+          It looks like you haven't registered any clubs with Rally yet.
           Register your club to start managing bookings and reaching new players!
         </p>
         <Button size="lg" asChild>
@@ -717,6 +717,3 @@ export default function OwnerDashboardPage() {
     </div>
   );
 }
-
-
-
