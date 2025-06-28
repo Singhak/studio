@@ -10,6 +10,7 @@ import type { ToastFn } from '@/hooks/use-toast';
 import { Bell } from 'lucide-react';
 import { clearClubCache } from '@/lib/cacheUtils';
 import { NOTIFICATION_STORAGE_PREFIX, LAST_NOTIFICATION_REMINDER_KEY } from '@/contexts/authHelpers/constants';
+import { notificationEvents } from '@/lib/notificationEvents';
 import { CourtlyUser } from '@/contexts/AuthContext';
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
@@ -220,15 +221,16 @@ export const setupFcmMessaging = async (
         const body = payload.notification?.body;
         const href = payload.data?.href;
         const messageId = payload.messageId;
-
+        
+        // Add to the bell icon list in the header
         addNotificationCallback(title, body, href, messageId);
-        toast({
-          toastTitle: (<div className="flex items-center"><Bell className="h-5 w-5 text-primary mr-2" /><span>{title}</span></div>),
-          toastDescription: body || 'You have a new message.',
-        });
+
+        // Dispatch event for the new InAppNotifier component to display a banner
+        notificationEvents.dispatch({ title, body, href });
 
         if (payload.data?.type === 'CLUB_DATA_UPDATED' && payload.data.clubId) {
           clearClubCache(payload.data.clubId as string);
+          // Show a toast for background data updates, as it's less critical than a booking notification
           toast({
             toastTitle: "Club Data Updated",
             toastDescription: `Information for a club has been updated in the background.`,

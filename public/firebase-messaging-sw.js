@@ -1,88 +1,86 @@
 
-// Using importScripts to load the Firebase app and messaging SDKs.
-// These are the 'compat' libraries that use the v8 namespaced API.
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
+// public/firebase-messaging-sw.js
 
-self.addEventListener('fetch', () => {
-  // This is a no-op but is required to make the service worker installable.
-  // It can be expanded to implement caching strategies.
-});
+// Import the Firebase scripts using the correct method for service workers
+importScripts("https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js");
 
-// This promise will be used to ensure Firebase is initialized before we try to use it.
-const appInitializationPromise = fetch('/api/firebase-config')
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Failed to fetch Firebase config.');
-        }
-        return response.json();
-    })
-    .then(firebaseConfig => {
-        if (!firebaseConfig || !firebaseConfig.apiKey) {
-            throw new Error("Invalid or missing Firebase config from /api/firebase-config");
-        }
-        // Initialize the Firebase app in the service worker with the fetched config
-        firebase.initializeApp(firebaseConfig);
-        console.log("Firebase initialized in Service Worker.");
-        // Retrieve and return an instance of Firebase Messaging so that it can handle background messages.
-        return firebase.messaging();
-    })
-    .catch(error => {
-        console.error('Error initializing Firebase in service worker:', error);
-        return null; // Return null to indicate initialization failure
-    });
-
-
-// Set a handler for background messages (when the app is not in the foreground).
-// This is the recommended approach for Firebase SDK v9+.
-appInitializationPromise.then(messaging => {
-    if (messaging) {
-        messaging.onBackgroundMessage((payload) => {
-            console.log('[firebase-messaging-sw.js] Received background message ', payload);
-
-            // Customize notification here. The payload structure depends on how you send the message.
-            // This assumes a payload with a 'notification' object, which is common.
-            const notificationTitle = payload.notification?.title || 'New Notification';
-            const notificationOptions = {
-                body: payload.notification?.body || 'You have a new update.',
-                icon: payload.notification?.icon || '/logo-192.png', // Note: Ensure you have an icon at /public/logo-192.png
-                data: {
-                    // Store the URL to open when the notification is clicked.
-                    // This can come from the 'data' part of the payload or fcmOptions.
-                    url: payload.fcmOptions?.link || payload.data?.href || '/'
-                }
-            };
-
-            // The crucial part: show the notification.
-            self.registration.showNotification(notificationTitle, notificationOptions);
-        });
+// This function fetches the config and initializes Firebase
+const initializeFirebaseWithConfig = async () => {
+  try {
+    // Fetch the configuration from the secure API endpoint
+    const response = await fetch('/api/firebase-config');
+    if (!response.ok) {
+        console.error('Service Worker: Failed to fetch Firebase config, status:', response.status);
+        return null;
     }
+    const firebaseConfig = await response.json();
+    if (!firebaseConfig || !firebaseConfig.apiKey) {
+      console.error('Service Worker: Fetched config is invalid or missing API key.');
+      return null;
+    }
+
+    // Initialize Firebase only if it hasn't been initialized yet
+    if (firebase.apps.length === 0) {
+      firebase.initializeApp(firebaseConfig);
+      console.log('Service Worker: Firebase initialized successfully.');
+      return firebase.messaging();
+    } else {
+      console.log('Service Worker: Firebase already initialized.');
+      return firebase.messaging();
+    }
+  } catch (error) {
+    console.error('Service Worker: Error fetching/initializing Firebase:', error);
+  }
+  return null;
+};
+
+// Initialize Firebase and set up the message handler
+const firebaseMessagingPromise = initializeFirebaseWithConfig().then(messaging => {
+  if (messaging) {
+    // Set up the listener for background messages
+    messaging.onBackgroundMessage((payload) => {
+      console.log('[firebase-messaging-sw.js] Received background message ', payload);
+
+      const notificationTitle = payload.notification?.title || 'New Message';
+      const notificationOptions = {
+        body: payload.notification?.body || '',
+        icon: '/logo-192.png', // For a custom icon, ensure this file exists in your /public folder
+        data: {
+            url: payload.data?.href || '/', // Store URL to open on click
+        }
+      };
+
+      // Display the notification
+      self.registration.showNotification(notificationTitle, notificationOptions);
+    });
+  }
 });
 
-// Set up a listener for when the user clicks on the notification.
+// Handle notification click events
 self.addEventListener('notificationclick', (event) => {
-    console.log('[Service Worker] Notification click Received.');
+  console.log('[firebase-messaging-sw.js] Notification click Received.', event.notification);
 
-    event.notification.close();
+  event.notification.close();
 
-    const urlToOpen = event.notification.data.url || '/';
-
-    // This code attempts to focus an existing tab with the URL, or opens a new one.
-    event.waitUntil(
-        clients.matchAll({
-            type: "window",
-            includeUncontrolled: true
-        }).then((clientList) => {
-            for (const client of clientList) {
-                // Check if there's already a tab open with the target URL
-                if (client.url === urlToOpen && 'focus' in client) {
-                    return client.focus();
-                }
-            }
-            // If no such tab is found, open a new one
-            if (clients.openWindow) {
-                return clients.openWindow(urlToOpen);
-            }
-        })
-    );
+  // This looks for an open window matching the origin and focuses it.
+  // If no window is open, it opens a new one to the specified URL.
+  event.waitUntil(
+    clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    }).then((clientList) => {
+      const targetUrl = self.origin + (event.notification.data?.url || '/');
+      
+      for (const client of clientList) {
+        if (client.url === targetUrl && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      
+      if (clients.openWindow) {
+        return clients.openWindow(event.notification.data?.url || '/');
+      }
+    })
+  );
 });
