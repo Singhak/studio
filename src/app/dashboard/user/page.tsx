@@ -31,6 +31,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, subHours, isAfter, parseISO } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { mockServices } from '@/lib/mockData';
+import { myFavoritesClub } from '@/services/userService';
 
 type SortableBookingKeys = keyof Pick<Booking, 'bookingDate' | 'status'> | 'clubName' | 'serviceName';
 
@@ -94,13 +95,14 @@ export default function UserDashboardPage() {
       setIsLoadingBookings(true); setIsLoadingClubs(true); setIsLoadingFavorites(true);
       setBookingsError(null);
       try {
-        const [bookings, clubs] = await Promise.all([
+        const [bookings, clubs, favoriteClubIds] = await Promise.all([
           getBookingsByUserId(currentUser.uid),
-          getAllClubs()
+          getAllClubs(),
+          currentUser.favoriteClubs || myFavoritesClub()
         ]);
         setUserBookings(bookings);
         setAllClubs(clubs);
-        setFavoriteClubs(clubs.filter(club => club.isFavorite));
+        setFavoriteClubs(clubs.filter(club => club._id && favoriteClubIds.includes(club._id) || club.id && favoriteClubIds.includes(club.id)).map(club => { club.isFavorite = true; return club; }));
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Could not load dashboard data.";
         setBookingsError(errorMessage);

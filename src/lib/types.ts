@@ -23,6 +23,7 @@ export interface CourtlyUserBase { // Renamed from AppUser to avoid conflict, an
   phoneNumber?: string | null;
   whatsappNumber?: string | null;
   address?: Partial<ClubAddress>;
+  favoriteClubs?:string[]
 }
 
 

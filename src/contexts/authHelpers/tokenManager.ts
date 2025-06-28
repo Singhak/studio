@@ -79,7 +79,9 @@ export const handleCustomApiLogin = async ({
       uid: firebaseUser.uid,
       roles: finalRoles,
       ...(firebaseUser as any),
-      id: aboutMe?.id
+      id: aboutMe?.id,
+      favoriteClubs: aboutMe?.favoriteClubs || [],
+      address: aboutMe?.address || {},
     };
 
     return courtlyUser;

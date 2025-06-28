@@ -10,7 +10,7 @@ import { auth } from '@/lib/firebase/config';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast, type ToastFn } from "@/hooks/use-toast";
 import { Button } from '@/components/ui/button';
-import type { UserRole, AppNotification, ClubAddress } from '@/lib/types';
+import type { UserRole, AppNotification, ClubAddress, CourtlyUserBase } from '@/lib/types';
 
 import { CLIENT_INSTANCE_ID_KEY, CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, PLAYCE_USER_ROLES_PREFIX } from './authHelpers/constants';
 import {
@@ -51,7 +51,7 @@ export interface SetupFcmFn {
   (user: CourtlyUser | null): Promise<(() => void) | null>;
 }
 interface AuthContextType {
-  currentUser: CourtlyUser | null;
+  currentUser: CourtlyUser & CourtlyUserBase | null;
   loading: boolean;
   profileCompletionPending: boolean;
   accessToken: string | null;

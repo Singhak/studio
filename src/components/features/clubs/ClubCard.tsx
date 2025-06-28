@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { MapPin, Zap, Star, Heart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
+import { toggleFavoriteClub } from '@/services/userService';
 
 interface ClubCardProps {
   club: Club;
@@ -23,21 +24,31 @@ export function ClubCard({ club }: ClubCardProps) {
     setIsFavorite(club.isFavorite || false);
   }, [club.isFavorite]);
 
-  const handleToggleFavorite = (event: React.MouseEvent) => {
-    event.preventDefault(); 
-    event.stopPropagation(); 
-    
-    const newFavoriteStatus = !isFavorite;
-    setIsFavorite(newFavoriteStatus);
+  const handleToggleFavorite = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const clubId = club._id || club.id;
+    if (!clubId) {
+      console.error("Club does not have a valid ID for toggling favorite status.");
+      return;
+    }
+    try {
+      await toggleFavoriteClub(clubId);
+      const newFavoriteStatus = !isFavorite;
+      setIsFavorite(newFavoriteStatus);
+      console.log(`Club ${club._id || club.id} favorite toggled to: ${newFavoriteStatus} (UI only)`);
+    } catch (error) {
+      // Optionally, you could show a toast notification or alert to inform the user of the error
+      console.error("Error toggling favorite status:", error);
+    }
 
     // In a real app, this would be an API call:
     // await api.updateFavoriteStatus(club.id, newFavoriteStatus);
     // For this prototype, the change is only local to this card's state.
     // The parent component (UserDashboardPage) fetches all clubs and filters by isFavorite.
     // To see a change persist across the app, a backend update and re-fetch would be needed.
-    console.log(`Club ${club._id || club.id} favorite toggled to: ${newFavoriteStatus} (UI only)`);
   };
-  
+
   return (
     <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg">
       <CardHeader className="p-0 relative">
