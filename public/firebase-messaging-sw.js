@@ -8,13 +8,13 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-com
 // runs in a different context.
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_AUTH_DOMAIN_HERE",
-  projectId: "YOUR_PROJECT_ID_HERE",
-  storageBucket: "YOUR_STORAGE_BUCKET_HERE",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
-  appId: "YOUR_APP_ID_HERE",
-  measurementId: "YOUR_MEASUREMENT_ID_HERE" // Optional
+  apiKey: "AIzaSyB70RPghxuHHHvDs2zMbfyuV2ai0Gj9bp0",
+  authDomain: "oursolutioncafe.firebaseapp.com",
+  projectId: "oursolutioncafe",
+  storageBucket: "oursolutioncafe.firebasestorage.app",
+  messagingSenderId: "190930468455",
+  appId: "1:190930468455:web:474cb33f26ee3c531d9ec2",
+  measurementId: "G-5RGCC01CHW" // Optional
 };
 
 // Initialize Firebase
