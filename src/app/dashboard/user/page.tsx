@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { getAllClubs, getClubById, getServiceById } from '@/services/clubService';
-import { getBookingsByUserId } from '@/services/bookingService';
+import { getBookingsByUserId, updateBookingStatus } from '@/services/bookingService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { format, subHours, isAfter, parseISO } from 'date-fns';
@@ -223,9 +223,18 @@ export default function UserDashboardPage() {
   const executeCancelBooking = async () => {
     if (!bookingToCancelForDialog) { toast({ variant: "destructive", toastTitle: "Error", toastDescription: "No booking selected for cancellation." }); return; }
     const bookingId = bookingToCancelForDialog._id;
-    setUserBookings(prev => prev.map(b => b._id === bookingId ? { ...b, status: 'cancelled' as BookingStatus } : b));
-    toast({ toastTitle: "Booking Cancelled", toastDescription: `Your booking at ${clubForDialog?.name || 'the club'} for ${serviceForDialog?.name || 'the service'} on ${format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')} has been cancelled.` });
-    if (clubForDialog && currentUser) { addNotification(`Booking Cancelled: ${clubForDialog.name}`, `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.name} cancelled their booking for ${serviceForDialog?.name || ''} on ${format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`, '/dashboard/owner', `booking_cancelled_${bookingId}`); }
+
+    if (clubForDialog && currentUser) {
+      try {
+        await updateBookingStatus(bookingId, 'cancelled_by_customer', `User ${currentUser?.displayName || currentUser?.email || bookingToCancelForDialog.customer.name} cancelled their booking for ${serviceForDialog?.name || ''} on ${format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')}.`);
+        setUserBookings(prev => prev.map(b => b._id === bookingId ? { ...b, status: 'cancelled' as BookingStatus } : b));
+        toast({ toastTitle: "Booking Cancelled", toastDescription: `Your booking at ${clubForDialog?.name || 'the club'} for ${serviceForDialog?.name || 'the service'} on ${format(parseISO(bookingToCancelForDialog.bookingDate), 'MMM d, yyyy')} has been cancelled.` });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Could not cancel booking.";
+        toast({ variant: "destructive", toastTitle: "Cancellation Failed", toastDescription: errorMessage });
+        console.error("Cancellation error:", error);
+      }
+    }
     setIsCancelConfirmOpen(false); setBookingToCancelForDialog(null); setClubForDialog(null); setServiceForDialog(null);
   };
 
