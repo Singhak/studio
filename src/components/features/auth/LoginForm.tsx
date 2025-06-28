@@ -186,7 +186,7 @@ export function LoginForm() {
     <Card className="w-full max-w-md mx-auto shadow-xl">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl flex items-center justify-center">
-          <LogIn className="mr-2 h-6 w-6 text-primary" /> Login to Rally
+          <LogIn className="mr-2 h-6 w-6 text-primary" /> Login to Playce
         </CardTitle>
         <CardDescription>Enter your credentials to access your account.</CardDescription>
       </CardHeader>

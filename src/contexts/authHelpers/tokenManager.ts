@@ -5,7 +5,7 @@ import type { CourtlyUser } from '@/contexts/AuthContext';
 import type { UserRole } from '@/lib/types';
 import type { ToastFn } from '@/hooks/use-toast';
 import { getStoredRoles } from './roleManager';
-import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, RALLY_USER_ROLES_PREFIX } from './constants';
+import { CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, PLAYCE_USER_ROLES_PREFIX } from './constants';
 
 interface HandleCustomApiLoginArgs {
   firebaseUser: FirebaseUser;
@@ -54,7 +54,7 @@ export const handleCustomApiLogin = async ({
     const userRoles = getStoredRoles(firebaseUser.uid);
     let finalRoles = userRoles.length > 0 ? userRoles : (['user'] as UserRole[]);
     if (userRoles.length === 0 && typeof window !== 'undefined') {
-        localStorage.setItem(`${RALLY_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(finalRoles));
+        localStorage.setItem(`${PLAYCE_USER_ROLES_PREFIX}${firebaseUser.uid}`, JSON.stringify(finalRoles));
     }
     if (finalRoles.length > 0 && !finalRoles.includes('user')) {
         finalRoles = ['user', ...finalRoles];

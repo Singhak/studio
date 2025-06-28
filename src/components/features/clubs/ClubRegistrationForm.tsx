@@ -179,7 +179,7 @@ export function ClubRegistrationForm() {
           <Building className="mr-3 h-7 w-7 text-primary" /> Register Your Club
         </CardTitle>
         <CardDescription>
-          List your sports club on Rally to reach more players and manage bookings easily.
+          List your sports club on Playce to reach more players and manage bookings easily.
         </CardDescription>
       </CardHeader>
       <CardContent>

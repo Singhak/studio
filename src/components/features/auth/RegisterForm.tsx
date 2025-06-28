@@ -80,7 +80,7 @@ export function RegisterForm() {
         <CardTitle className="text-2xl flex items-center justify-center">
            <UserPlus className="mr-2 h-6 w-6 text-primary" /> Create an Account
         </CardTitle>
-        <CardDescription>Join Rally to book courts and manage your club.</CardDescription>
+        <CardDescription>Join Playce to book courts and manage your club.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -151,7 +151,7 @@ export function RegisterForm() {
                   </FormControl>
                   <div className="space-y-1 leading-none">
                     <FormLabel>
-                      I agree to the Rally{" "}
+                      I agree to the Playce{" "}
                       <Button variant="link" asChild className="p-0 h-auto -translate-y-px">
                         <Link href="/terms">Terms of Service</Link>
                       </Button>

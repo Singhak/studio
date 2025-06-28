@@ -2,7 +2,7 @@
 // src/contexts/authHelpers/roleManager.ts
 import type { UserRole } from '@/lib/types';
 import type { CourtlyUser } from '@/contexts/AuthContext'; // For the function that updates AuthContext's state
-import { RALLY_USER_ROLES_PREFIX } from './constants';
+import { PLAYCE_USER_ROLES_PREFIX } from './constants';
 
 export const ALL_USER_ROLES_VALUES: ReadonlyArray<UserRole> = ['user', 'owner', 'admin', 'editor'];
 
@@ -14,7 +14,7 @@ export const getStoredRoles = (uid: string): UserRole[] => {
   const defaultRoles: UserRole[] = ['user'];
   if (typeof window === 'undefined') return defaultRoles;
 
-  const storedRolesString = localStorage.getItem(`${RALLY_USER_ROLES_PREFIX}${uid}`);
+  const storedRolesString = localStorage.getItem(`${PLAYCE_USER_ROLES_PREFIX}${uid}`);
   if (!storedRolesString) return defaultRoles;
 
   try {
@@ -48,7 +48,7 @@ export const updateCurrentUserRoles = (
     const finalRoles = Array.from(rolesToSet);
     const updatedUser: CourtlyUser = { ...currentUser, roles: finalRoles };
     
-    localStorage.setItem(`${RALLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(finalRoles));
+    localStorage.setItem(`${PLAYCE_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(finalRoles));
     setCurrentUser(updatedUser);
     return updatedUser;
   }
