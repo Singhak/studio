@@ -1,50 +1,56 @@
-// Import the Firebase app and messaging services (use compat for broader compatibility if needed)
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
-// IMPORTANT:
-// REPLACE THE CONFIGURATION VALUES BELOW WITH YOUR ACTUAL FIREBASE PROJECT CONFIG.
-// These values CANNOT use process.env.NEXT_PUBLIC_... as the service worker
-// runs in a different context.
+// This service worker is essential for Firebase Cloud Messaging (FCM) to work,
+// especially for handling background notifications.
 
-const firebaseConfig = {
-  apiKey: "AIzaSyB70RPghxuHHHvDs2zMbfyuV2ai0Gj9bp0",
-  authDomain: "oursolutioncafe.firebaseapp.com",
-  projectId: "oursolutioncafe",
-  storageBucket: "oursolutioncafe.firebasestorage.app",
-  messagingSenderId: "190930468455",
-  appId: "1:190930468455:web:474cb33f26ee3c531d9ec2",
-  measurementId: "G-5RGCC01CHW" // Optional
-};
+// We are using the modular SDK (v9+)
+import { initializeApp } from "firebase/app";
+import { getMessaging } from "firebase/messaging/sw";
 
-// Initialize Firebase
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-} else {
-  firebase.app(); // if already initialized, use that one
-}
-
-// Retrieve an instance of Firebase Messaging so that it can handle background messages.
-const messaging = firebase.messaging();
-
-messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
-
-  // Customize notification here
-  const notificationTitle = payload.notification?.title || 'New Message';
-  const notificationOptions = {
-    body: payload.notification?.body,
-    icon: payload.notification?.icon || '/images/logo-192.png', // Default icon if not provided
-    // You can add more options like actions, data, tag, etc.
-    // data: payload.data // To make payload data available when notification is clicked
-  };
-
-  // eslint-disable-next-line no-restricted-globals
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+// Since this file runs in a service worker context, it cannot access `process.env`.
+// We will fetch the configuration from a dedicated API endpoint.
+self.addEventListener('install', (event) => {
+  console.log('Firebase Messaging Service Worker installing.');
 });
 
-// Optional: console.log to confirm SW activation
-// eslint-disable-next-line no-restricted-globals
 self.addEventListener('activate', (event) => {
-  console.log('[firebase-messaging-sw.js] Service worker activated.');
+  console.log('Firebase Messaging Service Worker activating.');
+  // Using clients.claim() to take control of the page immediately.
+  event.waitUntil(self.clients.claim());
 });
+
+// A self-executing async function to initialize Firebase
+(async () => {
+  try {
+    const response = await fetch('/api/firebase-config');
+    if (!response.ok) {
+        throw new Error(`Failed to fetch Firebase config: ${response.statusText}`);
+    }
+    const firebaseConfig = await response.json();
+    
+    if (!firebaseConfig || !firebaseConfig.projectId) {
+        throw new Error('Fetched Firebase config is invalid or empty.');
+    }
+
+    const app = initializeApp(firebaseConfig);
+    const messaging = getMessaging(app);
+    console.log('Firebase Messaging Service Worker initialized successfully.');
+    
+    // If you want to handle background messages, you would add a listener here.
+    // For example:
+    // onBackgroundMessage(messaging, (payload) => {
+    //   console.log('[firebase-messaging-sw.js] Received background message ', payload);
+    //   // Customize notification here
+    //   const notificationTitle = payload.notification.title;
+    //   const notificationOptions = {
+    //     body: payload.notification.body,
+    //     icon: '/firebase-logo.png'
+    //   };
+    //
+    //   self.registration.showNotification(notificationTitle,
+    //     notificationOptions);
+    // });
+
+  } catch (error) {
+    console.error('Error initializing Firebase in Service Worker:', error);
+  }
+})();

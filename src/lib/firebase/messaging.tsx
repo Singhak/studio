@@ -28,7 +28,7 @@ export const initializeFirebaseMessaging = async () => {
 
 export const requestNotificationPermission = async () => {
   if (!VAPID_KEY) {
-    console.warn("Firebase Messaging: NEXT_PUBLIC_FIREBASE_VAPID_KEY is not set in your environment variables. Please set it in .env.local (or similar).");
+    console.error("Firebase Messaging Error: VAPID key is missing. Push notifications cannot be enabled. Please set NEXT_PUBLIC_FIREBASE_VAPID_KEY in your environment variables.");
     return null;
   }
 
@@ -46,10 +46,10 @@ export const requestNotificationPermission = async () => {
         vapidKey: VAPID_KEY,
       });
       if (currentToken) {
-        console.log('FCM Token:', currentToken);
+        console.log('FCM Token successfully generated:', currentToken);
         return currentToken;
       } else {
-        console.log('No registration token available. Request permission to generate one.');
+        console.error('FCM token generation failed: getToken() returned null. This can happen if the service worker is not registered correctly, or if notification permissions are blocked at a browser level.');
         return null;
       }
     } else {

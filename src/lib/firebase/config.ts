@@ -8,14 +8,13 @@ import { getAuth } from "firebase/auth";
 // import { getStorage } from "firebase/storage"; // If you use Storage
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // Optional
+  apiKey: "AIzaSyB70RPghxuHHHvDs2zMbfyuV2ai0Gj9bp0",
+  authDomain: "oursolutioncafe.firebaseapp.com",
+  projectId: "oursolutioncafe",
+  storageBucket: "oursolutioncafe.firebasestorage.app",
+  messagingSenderId: "190930468455",
+  appId: "1:190930468455:web:474cb33f26ee3c531d9ec2",
+  measurementId: "G-5RGCC01CHW" // Optional
 };
 
 // Validate that all required Firebase config values are present
@@ -50,5 +49,11 @@ if (!getApps().length) {
 const auth = getAuth(app);
 // const db = getFirestore(app); // If you use Firestore
 // const storage = getStorage(app); // If you use Storage
+
+if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
+    if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
+        console.warn("%cFirebase Warning: %cNEXT_PUBLIC_FIREBASE_VAPID_KEY is not set. Push notifications will not work. Please generate a 'Web push certificate' in your Firebase Project Settings > Cloud Messaging and add the key pair to your .env.local file.", "color: orange; font-weight: bold;", "color: inherit;");
+    }
+}
 
 export { app, auth /*, db, storage */ };
