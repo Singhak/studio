@@ -55,7 +55,7 @@ export default function HomePage() {
             Book Your Favorite <span className="text-primary">Sports Courts</span> With Ease
           </h1>
           <p className="mt-6 max-w-2xl mx-auto text-lg text-muted-foreground sm:text-xl">
-            Discover and reserve courts for tennis, badminton, squash, and more. Courtly connects you with the best local sports clubs.
+            Discover and reserve courts for tennis, badminton, squash, and more. Rally connects you with the best local sports clubs.
           </p>
           <div className="mt-10 max-w-md mx-auto">
             <form className="flex gap-2" onSubmit={handleSearchSubmit}>
@@ -89,7 +89,7 @@ export default function HomePage() {
 
       <section className="py-16 bg-card">
         <div className="container px-4 mx-auto">
-          <h2 className="text-3xl font-bold text-center text-foreground mb-12">Why Choose Courtly?</h2>
+          <h2 className="text-3xl font-bold text-center text-foreground mb-12">Why Choose Rally?</h2>
           <div className="grid md:grid-cols-3 gap-8 text-center">
             <div className="p-6 rounded-lg shadow-md border">
               <Search className="mx-auto h-12 w-12 text-primary mb-4" />

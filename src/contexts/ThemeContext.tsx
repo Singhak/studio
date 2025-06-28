@@ -17,7 +17,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setTheme] = useState<Theme>("light"); // Default to light
 
   useEffect(() => {
-    const storedTheme = localStorage.getItem("courtly-theme") as Theme | null;
+    const storedTheme = localStorage.getItem("rally-theme") as Theme | null;
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     
     // Initialize theme based on localStorage or system preference
@@ -45,7 +45,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       } else {
         document.documentElement.classList.remove("dark");
       }
-      localStorage.setItem("courtly-theme", newTheme);
+      localStorage.setItem("rally-theme", newTheme);
       return newTheme;
     });
   };

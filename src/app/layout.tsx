@@ -9,8 +9,8 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 const geistSans = GeistSans;
 
 export const metadata: Metadata = {
-  title: 'Courtly - Book Sports Courts',
-  description: 'Find and book sports courts near you with Courtly.',
+  title: 'Rally - Book Sports Courts',
+  description: 'Find and book sports courts near you with Rally.',
 };
 
 export default function RootLayout({

@@ -149,7 +149,7 @@ export function EditClubForm({ club }: EditClubFormProps) {
           <Building className="mr-3 h-7 w-7 text-primary" /> Edit {club.name}
         </CardTitle>
         <CardDescription>
-          Update your club's information below. Changes will be reflected across Courtly.
+          Update your club's information below. Changes will be reflected across Rally.
         </CardDescription>
       </CardHeader>
       <CardContent>

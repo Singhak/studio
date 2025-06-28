@@ -12,7 +12,7 @@ import { useToast, type ToastFn } from "@/hooks/use-toast";
 import { Button } from '@/components/ui/button';
 import type { UserRole, AppNotification, ClubAddress } from '@/lib/types';
 
-import { CLIENT_INSTANCE_ID_KEY, CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, COURTLY_USER_ROLES_PREFIX } from './authHelpers/constants';
+import { CLIENT_INSTANCE_ID_KEY, CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, RALLY_USER_ROLES_PREFIX } from './authHelpers/constants';
 import {
   signUpWithEmailFirebase,
   signInWithEmailFirebase,
@@ -145,7 +145,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const uidToClean = currentUserRef.current?.uid; 
     await logoutFirebase(auth, toast);
     if (uidToClean && typeof window !== 'undefined') {
-        localStorage.removeItem(`${COURTLY_USER_ROLES_PREFIX}${uidToClean}`);
+        localStorage.removeItem(`${RALLY_USER_ROLES_PREFIX}${uidToClean}`);
         const notificationKey = getNotificationStorageKey(uidToClean);
         if (notificationKey) localStorage.removeItem(notificationKey);
     }
@@ -282,7 +282,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     const updatedUser: CourtlyUser = { ...currentUser, roles: finalRoles };
     
-    localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(finalRoles));
+    localStorage.setItem(`${RALLY_USER_ROLES_PREFIX}${currentUser.uid}`, JSON.stringify(finalRoles));
     setCurrentUser(updatedUser);
     
     if (profileCompletionPending) {
@@ -300,7 +300,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
 
         if (profileData.roles) {
-            localStorage.setItem(`${COURTLY_USER_ROLES_PREFIX}${prevUser.uid}`, JSON.stringify(profileData.roles));
+            localStorage.setItem(`${RALLY_USER_ROLES_PREFIX}${prevUser.uid}`, JSON.stringify(profileData.roles));
         }
 
         return updatedUser;
