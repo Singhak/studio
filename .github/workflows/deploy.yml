@@ -57,3 +57,5 @@ jobs:
           channelId: live
           # Your Firebase Project ID. It's best to also set this as a secret.
           projectId: '${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}'
+        env:
+          FIREBASE_CLI_EXPERIMENTS: webframeworks
