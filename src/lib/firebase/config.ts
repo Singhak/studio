@@ -8,13 +8,13 @@ import { getAuth } from "firebase/auth";
 // import { getStorage } from "firebase/storage"; // If you use Storage
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB70RPghxuHHHvDs2zMbfyuV2ai0Gj9bp0",
+  apiKey: "AIzaSyBAmBgauSVKSTH9Jy2xYuoSl_AdprZ7LYk",
   authDomain: "oursolutioncafe.firebaseapp.com",
   projectId: "oursolutioncafe",
   storageBucket: "oursolutioncafe.firebasestorage.app",
   messagingSenderId: "190930468455",
   appId: "1:190930468455:web:474cb33f26ee3c531d9ec2",
-  measurementId: "G-5RGCC01CHW" // Optional
+  measurementId: "G-S1GF3KHQVZ" // Optional
 };
 
 // Validate that all required Firebase config values are present
