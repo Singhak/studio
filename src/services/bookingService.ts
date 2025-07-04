@@ -1,112 +1,89 @@
 
 import type { CreateBookingPayload, CreateBookingResponse, Booking } from '@/lib/types';
-import { getApiBaseUrl, authedFetch } from '@/lib/apiUtils';
+import { mockUserBookings, baseMockOwnerBookings } from '@/lib/mockData';
+
+// In-memory store for mock bookings to simulate a backend for a static site.
+// This data will reset on every page refresh.
+let bookingsStore: Booking[] = JSON.parse(JSON.stringify([...mockUserBookings, ...baseMockOwnerBookings]));
 
 export async function createBooking(payload: CreateBookingPayload): Promise<CreateBookingResponse> {
-  const apiUrlPath = `/bookings`;
-  try {
-    const response = await authedFetch(apiUrlPath, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-
-    const responseBody = await response.json();
-    if (!response.ok) {
-      const errorMessage = responseBody?.message || `Booking creation failed: ${response.statusText} (${response.status})`;
-      throw new Error(errorMessage);
-    }
-    return responseBody as CreateBookingResponse;
-  } catch (error) {
-    console.error('Error creating booking in service:', error);
-    if (error instanceof Error) {
-      throw error;
-    } else {
-      throw new Error('An unexpected error occurred during booking creation.');
-    }
+  const { serviceId, bookingDate, startTime, endTime, notes, status, userId } = payload;
+  
+  if (!serviceId || !bookingDate || !startTime || !endTime) {
+    throw new Error('Missing required fields (serviceId, bookingDate, startTime, endTime).');
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) {
+    throw new Error('Invalid bookingDate format. Expected YYYY-MM-DD.');
+  }
+  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
+    throw new Error('Invalid time format. Expected HH:MM.');
+  }
+  if (startTime >= endTime) {
+    throw new Error('startTime must be before endTime.');
+  }
+
+  // Simulate finding the associated service to get clubId and price.
+  // In a real app, this might come from a different service or be part of the payload.
+  const { mockServices } = await import('@/lib/mockData');
+  const service = mockServices.find(s => s._id === serviceId);
+  if (!service) {
+    throw new Error('Service not found.');
+  }
+
+  const newBookingId = `booking_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const startHour = parseInt(startTime.split(':')[0]);
+  const endHour = parseInt(endTime.split(':')[0]);
+  const durationHours = Math.max(1, endHour - startHour);
+  const totalPrice = service.hourlyPrice * durationHours;
+
+  const finalUserId = userId || `user_mock_${Math.random().toString(36).substring(2, 7)}`;
+  const finalStatus = status || 'pending';
+
+  const newBookingEntry: Booking = {
+    id: newBookingId,
+    userId: finalUserId,
+    clubId: service.club,
+    serviceId: serviceId,
+    date: bookingDate,
+    startTime: startTime,
+    endTime: endTime,
+    status: finalStatus,
+    totalPrice: finalStatus === 'blocked' ? 0 : totalPrice,
+    notes: notes,
+    createdAt: new Date().toISOString(),
+  };
+
+  bookingsStore.push(newBookingEntry);
+  console.log("New booking/block created (client-side mock):", newBookingEntry);
+  console.log("Current bookingsStore count:", bookingsStore.length);
+
+  return {
+    message: 'Booking request submitted successfully. Awaiting club owner confirmation.',
+    bookingId: newBookingId,
+    status: finalStatus,
+    booking: newBookingEntry,
+  } as unknown as CreateBookingResponse; // Adjusting type for compatibility
 }
 
 export async function getBookingStatus(bookingId: string): Promise<{ status: Booking['status'] } | null> {
-  const apiUrlPath = `/bookings/${bookingId}/status`;
-  try {
-    const response = await authedFetch(apiUrlPath, {
-      method: 'GET',
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
-      const errorBody = await response.json().catch(() => ({ message: `Failed to get booking status: ${response.statusText} (${response.status})` }));
-      throw new Error(errorBody.message);
-    }
-    return await response.json() as { status: Booking['status'] };
-  } catch (error) {
-    console.error(`Error fetching status for booking ${bookingId}:`, error);
-    if (error instanceof Error) {
-      throw error;
-    } else {
-      throw new Error('An unexpected error occurred while fetching booking status.');
-    }
+  const booking = bookingsStore.find(b => b.id === bookingId);
+  if (!booking) {
+    return null;
   }
+  return { status: booking.status };
 }
 
 export async function getBookingsForServiceOnDate(serviceId: string, date: string): Promise<Booking[]> {
-  const apiUrlPath = `/bookings?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`;
-  try {
-    const response = await authedFetch(apiUrlPath, {
-      method: 'GET',
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({ message: `Failed to get bookings: ${response.statusText} (${response.status})` }));
-      throw new Error(errorBody.message);
-    }
-    return await response.json() as Booking[];
-  } catch (error) {
-    console.error(`Error fetching bookings for service ${serviceId} on ${date}:`, error);
-    if (error instanceof Error) {
-      throw error;
-    } else {
-      throw new Error('An unexpected error occurred while fetching bookings.');
-    }
-  }
+  return bookingsStore.filter(b => b.serviceId === serviceId && b.date === date);
 }
 
 export async function getBookingsByUserId(userId: string): Promise<Booking[]> {
-  const apiUrlPath = `/bookings?userId=${encodeURIComponent(userId)}`;
-  try {
-    const response = await authedFetch(apiUrlPath, {
-      method: 'GET',
-    });
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({ message: `Failed to get user bookings: ${response.statusText}` }));
-      throw new Error(errorBody.message);
-    }
-    return await response.json() as Booking[];
-  } catch (error) {
-    console.error(`Error fetching bookings for user ${userId}:`, error);
-    if (error instanceof Error) throw error;
-    throw new Error('An unexpected error occurred while fetching user bookings.');
-  }
+  // Exclude owner blocks from a user's booking history.
+  return bookingsStore.filter(booking => booking.userId === userId && !booking.userId.startsWith('owner_block_'));
 }
 
 export async function getBookingsByClubId(clubId: string): Promise<Booking[]> {
-  const apiUrlPath = `/bookings?clubId=${encodeURIComponent(clubId)}`;
-  try {
-    const response = await authedFetch(apiUrlPath, {
-      method: 'GET',
-    });
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({ message: `Failed to get club bookings: ${response.statusText}` }));
-      throw new Error(errorBody.message);
-    }
-    return await response.json() as Booking[];
-  } catch (error) {
-    console.error(`Error fetching bookings for club ${clubId}:`, error);
-    if (error instanceof Error) throw error;
-    throw new Error('An unexpected error occurred while fetching club bookings.');
-  }
+  return bookingsStore.filter(booking => booking.clubId === clubId);
 }
 
 export async function blockTimeSlot(payload: { clubId: string; serviceId: string; date: string; startTime: string; endTime: string; }): Promise<Booking> {
@@ -118,24 +95,16 @@ export async function blockTimeSlot(payload: { clubId: string; serviceId: string
     status: 'blocked',
     userId: `owner_block_${payload.clubId}`
   };
-  const response = await createBooking(bookingPayload as any); // Using 'any' to bypass strict CreateBookingResponse type for now
-  return response as unknown as Booking;
+  const response = await createBooking(bookingPayload);
+  return response.booking;
 }
 
 export async function unblockTimeSlot(bookingId: string): Promise<void> {
-  const apiUrlPath = `/bookings/${bookingId}`;
-  try {
-    const response = await authedFetch(apiUrlPath, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-       const errorBody = await response.json().catch(() => ({ message: `Failed to unblock slot: ${response.statusText}` }));
-       throw new Error(errorBody.message);
-    }
-    // No content is expected on successful deletion
-  } catch (error) {
-    console.error(`Error unblocking time slot ${bookingId}:`, error);
-    if (error instanceof Error) throw error;
-    throw new Error('An unexpected error occurred while unblocking the time slot.');
+  const initialLength = bookingsStore.length;
+  bookingsStore = bookingsStore.filter(b => b.id !== bookingId);
+
+  if (bookingsStore.length >= initialLength) {
+    throw new Error('Booking not found for unblocking.');
   }
+  console.log(`Booking ${bookingId} deleted from client-side mock store.`);
 }

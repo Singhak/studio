@@ -12,7 +12,7 @@ import { useToast, type ToastFn } from "@/hooks/use-toast";
 import { Button } from '@/components/ui/button';
 import type { UserRole, AppNotification, ClubAddress } from '@/lib/types';
 
-import { CLIENT_INSTANCE_ID_KEY, CUSTOM_ACCESS_TOKEN_KEY, CUSTOM_REFRESH_TOKEN_KEY, PLAYCE_USER_ROLES_PREFIX } from './authHelpers/constants';
+import { PLAYCE_USER_ROLES_PREFIX } from './authHelpers/constants';
 import {
   signUpWithEmailFirebase,
   signInWithEmailFirebase,
@@ -21,12 +21,7 @@ import {
   confirmPhoneNumberCodeFirebase,
   logoutFirebase
 } from './authHelpers/firebaseAuthActions';
-import {
-  handleCustomApiLogin,
-  attemptTokenRefresh as attemptTokenRefreshApi,
-  clearCustomTokens,
-  loadTokensFromStorage,
-} from './authHelpers/tokenManager';
+import { getStoredRoles } from './authHelpers/roleManager';
 import {
   fetchAndSetWeeklyAppNotifications,
   addAppNotification,
@@ -38,7 +33,6 @@ import {
   getNotificationStorageKey,
   saveNotificationsToStorage,
 } from '@/lib/firebase/messaging';
-import { initializeAuthHelpers } from '@/lib/apiUtils';
 
 
 export interface CourtlyUser extends FirebaseUser {
@@ -54,8 +48,6 @@ interface AuthContextType {
   currentUser: CourtlyUser | null;
   loading: boolean;
   profileCompletionPending: boolean;
-  accessToken: string | null;
-  refreshToken: string | null;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -64,7 +56,6 @@ interface AuthContextType {
   logoutUser: () => Promise<void>;
   updateCourtlyUserRoles: (roles: UserRole[]) => void;
   updateCourtlyUserProfile: (profileData: Partial<Pick<CourtlyUser, 'displayName' | 'phoneNumber' | 'whatsappNumber' | 'address' | 'roles'>>) => void;
-  attemptTokenRefresh: () => Promise<boolean>;
   notifications: AppNotification[];
   unreadCount: number;
   addNotification: (title: string, body?: string, href?: string, id?: string) => void;
@@ -75,27 +66,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const getOrCreateClientInstanceId = (): string => {
-  if (typeof window !== 'undefined') {
-    let instanceId = localStorage.getItem(CLIENT_INSTANCE_ID_KEY);
-    if (!instanceId) {
-      instanceId = crypto.randomUUID();
-      localStorage.setItem(CLIENT_INSTANCE_ID_KEY, instanceId);
-    }
-    return instanceId;
-  }
-  return 'client-id-unavailable-ssr-or-no-window';
-};
-
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null | undefined>(undefined);
   const [currentUser, setCurrentUser] = useState<CourtlyUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileCompletionPending, setProfileCompletionPending] = useState(false);
-  
-  const [accessToken, setAccessTokenState] = useState<string | null>(null);
-  const [refreshToken, setRefreshTokenState] = useState<string | null>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -111,28 +85,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
   
-  const setAndStoreAccessToken = useCallback((token: string | null) => {
-    setAccessTokenState(token);
-    if (typeof window !== 'undefined') {
-      if (token) localStorage.setItem(CUSTOM_ACCESS_TOKEN_KEY, token);
-      else localStorage.removeItem(CUSTOM_ACCESS_TOKEN_KEY);
-    }
-  }, []);
-
-  const setAndStoreRefreshToken = useCallback((token: string | null) => {
-    setRefreshTokenState(token);
-    if (typeof window !== 'undefined') {
-      if (token) localStorage.setItem(CUSTOM_REFRESH_TOKEN_KEY, token);
-      else localStorage.removeItem(CUSTOM_REFRESH_TOKEN_KEY);
-    }
-  }, []);
-
-  useEffect(() => {
-    const { accessToken: storedAccess, refreshToken: storedRefresh } = loadTokensFromStorage();
-    setAccessTokenState(storedAccess);
-    setRefreshTokenState(storedRefresh);
-  }, []);
-
   const addNotificationCb = useCallback((title: string, body?: string, href?: string, id?: string) => {
     addAppNotification(
         title, body, href, id,
@@ -151,53 +103,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [toast]);
 
-  const attemptTokenRefresh = useCallback(async (): Promise<boolean> => {
-    return attemptTokenRefreshApi({
-        currentRefreshToken: refreshToken,
-        toast,
-        setAndStoreAccessToken,
-        setAndStoreRefreshToken,
-        performLogout: fullLogoutSequence,
-    });
-  }, [refreshToken, toast, setAndStoreAccessToken, setAndStoreRefreshToken, fullLogoutSequence]);
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setLoading(true);
-      setFirebaseUser(user);
+
+      if (user) {
+        const isNewUser = user.metadata.lastSignInTime ? (new Date(user.metadata.lastSignInTime).getTime() - new Date(user.metadata.creationTime!).getTime() < 5000) : false;
+        
+        const userRoles = getStoredRoles(user.uid);
+        const finalRoles: UserRole[] = userRoles.length > 0 ? userRoles : ['user'];
+         if (userRoles.length === 0 && typeof window !== 'undefined') {
+            localStorage.setItem(`${PLAYCE_USER_ROLES_PREFIX}${user.uid}`, JSON.stringify(finalRoles));
+        }
+
+        const courtlyUser: CourtlyUser = {
+            ...user,
+            roles: finalRoles,
+        };
+        
+        setCurrentUser(courtlyUser);
+        setProfileCompletionPending(isNewUser);
+
+      } else {
+        setCurrentUser(null);
+        setProfileCompletionPending(false);
+      }
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    const processUserChange = async () => {
-        if (firebaseUser === undefined) return;
-
-        if (firebaseUser) {
-            const isNewUser = Date.parse(firebaseUser.metadata.lastSignInTime!) - Date.parse(firebaseUser.metadata.creationTime!) < 5000;
-            const clientInstanceId = getOrCreateClientInstanceId();
-            
-            const loggedInCourtlyUser = await handleCustomApiLogin({
-              firebaseUser, auth, toast, setAndStoreAccessToken, setAndStoreRefreshToken, clientInstanceId,
-            });
-
-            if (loggedInCourtlyUser) {
-                setCurrentUser(loggedInCourtlyUser);
-                setProfileCompletionPending(isNewUser);
-            } else {
-                await logoutFirebase(auth, toast);
-            }
-        } else {
-            clearCustomTokens();
-            setAndStoreAccessToken(null);
-            setAndStoreRefreshToken(null);
-            setCurrentUser(null);
-            setProfileCompletionPending(false);
-        }
-        setLoading(false);
-    };
-    processUserChange();
-  }, [firebaseUser, auth, toast, setAndStoreAccessToken, setAndStoreRefreshToken]);
 
   useEffect(() => {
     const setup = async () => {
@@ -231,7 +165,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    if (currentUser && accessToken) {
+    if (currentUser) {
       if (isAuthPage && !profileCompletionPending) {
         const targetDashboard = currentUser.roles.includes('owner') ? '/dashboard/owner' : '/dashboard/user';
         router.push(targetDashboard);
@@ -239,15 +173,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else if (!currentUser && isProtectedPath) {
       router.push('/login');
     }
-  }, [currentUser, loading, router, pathname, accessToken, profileCompletionPending]);
-
-  useEffect(() => {
-    initializeAuthHelpers({
-      getAccessToken: () => accessToken,
-      attemptTokenRefresh,
-      logoutUser: fullLogoutSequence,
-    });
-  }, [accessToken, attemptTokenRefresh, fullLogoutSequence]);
+  }, [currentUser, loading, router, pathname, profileCompletionPending]);
 
   useEffect(() => {
     if (loading) return;
@@ -337,8 +263,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     currentUser,
     loading,
     profileCompletionPending,
-    accessToken,
-    refreshToken,
     signUpWithEmail,
     signInWithEmail,
     signInWithGoogle,
@@ -347,7 +271,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     logoutUser: fullLogoutSequence,
     updateCourtlyUserRoles,
     updateCourtlyUserProfile,
-    attemptTokenRefresh,
     notifications,
     unreadCount,
     addNotification: addNotificationCb,
