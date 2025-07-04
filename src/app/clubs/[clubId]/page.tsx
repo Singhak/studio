@@ -5,14 +5,6 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 import { getClubById } from '@/services/clubService';
 import { ClubDetailsContent } from '@/components/features/clubs/ClubDetailsContent';
-import { mockClubs } from '@/lib/mockData';
-
-export async function generateStaticParams() {
-  // In a real app, you'd fetch this from a CMS or database
-  return mockClubs.map((club) => ({
-    clubId: club._id,
-  }));
-}
 
 interface ClubDetailsPageProps {
   params: { clubId: string };

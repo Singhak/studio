@@ -1,10 +1,25 @@
 
 import type { ApiNotification } from '@/lib/types';
-import { mockWeeklyNotifications } from '@/lib/mockData';
+
+async function fetcher<T>(url: string, options?: RequestInit): Promise<T> {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+        let errorBody;
+        try {
+            errorBody = await response.json();
+        } catch (e) {
+            errorBody = { message: `Request failed with status ${response.status}` };
+        }
+        throw new Error(errorBody.message || 'An API error occurred');
+    }
+     if (response.status === 204) {
+        return undefined as T;
+    }
+    return response.json();
+}
 
 /**
- * Marks a list of notifications as read.
- * In this static version, it just simulates success. The state is handled client-side.
+ * Marks a list of notifications as read by calling the backend API.
  * @param notificationIds - An array of notification IDs to mark as read.
  * @returns Promise<void>
  */
@@ -13,15 +28,17 @@ export async function markNotificationsAsReadApi(notificationIds: string[]): Pro
     console.warn("markNotificationsAsReadApi called with empty or null IDs.");
     return;
   }
-  console.log("Simulating marking notifications as read (client-side state handles the change):", notificationIds);
-  return Promise.resolve();
+  await fetcher('/api/notifications/mark-read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notificationIds }),
+  });
 }
 
 /**
- * Fetches the weekly notifications for the logged-in user from the mock data.
+ * Fetches the weekly notifications for the logged-in user from the mock API.
  * @returns Promise<ApiNotification[]>
  */
 export async function getWeeklyNotificationsApi(): Promise<ApiNotification[]> {
-  console.log("Fetching weekly notifications from local mock data.");
-  return Promise.resolve(mockWeeklyNotifications);
+  return await fetcher('/api/notifications/weekly');
 }
