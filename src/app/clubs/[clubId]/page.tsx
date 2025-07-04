@@ -1,14 +1,14 @@
 
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { AppLayout } from '@/components/layout/AppLayout';
 import type { Club } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { getClubById } from '@/services/clubService';
 import { ClubDetailsContent } from '@/components/features/clubs/ClubDetailsContent'; // Import the new client component
-
-interface ClubDetailsPageProps {
-  params: { clubId: string };
-}
 
 async function getClubDetails(clubId: string): Promise<Club | null> {
   try {
@@ -20,15 +20,45 @@ async function getClubDetails(clubId: string): Promise<Club | null> {
   }
 }
 
-export default async function ClubDetailsPage({ params }: ClubDetailsPageProps) {
-  const clubId = params.clubId;
+export default function ClubDetailsPage() {
+  const params = useParams();
+  // useParams() can return a string or string array. We handle both.
+  const clubId = Array.isArray(params.clubId) ? params.clubId[0] : params.clubId;
 
-  // Ensure dynamic API access (params.clubId) happens after a microtask yield.
-  await Promise.resolve();
+  const [club, setClub] = useState<Club | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const club = await getClubDetails(clubId);
+  useEffect(() => {
+    if (!clubId) return;
 
-  if (!club) {
+    const fetchClub = async () => {
+      setIsLoading(true);
+      setError(false);
+      const fetchedClub = await getClubDetails(clubId);
+      if (fetchedClub) {
+        setClub(fetchedClub);
+      } else {
+        setError(true);
+      }
+      setIsLoading(false);
+    };
+
+    fetchClub();
+  }, [clubId]);
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="container py-12 text-center">
+          <Loader2 className="mx-auto h-16 w-16 animate-spin text-muted-foreground" />
+          <p className="mt-4 text-muted-foreground">Loading club details...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error || !club) {
     return (
       <AppLayout>
         <div className="container py-12 text-center">
