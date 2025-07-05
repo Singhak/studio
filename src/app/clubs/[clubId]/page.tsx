@@ -8,7 +8,17 @@ import type { Club } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { getClubById } from '@/services/clubService';
-import { ClubDetailsContent } from '@/components/features/clubs/ClubDetailsContent'; // Import the new client component
+import { ClubDetailsContent } from '@/components/features/clubs/ClubDetailsContent';
+
+/**
+ * In a static export (`output: 'export'`), this function tells Next.js which dynamic
+ * pages to pre-render at build time. By returning an empty array, we are explicitly
+ * telling Next.js *not* to pre-render any club pages. Instead, they will all be
+ * rendered on the client-side, making them behave like a true Single-Page Application (SPA) route.
+ */
+export async function generateStaticParams() {
+  return [];
+}
 
 async function getClubDetails(clubId: string): Promise<Club | null> {
   try {
