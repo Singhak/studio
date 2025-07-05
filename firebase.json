@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "playce",
     "public": "out",
     "ignore": [
       "firebase.json",
