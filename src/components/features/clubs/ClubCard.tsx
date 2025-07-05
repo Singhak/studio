@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Club } from '@/lib/types';
@@ -71,7 +70,7 @@ export function ClubCard({ club }: ClubCardProps) {
         </div>
         <div className="flex items-center text-sm text-muted-foreground mb-2">
           <MapPin className="w-4 h-4 mr-1.5 text-primary" />
-          <span>{club.address?.city || 'Location unspecified'}</span>
+          <span>{club.address?.city || 'Location unspecified'}, {club.address?.state || ''}</span>
         </div>
         {club.averageRating !== undefined && club.averageRating !== null && (
           <div className="flex items-center text-sm mb-2">

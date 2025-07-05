@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Input } from '@/components/ui/input';
@@ -11,10 +10,13 @@ import { useState, useEffect } from 'react';
 
 interface ClubSearchFiltersProps {
   initialSearchTerm?: string;
+  onSearch: (filters: { searchTerm: string; sport: string; location: string }) => void;
 }
 
-export function ClubSearchFilters({ initialSearchTerm = "" }: ClubSearchFiltersProps) {
+export function ClubSearchFilters({ initialSearchTerm = "", onSearch }: ClubSearchFiltersProps) {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [sport, setSport] = useState("any");
+  const [location, setLocation] = useState("");
 
   useEffect(() => {
     setSearchTerm(initialSearchTerm);
@@ -22,11 +24,7 @@ export function ClubSearchFilters({ initialSearchTerm = "" }: ClubSearchFiltersP
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // Placeholder for actual search logic.
-    // You would typically use `searchTerm` and other filter values to
-    // re-fetch or filter the club list.
-    console.log("Search submitted with term:", searchTerm);
-    // For example, you might call a prop function: onSearch({ searchTerm, sport, location });
+    onSearch({ searchTerm: searchTerm.trim(), sport, location: location.trim() });
   };
 
   return (
@@ -49,15 +47,15 @@ export function ClubSearchFilters({ initialSearchTerm = "" }: ClubSearchFiltersP
             <label htmlFor="sportType" className="text-sm font-medium text-muted-foreground flex items-center">
               <Zap className="w-4 h-4 mr-2" /> Sport
             </label>
-            <Select>
+            <Select value={sport} onValueChange={setSport}>
               <SelectTrigger id="sportType">
                 <SelectValue placeholder="Any Sport" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="any">Any Sport</SelectItem>
-                {SPORTS_TYPES.map((sport) => (
-                  <SelectItem key={sport} value={sport.toLowerCase()}>
-                    {sport}
+                {SPORTS_TYPES.map((sportType) => (
+                  <SelectItem key={sportType} value={sportType.toLowerCase()}>
+                    {sportType}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -68,7 +66,12 @@ export function ClubSearchFilters({ initialSearchTerm = "" }: ClubSearchFiltersP
             <label htmlFor="location" className="text-sm font-medium text-muted-foreground flex items-center">
               <MapPin className="w-4 h-4 mr-2" /> Location
             </label>
-            <Input id="location" placeholder="e.g., Downtown" />
+            <Input 
+              id="location" 
+              placeholder="e.g., Sportsville or CA" 
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
           </div>
 
           <Button type="submit" className="w-full lg:w-auto self-end h-10">

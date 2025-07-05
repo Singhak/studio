@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -7,9 +6,15 @@ import { ClubSearchFilters } from '@/components/features/clubs/ClubSearchFilters
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import type { Club } from '@/lib/types';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { getAllClubs } from '@/services/clubService';
 import { useSearchParams } from 'next/navigation';
+
+interface Filters {
+  searchTerm: string;
+  sport: string;
+  location: string;
+}
 
 // Extracted content to a new component to use Suspense for searchParams
 function ClubDirectoryContent() {
@@ -19,41 +24,54 @@ function ClubDirectoryContent() {
   const [clubs, setClubs] = useState<Club[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Filters>({
+    searchTerm: queryFromHome,
+    sport: 'any',
+    location: ''
+  });
+
+  const fetchClubs = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const fetchedClubs = await getAllClubs();
+      setClubs(fetchedClubs);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load clubs. Please try again.');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadClubs() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const fetchedClubs = await getAllClubs();
-        // TODO: Filter clubs based on queryFromHome if it exists
-        setClubs(fetchedClubs);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load clubs. Please try again.');
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadClubs();
-  }, []); // Consider adding queryFromHome to dependencies if you implement filtering
+    fetchClubs();
+  }, []);
 
-  const fetchClubsAgain = () => {
-     async function loadClubs() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const fetchedClubs = await getAllClubs();
-        setClubs(fetchedClubs);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load clubs. Please try again.');
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadClubs();
-  }
+  const handleSearch = (newFilters: Filters) => {
+    setFilters(newFilters);
+  };
+  
+  const filteredClubs = useMemo(() => {
+    if (!clubs) return [];
+    return clubs.filter(club => {
+        const searchTermMatch = filters.searchTerm
+            ? club.name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+              (club.sport && club.sport.toLowerCase().includes(filters.searchTerm.toLowerCase()))
+            : true;
+
+        const sportMatch = filters.sport !== 'any'
+            ? club.sport?.toLowerCase() === filters.sport.toLowerCase()
+            : true;
+
+        const locationMatch = filters.location
+            ? (club.address?.city && club.address.city.toLowerCase().includes(filters.location.toLowerCase())) ||
+              (club.address?.state && club.address.state.toLowerCase().includes(filters.location.toLowerCase()))
+            : true;
+
+        return searchTermMatch && sportMatch && locationMatch;
+    });
+  }, [clubs, filters]);
 
   return (
     <>
@@ -64,7 +82,7 @@ function ClubDirectoryContent() {
         </p>
       </header>
 
-      <ClubSearchFilters initialSearchTerm={queryFromHome} />
+      <ClubSearchFilters initialSearchTerm={queryFromHome} onSearch={handleSearch} />
 
       {isLoading ? (
         <div className="text-center py-12">
@@ -75,15 +93,15 @@ function ClubDirectoryContent() {
         <div className="text-center py-12">
           <h2 className="text-2xl font-semibold text-destructive">Error Loading Clubs</h2>
           <p className="mt-2 text-muted-foreground">{error}</p>
-          <Button onClick={fetchClubsAgain} className="mt-6">
+          <Button onClick={fetchClubs} className="mt-6">
             Try Again
           </Button>
         </div>
-      ) : clubs.length > 0 ? (
+      ) : filteredClubs.length > 0 ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {clubs.map((club) => (
-              <ClubCard key={club.id} club={club} />
+            {filteredClubs.map((club) => (
+              <ClubCard key={club._id || club.id} club={club} />
             ))}
           </div>
           {/* Placeholder Pagination */}
