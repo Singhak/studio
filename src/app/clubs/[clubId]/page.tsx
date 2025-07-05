@@ -9,7 +9,7 @@ import { ClubDetailsContent } from '@/components/features/clubs/ClubDetailsConte
  * rendered on the client-side, making them behave like a true Single-Page Application (SPA) route.
  */
 export async function generateStaticParams() {
-  return [{ clubId: '' }];
+  return [{ clubId: '2342121' }];
 }
 
 // The page component is now a simple Server Component wrapper.
