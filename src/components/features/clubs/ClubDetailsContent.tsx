@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 
 export function ClubDetailsContent() {
   const { toast } = useToast();
@@ -194,20 +195,36 @@ export function ClubDetailsContent() {
     );
   }
 
+  const imagesToShow = club.images && club.images.length > 0 ? club.images : ['https://placehold.co/1200x400.png'];
+
   return (
     <>
       <section className="mb-8">
-        <div className="relative h-64 md:h-96 rounded-lg overflow-hidden shadow-xl">
-          <Image
-            src={club.images?.[0] || 'https://placehold.co/1200x400.png'}
-            alt={`${club.name} main image`}
-            layout="fill"
-            objectFit="cover"
-            className="transition-transform duration-500 hover:scale-105"
-            data-ai-hint={`${(club.sport || 'sports').toLowerCase()} facility`}
-          />
+        <Carousel className="w-full rounded-lg overflow-hidden shadow-xl relative">
+          <CarouselContent>
+            {imagesToShow.map((image, index) => (
+              <CarouselItem key={index}>
+                <div className="relative h-64 md:h-96">
+                  <Image
+                    src={image}
+                    alt={`${club.name} image ${index + 1}`}
+                    layout="fill"
+                    objectFit="cover"
+                    className="transition-transform duration-500 hover:scale-105"
+                    data-ai-hint={`${(club.sport || 'sports').toLowerCase()} facility`}
+                  />
+                </div>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          {imagesToShow.length > 1 && (
+            <>
+              <CarouselPrevious className="absolute left-4 top-1/2 -translate-y-1/2 z-10" />
+              <CarouselNext className="absolute right-4 top-1/2 -translate-y-1/2 z-10" />
+            </>
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-          <div className="absolute bottom-0 left-0 p-6 md:p-8">
+          <div className="absolute bottom-0 left-0 p-6 md:p-8 z-10">
             <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight">{club.name}</h1>
             <div className="flex items-center mt-2 space-x-4 text-white/90">
               {club.sport && <span className="flex items-center"><Zap size={18} className="mr-1.5" /> {club.sport}</span>}
@@ -215,7 +232,7 @@ export function ClubDetailsContent() {
               {club.averageRating !== undefined && <span className="flex items-center"><Star size={18} className="mr-1.5 text-yellow-400 fill-yellow-400" /> {club.averageRating.toFixed(1)}</span>}
             </div>
           </div>
-        </div>
+        </Carousel>
       </section>
 
       <div className="grid lg:grid-cols-3 gap-8">
@@ -227,7 +244,6 @@ export function ClubDetailsContent() {
               {isLoadingServices ? (<div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary mr-2" /><span>Loading services...</span></div>) : servicesError ? (<div className="text-center py-8 text-destructive"><AlertTriangle className="mx-auto h-10 w-10 mb-2" /><p className="font-semibold">{servicesError}</p></div>) : filteredServices && filteredServices.length > 0 ? (<ul className="space-y-4">{filteredServices.map((service) => (<li key={service._id} className={`p-4 border rounded-md hover:shadow-sm transition-all cursor-pointer ${selectedServiceForBooking?._id === service._id ? 'ring-2 ring-primary shadow-lg' : 'border-border'}`} onClick={() => handleServiceSelectionForBooking(service)}><div className="flex justify-between items-start gap-2"><div><h3 className="text-lg font-semibold text-foreground">{service.name}</h3><p className="text-sm text-muted-foreground mb-1">{service.description || `${service.slotDurationMinutes || 'N/A'} minutes session for ${service.sportType}`}</p><div className="flex flex-wrap gap-2 text-xs text-muted-foreground">{service.capacity && <span className="flex items-center"><Users className="w-3 h-3 mr-1"/>Max {service.capacity}</span>}{service.slotDurationMinutes && <span className="flex items-center"><Clock className="w-3 h-3 mr-1"/>{service.slotDurationMinutes} min</span>}{service.sportType && <span className="flex items-center"><Palette className="w-3 h-3 mr-1"/>{service.sportType}</span>}</div></div><Badge variant="default" className="text-md whitespace-nowrap"><DollarSign className="w-4 h-4 mr-1" /> {service.hourlyPrice.toFixed(2)}/hr</Badge></div></li>))}</ul>) : (<p className="text-sm text-muted-foreground mt-4 text-center py-8 flex flex-col items-center"><ListChecks className="w-12 h-12 mb-3 text-muted-foreground/50" />No services found {selectedSportFilter !== "all" ? `for ${selectedSportFilter}` : "for this club"}.</p>)}
             </CardContent>
           </Card>
-          {club.images && club.images.length > 1 && (<Card><CardHeader><CardTitle className="text-2xl">Gallery</CardTitle></CardHeader><CardContent className="grid grid-cols-2 sm:grid-cols-3 gap-4">{club.images.slice(0,6).map((img, index) => (<div key={index} className="aspect-square rounded-md overflow-hidden shadow-md"><Image src={img} alt={`${club.name} gallery image ${index + 1}`} width={300} height={300} className="object-cover w-full h-full" data-ai-hint="sports facility" /></div>))}</CardContent></Card>)}
         </div>
         <div className="space-y-8">
           <BookingCalendar selectedService={selectedServiceForBooking} onSlotSelect={handleCalendarSlotSelect} />
