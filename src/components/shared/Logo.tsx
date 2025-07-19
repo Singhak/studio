@@ -17,34 +17,44 @@ export function Logo({ className }: LogoProps) {
         xmlns="http://www.w3.org/2000/svg"
         className="h-8 w-auto"
       >
-        {/* Pie chart circle */}
-        <path d="M17.3619 0.428571C7.94286 0.428571 0.428571 7.94286 0.428571 17.3619C0.428571 26.781 7.94286 34.2952 17.3619 34.2952C26.781 34.2952 34.2952 26.781 34.2952 17.3619C34.2952 7.94286 26.781 0.428571 17.3619 0.428571Z" fill="#2D3748" />
-        <path d="M17.3619 0.428571V17.3619H0.428571C0.428571 7.94286 7.94286 0.428571 17.3619 0.428571Z" fill="#2A64AD" />
-        <path d="M0.428571 17.3619H17.3619V34.2952C7.94286 34.2952 0.428571 26.781 0.428571 17.3619Z" fill="#F97316" />
-        <path d="M17.3619 17.3619H34.2952C34.2952 26.781 26.781 34.2952 17.3619 34.2952V17.3619Z" fill="#38A169" />
-        <path d="M17.3619 0.428571C26.781 0.428571 34.2952 7.94286 34.2952 17.3619H17.3619V0.428571Z" fill="#68D391" />
-
+        {/* Pie chart circle using a clip path to create the quadrants */}
+        <defs>
+          <clipPath id="circle-clip">
+            <circle cx="16" cy="16" r="16" />
+          </clipPath>
+        </defs>
+        <g clipPath="url(#circle-clip)">
+          {/* Top-left - Blue */}
+          <rect x="0" y="0" width="16" height="16" fill="#3B82F6" />
+          {/* Top-right - Light Green */}
+          <rect x="16" y="0" width="16" height="16" fill="#A7F3D0" />
+          {/* Bottom-left - Orange */}
+          <rect x="0" y="16" width="16" height="16" fill="#F97316" />
+          {/* Bottom-right - Dark Green */}
+          <rect x="16" y="16" width="16" height="16" fill="#10B981" />
+        </g>
+        
         {/* Text "Playce" */}
         <text
-          x="40"
-          y="25"
-          fontFamily="Arial, sans-serif"
-          fontSize="18"
+          x="42"
+          y="23"
+          fontFamily="sans-serif"
+          fontSize="20"
           fontWeight="bold"
-          fill="#1E2A53"
+          fill="hsl(var(--primary))"
+          className="text-primary"
         >
           Playce
         </text>
-
+        
         {/* Stylized 'P' overlay */}
         <text
-          x="28"
-          y="25"
-          fontFamily="Arial, sans-serif"
-          fontSize="18"
+          x="26"
+          y="23"
+          fontFamily="sans-serif"
+          fontSize="20"
           fontWeight="bold"
-          fill="#4299E1"
-          style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.2)' }}
+          fill="#60A5FA"
         >
           P
         </text>
