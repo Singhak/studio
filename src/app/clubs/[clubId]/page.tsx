@@ -8,9 +8,9 @@ import { ClubDetailsContent } from '@/components/features/clubs/ClubDetailsConte
  * telling Next.js *not* to pre-render any club pages. Instead, they will all be
  * rendered on the client-side, making them behave like a true Single-Page Application (SPA) route.
  */
-export async function generateStaticParams() {
-  return [{ clubId: '2342121' }];
-}
+// export async function generateStaticParams() {
+//   return [{ clubId: '2342121' }];
+// }
 
 // The page component is now a simple Server Component wrapper.
 export default function ClubDetailsPage() {

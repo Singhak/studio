@@ -14,7 +14,6 @@ import { createBooking } from '@/services/bookingService';
 import { getServicesByClubId, getClubById } from '@/services/clubService';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
-import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
