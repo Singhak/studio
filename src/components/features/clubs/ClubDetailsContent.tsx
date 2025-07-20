@@ -195,6 +195,8 @@ export function ClubDetailsContent() {
   }
 
   const imagesToShow = club.images && club.images.length > 0 ? club.images : ['https://placehold.co/1200x400.png'];
+  const fullAddress = club.address ? `${club.address.street}, ${club.address.city}, ${club.address.state} ${club.address.zipCode}` : null;
+  const mapQuery = fullAddress || club.name;
 
   return (
     <>
@@ -251,7 +253,26 @@ export function ClubDetailsContent() {
           <Card>
             <CardHeader><CardTitle className="text-xl flex items-center"><MapPin className="w-5 h-5 mr-2 text-primary" /> Location Map</CardTitle></CardHeader>
             <CardContent>
-              {(club.location && club.location.coordinates && club.location.coordinates.length === 2) ? (<><div className="aspect-video w-full bg-muted rounded-md overflow-hidden border"><iframe width="100%" height="100%" style={{ border: 0 }} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" src={`https://www.google.com/maps/embed/v1/view?key=YOUR_GOOGLE_MAPS_API_KEY_HERE&center=${club.location.coordinates[1]},${club.location.coordinates[0]}&zoom=15&maptype=roadmap`}></iframe></div><p className="mt-2 text-xs text-muted-foreground">Note: This map is a placeholder. To enable live Google Maps, obtain a Google Maps Embed API key and replace "YOUR_GOOGLE_MAPS_API_KEY_HERE" in <code className="p-0.5 bg-muted rounded text-xs">src/components/features/clubs/ClubDetailsContent.tsx</code> with your key.</p></>) : (<p className="text-muted-foreground">Location coordinates not available for this club.</p>)}
+              {mapQuery ? (
+                <>
+                  <div className="aspect-video w-full bg-muted rounded-md overflow-hidden border">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      allowFullScreen
+                      referrerPolicy="no-referrer-when-downgrade"
+                      src={`https://www.google.com/maps/embed/v1/place?key=YOUR_GOOGLE_MAPS_API_KEY_HERE&q=${encodeURIComponent(mapQuery)}`}>
+                    </iframe>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Note: This map is a placeholder. To enable live Google Maps, obtain a Google Maps Embed API key and replace "YOUR_GOOGLE_MAPS_API_KEY_HERE" in <code className="p-0.5 bg-muted rounded text-xs">src/components/features/clubs/ClubDetailsContent.tsx</code> with your key.
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">Location or address not available for this club.</p>
+              )}
             </CardContent>
           </Card>
         </div>
