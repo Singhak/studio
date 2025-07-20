@@ -19,7 +19,6 @@ import { Label } from "@/components/ui/label";
 import { Star, MessageSquare, Award, Home, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getClubById } from "@/services/clubService";
-import { mockServices } from "@/lib/mockData"; // Fallback for service details if not in club
 
 const reviewFormSchema = z.object({
   clubRating: z.number().min(1, "Club rating is required.").max(5),
@@ -92,18 +91,11 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
     async function fetchDetails() {
       setIsLoadingDetails(true);
       try {
-        const fetchedClub = await getClubById(booking.club);
+        const fetchedClub = await getClubById(booking.club._id);
         setClubDetails(fetchedClub);
         if (fetchedClub && fetchedClub.services) {
-          const foundService = fetchedClub.services.find(s => s._id === booking.service);
+          const foundService = fetchedClub.services.find(s => s._id === booking.service._id);
           setServiceDetails(foundService);
-          if (!foundService) { // Fallback to general mockServices if not found in club's list
-            const fallbackService = mockServices.find(s => s._id === booking.service);
-            setServiceDetails(fallbackService);
-          }
-        } else if (fetchedClub) { // Club found but no services array
-            const fallbackService = mockServices.find(s => s._id === booking.service);
-            setServiceDetails(fallbackService);
         } else {
           setServiceDetails(null); // Club not found
         }
@@ -174,7 +166,7 @@ export function ReviewForm({ booking, onReviewSubmit }: ReviewFormProps) {
     );
   }
   if (!serviceDetails) {
-     return (
+    return (
       <div className="p-4 text-center text-destructive">
         Could not load service details for this booking. The service might no longer be offered.
       </div>
