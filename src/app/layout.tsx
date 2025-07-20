@@ -20,6 +20,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable}`} suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/images/playce-logo.png" />
+      </head>
       <body className="font-sans antialiased">
         <ThemeProvider>
           <AuthProvider>
