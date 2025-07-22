@@ -254,7 +254,7 @@ export function ClubDetailsContent() {
             <CardHeader><CardTitle className="text-xl flex items-center"><MapPin className="w-5 h-5 mr-2 text-primary" /> Location Map</CardTitle></CardHeader>
             <CardContent>
               {mapQuery ? (
-                <>
+                process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
                   <div className="aspect-video w-full bg-muted rounded-md overflow-hidden border">
                     <iframe
                       width="100%"
@@ -263,13 +263,19 @@ export function ClubDetailsContent() {
                       loading="lazy"
                       allowFullScreen
                       referrerPolicy="no-referrer-when-downgrade"
-                      src={`https://www.google.com/maps/embed/v1/place?key=YOUR_GOOGLE_MAPS_API_KEY_HERE&q=${encodeURIComponent(mapQuery)}`}>
+                      src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(mapQuery)}`}>
                     </iframe>
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Note: This map is a placeholder. To enable live Google Maps, obtain a Google Maps Embed API key and replace "YOUR_GOOGLE_MAPS_API_KEY_HERE" in <code className="p-0.5 bg-muted rounded text-xs">src/components/features/clubs/ClubDetailsContent.tsx</code> with your key.
-                  </p>
-                </>
+                ) : (
+                  <div className="aspect-video w-full bg-muted rounded-md border flex items-center justify-center p-4 text-center">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Google Maps has not been configured.</p>
+                      {/* <p className="mt-2 text-xs text-muted-foreground">
+                        To enable live Google Maps, please set the <code className="p-0.5 bg-muted rounded text-xs">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> environment variable in your <code className="p-0.5 bg-muted rounded text-xs">.env.local</code> file.
+                      </p> */}
+                    </div>
+                  </div>
+                )
               ) : (
                 <p className="text-muted-foreground">Location or address not available for this club.</p>
               )}
